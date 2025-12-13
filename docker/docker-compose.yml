@@ -1,0 +1,181 @@
+version: '3.9'
+
+# 自定义网络配置，支持跨平台网络通信
+networks:
+  cyp-memo-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+    # 确保网络在不同平台上兼容
+    driver_opts:
+      com.docker.network.bridge.name: cyp-memo-bridge
+
+# 可配置的卷定义，支持NAS挂载
+volumes:
+  # 本地卷，适合Docker Desktop
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  # 应用数据卷，支持NAS挂载
+  app_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data  # 可替换为NAS路径，如 /volume1/docker/cyp-memo/data
+      o: bind
+  app_uploads:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./uploads  # 可替换为NAS路径，如 /volume1/docker/cyp-memo/uploads
+      o: bind
+  app_env:
+    driver: local
+    driver_opts:
+      type: none
+      device: ../.env  # 可替换为NAS路径
+      o: bind
+
+services:
+  # 主应用服务
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      # 优化构建，支持多平台构建
+      args:
+        - BUILDPLATFORM=linux/amd64
+    container_name: cyp-memo-web
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8000:8000"       # 网页端访问
+      - "5000:5000"     # WebDAV服务
+    environment:
+      - APP_ENV=production
+      - DATABASE_URL=postgresql://cyp:password@db:5432/cyp_memo
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - TZ=Asia/Shanghai  # 时区配置，确保日志时间正确
+    volumes:
+      - app_data:/app/data          # 数据存储目录
+      - app_uploads:/app/uploads    # 上传文件目录
+      - app_env:/app/.env:ro         # 环境变量文件，只读
+    # 确保容器在NAS环境下的兼容性
+    security_opt:
+      - no-new-privileges:true
+    # 资源限制，优化NAS性能
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    restart: unless-stopped
+    networks:
+      - cyp-memo-network
+
+  # 数据库服务
+  db:
+    image: postgres:15-alpine
+    container_name: cyp-memo-db
+    environment:
+      - POSTGRES_USER=cyp
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cyp_memo
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+      - TZ=Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - cyp-memo-network
+    # 优化数据库性能
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.7
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+
+  # 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: cyp-memo-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - cyp-memo-network
+    # 优化Redis配置
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 反向代理服务 - 支持多平台部署
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: cyp-memo-nginx
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # 支持自定义ssl证书挂载
+      - ./nginx/ssl/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+    networks:
+      - cyp-memo-network
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 部署配置，支持Swarm模式
+# deploy:
+#   mode: replicated
+#   replicas: 1
+#   placement:
+#     constraints:
+#       - node.role == manager
+#   update_config:
+#     parallelism: 1
+#     delay: 10s
+#   restart_policy:
+#     condition: on-failure
+#     delay: 5s
+#     max_attempts: 3
+#     window: 120s
+

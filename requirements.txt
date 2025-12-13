@@ -1,0 +1,41 @@
+# 基础框架
+fastapi==0.104.1
+uvicorn==0.24.0.post1
+
+# 数据库
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# 缓存
+redis==5.0.1
+
+# 认证
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# WebDAV
+wsgidav==4.2.0
+
+# 二维码
+qrcode[pil]==7.4.2
+pyzbar==0.1.9
+
+# 文件处理
+pypdf2==3.0.1
+python-docx==0.8.11
+openpyxl==3.1.2
+pillow==10.2.0
+python-multipart==0.0.6
+
+# 配置管理
+python-dotenv==1.0.0
+
+# 工具库
+tzdata==2023.3
+typing-extensions==4.9.0
+python-magic==0.4.27
+
+# 前端相关
+jinja2==3.1.2
+python-multipart==0.0.6
