@@ -13,15 +13,15 @@ CYP-memo/
 │   │   ├── notes.py        # 笔记相关接口
 │   │   ├── files.py        # 文件相关接口
 │   │   ├── webdav.py       # WebDAV接口
-│   │   └── admin.py        # 管理接口
+│   │   ├── admin.py        # 管理接口
+│   │   └── system.py       # 系统相关接口
 │   ├── core/               # 核心功能层
 │   │   ├── __init__.py
 │   │   ├── config.py       # 配置管理
 │   │   ├── database.py     # 数据库连接
 │   │   ├── webdav.py       # WebDAV实现
 │   │   ├── qrcode.py       # 二维码功能
-│   │   ├── file_parser.py  # 文件解析器
-│   │   └── notifications.py # 通知系统
+│   │   └── file_parser.py  # 文件解析器
 │   ├── models/             # 数据模型层
 │   │   ├── __init__.py
 │   │   ├── user.py         # 用户模型
@@ -31,35 +31,58 @@ CYP-memo/
 │   │   └── notification.py # 通知模型
 │   ├── schemas/            # 数据验证层
 │   │   ├── __init__.py
-│   │   ├── user.py         # 用户验证
-│   │   ├── note.py         # 笔记验证
-│   │   └── auth.py         # 认证验证
+│   │   ├── auth.py         # 认证验证
+│   │   └── note.py         # 笔记验证
 │   ├── utils/              # 工具函数层
 │   │   ├── __init__.py
-│   │   ├── encryption.py   # 加密工具
-│   │   ├── file_utils.py   # 文件处理工具
 │   │   └── version.py      # 版本管理
 │   ├── static/             # 静态资源
-│   │   ├── css/            # CSS样式
-│   │   ├── js/             # JavaScript
-│   │   └── images/         # 图片资源
+│   │   ├── assets/         # 前端构建资源
+│   │   │   ├── index-*.css # 样式文件
+│   │   │   └── index-*.js  # JavaScript文件
+│   │   ├── index.html      # 首页
+│   │   └── vite.svg        # Vite图标
 │   ├── templates/          # HTML模板
+│   │   └── index.html      # 首页模板
 │   └── main.py             # 应用入口
-├── config/                 # 配置文件目录
-│   ├── .env.example        # 环境变量示例
-│   └── config.py           # 配置加载
 ├── docker/                 # Docker相关文件
+│   ├── nginx/              # Nginx配置
+│   │   └── nginx.conf      # Nginx配置文件
 │   ├── Dockerfile          # Docker镜像构建文件
 │   └── docker-compose.yml  # Docker Compose配置
-├── tests/                  # 测试目录
-│   ├── __init__.py
-│   ├── test_auth.py        # 认证测试
-│   └── test_notes.py       # 笔记测试
-├── .gitignore              # Git忽略文件
-├── LICENSE                 # 许可证
-├── README.md               # 项目说明
-├── requirements.txt        # 依赖列表
-└── run.py                  # 运行脚本
+├── unified-version-system/ # 版本规范系统
+│   ├── .version/           # 版本文件目录
+│   ├── core/               # 核心功能
+│   ├── docs/               # 文档
+│   ├── .version-config.json # 版本配置
+│   ├── .version-record.json # 版本记录
+│   ├── README.md           # 版本系统说明
+│   ├── package.json        # 版本系统依赖
+│   └── version-record-simple.js # 版本记录脚本
+├── web/                    # 前端代码目录
+│   ├── .vscode/            # VSCode配置
+│   ├── public/             # 公共资源
+│   ├── src/                # 源代码
+│   │   ├── assets/         # 静态资源
+│   │   ├── components/     # Vue组件
+│   │   ├── App.vue         # 根组件
+│   │   ├── main.js         # 入口文件
+│   │   └── style.css       # 全局样式
+│   ├── .gitignore          # Git忽略文件
+│   ├── README.md           # 前端项目说明
+│   ├── index.html          # HTML模板
+│   ├── package-lock.json   # NPM锁定文件
+│   ├── package.json        # NPM依赖
+│   └── vite.config.js      # Vite配置
+├── .env                    # 环境变量
+├── DEPLOYMENT.md           # 部署文档
+├── DEVELOPMENT_DOCS.md     # 开发文档
+├── cyp_memo.db             # SQLite数据库文件
+├── project_structure.md    # 项目结构文档
+├── requirements.txt        # Python依赖列表
+├── run.py                  # 运行脚本
+├── test_basic.py           # 基础功能测试
+└── test_config.py          # 配置测试
 ```
 
 ## 容器化部署方案
@@ -73,22 +96,20 @@ CYP-memo/
 ### 2. Docker Compose配置
 - **服务组件**:
   - web: 主应用服务
-  - db: PostgreSQL数据库
-  - redis: 缓存服务
   - nginx: 反向代理
 
 ### 3. 网络配置
 - 使用桥接网络
-- 暴露端口: 80(HTTP), 443(HTTPS), 5000(WebDAV)
+- 暴露端口: 80(HTTP), 5000(WebDAV)
 
 ## 技术栈
 
 ### 后端
 - **框架**: FastAPI
-- **数据库**: PostgreSQL
+- **数据库**: SQLite
 - **ORM**: SQLAlchemy
 - **认证**: JWT
-- **文件存储**: 本地文件系统/MinIO
+- **文件存储**: 本地文件系统
 - **WebDAV**: wsgidav
 - **二维码**: qrcode + pyzbar
 - **文件解析**: PyPDF2, python-docx, openpyxl, PIL
@@ -97,7 +118,7 @@ CYP-memo/
 - **框架**: Vue 3
 - **UI组件**: Element Plus (科技感主题)
 - **HTTP客户端**: Axios
-- **编辑器**: Quill.js
+- **构建工具**: Vite
 
 ## 核心功能模块
 
@@ -105,14 +126,12 @@ CYP-memo/
 - 注册/登录
 - JWT令牌
 - 权限管理
-- 密码重置
 
 ### 2. 笔记管理
 - 创建/编辑/删除笔记
 - 富文本编辑
 - 附件上传
 - 文件解析到编辑区
-- 目录管理
 - 标签管理
 
 ### 3. 文件处理
@@ -130,20 +149,10 @@ CYP-memo/
 - 生成笔记分享二维码
 - 扫描二维码导入
 
-### 6. 第三方导入导出
-- 支持多种格式
-- 批量操作
-
-### 7. 搜索功能
-- 全文搜索
-- 标签搜索
-- 目录搜索
-
-### 8. 管理功能
-- 用户管理
-- 通知管理
-- 系统设置
-- 日志查看
+### 6. 系统管理
+- 系统信息
+- 存储信息
+- 健康检查
 
 ## 开发规范
 
@@ -186,6 +195,7 @@ docker-compose up -d
 4. **访问服务**
    - 网页端: http://localhost
    - WebDAV: http://localhost:5000
+   - API文档: http://localhost/docs
 
 ## 后续计划
 
@@ -198,43 +208,11 @@ docker-compose up -d
 ### 第二阶段: 桌面软件
 - 基于Electron开发桌面客户端
 - 支持Windows/macOS/Linux
+- 实现离线使用功能
+- 实时同步
 
 ### 第三阶段: 手机APP
 - 开发iOS/Android客户端
 - 支持离线使用
 - 实时同步
-
-## 版权声明
-
-- 作者: CYP
-- 联系方式: nasDSSCYP@outlook.com
-- 许可证: MIT License
-- 免责声明: 本软件仅供个人学习和使用，作者不承担任何责任
-
-## 版本记录
-
-### v0.1.0 (2024-01-01)
-- 初始化项目结构
-- 完成用户认证功能
-- 实现笔记基本操作
-- 支持文件上传
-- 实现WebDAV服务
-
-### v0.2.0 (2024-01-15)
-- 新增二维码生成和扫描功能
-- 支持第三方笔记导入导出
-- 实现文件解析功能
-- 新增目录和标签管理
-
-### v0.3.0 (2024-02-01)
-- 完成管理功能
-- 实现通知系统
-- 优化搜索功能
-- 完善中文界面
-- 增强科技感设计
-
-### v1.0.0 (2024-03-01)
-- 正式发布
-- 支持容器化部署
-- 网页端稳定运行
-- 准备桌面和手机APP开发
+- 移动端优化

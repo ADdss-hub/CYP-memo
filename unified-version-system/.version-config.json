@@ -1,0 +1,59 @@
+{
+  "version": {
+    "format": "v{major}.{minor}.{patch}",
+    "prefix": "v",
+    "separator": ".",
+    "suffix": ""
+  },
+  "files": {
+    "versionDir": ".version",
+    "versionFile": "version.json",
+    "changelogFile": "changelog.json",
+    "moduleFile": "version-module.js",
+    "syncFiles": []
+  },
+  "behavior": {
+    "autoIncrement": false,
+    "validateOnCommit": false,
+    "autoTag": true,
+    "createChangelog": true,
+    "requireChangeTypes": false
+  },
+  "integration": {
+    "git": {
+      "enabled": true,
+      "autoCommit": false,
+      "autoTag": true,
+      "tagPrefix": "v"
+    },
+    "npm": {
+      "enabled": false,
+      "autoUpdate": false
+    },
+    "docker": {
+      "enabled": false,
+      "autoUpdate": false
+    }
+  },
+  "notifications": {
+    "slack": {
+      "enabled": false,
+      "webhook": null,
+      "channel": null
+    },
+    "email": {
+      "enabled": false,
+      "recipients": [],
+      "smtp": {}
+    }
+  },
+  "project": {
+    "type": "node",
+    "name": "universal-version-manager",
+    "description": "通用版本规范、版本记录和版本自动检查机制",
+    "homepage": "",
+    "repository": ""
+  },
+  "_template": true,
+  "_description": "此文件为版本管理配置文件模板"
+}

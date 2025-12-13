@@ -1,0 +1,22 @@
+{
+  "schema": "2.1.0",
+  "history": [
+    {
+      "version": "v0.1.2",
+      "timestamp": "2025-12-13T12:16:13.110Z",
+      "author": "Unknown",
+      "changes": [],
+      "type": "chore",
+      "previousVersion": "v0.1.2",
+      "metadata": {
+        "previousVersion": "v0.1.2",
+        "updated": true,
+        "schema": "2.1.0"
+      }
+    }
+  ],
+  "metadata": {
+    "created": "2025-12-13T12:10:54.692Z",
+    "project": "CYP-memo"
+  }
+}

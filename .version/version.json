@@ -1,0 +1,9 @@
+{
+  "version": "v0.1.2",
+  "name": "CYP-memo",
+  "author": "CYP",
+  "contact": "nasDSSCYP@outlook.com",
+  "description": "容器化的CYP备忘录，支持WebDAV、二维码、文件解析等功能",
+  "lastUpdate": "2025-12-13T12:10:54.742Z",
+  "status": "active"
+}

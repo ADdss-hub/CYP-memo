@@ -1,6 +1,10 @@
 # 基础镜像
 FROM python:3.11-slim
 
+# 构建参数
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+
 # 设置工作目录
 WORKDIR /app
 
@@ -11,10 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
+# 配置pip镜像源加速
+RUN pip config set global.index-url ${PIP_INDEX_URL}
+RUN pip config set install.trusted-host ${PIP_TRUSTED_HOST}
+
 # 复制依赖文件
 COPY requirements.txt .
 
-# 安装Python依赖
+# 安装Python依赖（使用已配置的镜像源）
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制项目文件

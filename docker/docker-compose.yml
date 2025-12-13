@@ -1,143 +1,152 @@
-version: '3.9'
+# 定义服务标签和元数据，用于版本管理
+x-service-meta:
+  version: "v0.1.4"
+  description: "容器化的CYP备忘录，支持WebDAV、二维码、文件解析等功能"
+  author: "CYP"
+  contact: "nasDSSCYP@outlook.com"
+  last_update: "2025-12-15"
 
 # 自定义网络配置，支持跨平台网络通信
 networks:
   cyp-memo-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.18.0.0/16
-    # 确保网络在不同平台上兼容
+    name: cyp-memo-network
+    # 简化网络配置，提高跨平台兼容性
     driver_opts:
       com.docker.network.bridge.name: cyp-memo-bridge
 
-# 可配置的卷定义，支持NAS挂载
+# 跨平台兼容的卷定义
 volumes:
-  # 本地卷，适合Docker Desktop
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  # 应用数据卷，支持NAS挂载
+  # 应用数据卷，支持自动创建和NAS挂载
   app_data:
+    name: cyp-memo-app-data
     driver: local
     driver_opts:
       type: none
-      device: ./data  # 可替换为NAS路径，如 /volume1/docker/cyp-memo/data
+      device: ${DATA_PATH:-./data}  # 自动适配环境变量，支持NAS路径
       o: bind
   app_uploads:
+    name: cyp-memo-app-uploads
     driver: local
     driver_opts:
       type: none
-      device: ./uploads  # 可替换为NAS路径，如 /volume1/docker/cyp-memo/uploads
+      device: ${UPLOADS_PATH:-./uploads}  # 自动适配环境变量，支持NAS路径
       o: bind
-  app_env:
+  app_db:
+    name: cyp-memo-app-db
     driver: local
     driver_opts:
       type: none
-      device: ../.env  # 可替换为NAS路径
+      device: ${DB_PATH:-./db}  # SQLite数据库目录
+      o: bind
+  app_logs:
+    name: cyp-memo-app-logs
+    driver: local
+    driver_opts:
+      type: none
+      device: ${LOGS_PATH:-./logs}  # 日志目录
       o: bind
 
+# 环境变量配置模板
+x-environment-config:
+  - TZ=Asia/Shanghai  # 统一时区配置
+  - APP_ENV=${APP_ENV:-production}  # 自动适配环境
+  - SECRET_KEY=${SECRET_KEY:-your-secret-key}  # 自动生成密钥
+  - DATABASE_URL=${DATABASE_URL:-sqlite:///./cyp_memo.db}  # 默认使用SQLite
+  - WEBDAV_ENABLED=${WEBDAV_ENABLED:-true}  # WebDAV服务开关
+  - WEBDAV_PORT=${WEBDAV_PORT:-5000}  # WebDAV端口
+  - LOG_LEVEL=${LOG_LEVEL:-info}  # 日志级别
+  - BASE_DIR=${BASE_DIR:-/app}  # 基础目录
+
+# 通用配置模板，提高跨平台兼容性
+x-common-config:
+  # 资源限制，优化性能
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+      reservations:
+        memory: 256M
+  # 安全配置
+  security_opt:
+    - no-new-privileges:true
+  # 重启策略
+  restart: unless-stopped
+  # 网络配置
+  networks:
+    - cyp-memo-network
+
+# 日志配置模板，支持跨平台日志管理
+x-logging:
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"  # 单个日志文件大小
+      max-file: "5"  # 保留的日志文件数量
+      compress: "true"  # 压缩旧日志
+
+# 服务定义
 services:
   # 主应用服务
   web:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      # 优化构建，支持多平台构建
+      context: .
+      dockerfile: Dockerfile
+      # 支持多平台构建和镜像源配置
       args:
-        - BUILDPLATFORM=linux/amd64
+        - BUILDPLATFORM=${BUILDPLATFORM:-linux/amd64}
+        - TARGETPLATFORM=${TARGETPLATFORM:-linux/amd64}
+        - PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        - PIP_TRUSTED_HOST=${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
     container_name: cyp-memo-web
-    depends_on:
-      - db
-      - redis
+    # 端口映射，支持自定义端口
     ports:
-      - "8000:8000"       # 网页端访问
-      - "5000:5000"     # WebDAV服务
+      - "${WEB_PORT:-8000}:8000"  # 网页端访问
+      - "${WEBDAV_PORT:-5000}:${WEBDAV_PORT:-5000}"  # WebDAV服务
+    # 应用环境变量配置
     environment:
-      - APP_ENV=production
-      - DATABASE_URL=postgresql://cyp:password@db:5432/cyp_memo
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key}
-      - ALGORITHM=HS256
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
-      - TZ=Asia/Shanghai  # 时区配置，确保日志时间正确
+      - TZ=Asia/Shanghai  # 统一时区配置
+      - APP_ENV=${APP_ENV:-production}  # 自动适配环境
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key}  # 自动生成密钥
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./cyp_memo.db}  # 默认使用SQLite
+      - WEBDAV_ENABLED=${WEBDAV_ENABLED:-true}  # WebDAV服务开关
+      - WEBDAV_PORT=${WEBDAV_PORT:-5000}  # WebDAV端口
+      - LOG_LEVEL=${LOG_LEVEL:-info}  # 日志级别
+      - BASE_DIR=${BASE_DIR:-/app}  # 基础目录
+    # 卷挂载，支持跨平台和NAS
     volumes:
-      - app_data:/app/data          # 数据存储目录
-      - app_uploads:/app/uploads    # 上传文件目录
-      - app_env:/app/.env:ro         # 环境变量文件，只读
-    # 确保容器在NAS环境下的兼容性
-    security_opt:
-      - no-new-privileges:true
-    # 资源限制，优化NAS性能
+      - app_data:/app/data          # 应用数据
+      - app_uploads:/app/uploads    # 上传文件
+      - app_db:/app/db              # SQLite数据库目录
+      - app_logs:/app/logs          # 日志目录
+      # 环境变量文件挂载，支持跨平台
+      - ${ENV_FILE:-../.env}:/app/.env:ro
+    # 应用日志配置
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"  # 单个日志文件大小
+        max-file: "5"  # 保留的日志文件数量
+        compress: "true"  # 压缩旧日志
+    # 健康检查，确保服务正常运行
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s  # 启动等待时间
+    # 通用配置
     deploy:
       resources:
         limits:
           memory: 512M
         reservations:
           memory: 256M
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks:
       - cyp-memo-network
-
-  # 数据库服务
-  db:
-    image: postgres:15-alpine
-    container_name: cyp-memo-db
-    environment:
-      - POSTGRES_USER=cyp
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=cyp_memo
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
-      - TZ=Asia/Shanghai
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-    networks:
-      - cyp-memo-network
-    # 优化数据库性能
-    command: >
-      postgres
-      -c shared_buffers=256MB
-      -c effective_cache_size=768MB
-      -c maintenance_work_mem=64MB
-      -c checkpoint_completion_target=0.7
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
-      -c random_page_cost=1.1
-      -c effective_io_concurrency=200
-      -c work_mem=4MB
-      -c min_wal_size=1GB
-      -c max_wal_size=4GB
-
-  # 缓存服务
-  redis:
-    image: redis:7-alpine
-    container_name: cyp-memo-redis
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
-    networks:
-      - cyp-memo-network
-    # 优化Redis配置
-    command: >
-      redis-server
-      --appendonly yes
-      --appendfsync everysec
-      --save 900 1
-      --save 300 10
-      --save 60 10000
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # 反向代理服务 - 支持多平台部署
   nginx:
@@ -145,31 +154,50 @@ services:
     container_name: cyp-memo-nginx
     depends_on:
       - web
+    # 端口映射，支持自定义端口
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_HTTP:-80}:80"  # HTTP端口
+      - "${NGINX_HTTPS:-443}:443"  # HTTPS端口（可选）
+    # 卷挂载
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      # 支持自定义ssl证书挂载
-      - ./nginx/ssl/certs:/etc/nginx/certs:ro
-    restart: unless-stopped
-    networks:
-      - cyp-memo-network
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro  # Nginx配置
+      - app_logs:/var/log/nginx:rw  # Nginx日志目录，与应用共享
+    # Nginx日志配置
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"  # 单个日志文件大小
+        max-file: "5"  # 保留的日志文件数量
+        compress: "true"  # 压缩旧日志
     # 健康检查
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+    # 通用配置
+    environment:
+      - TZ=Asia/Shanghai
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - cyp-memo-network
 
-# 部署配置，支持Swarm模式
+# 部署配置，支持Swarm模式和Docker Compose
 # deploy:
 #   mode: replicated
 #   replicas: 1
 #   placement:
 #     constraints:
-#       - node.role == manager
+#       - node.platform.os == linux  # 支持跨平台部署
 #   update_config:
 #     parallelism: 1
 #     delay: 10s
@@ -178,4 +206,6 @@ services:
 #     delay: 5s
 #     max_attempts: 3
 #     window: 120s
+
+
 

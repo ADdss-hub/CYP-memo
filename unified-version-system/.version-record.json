@@ -1,0 +1,15 @@
+{
+  "lastUpdate": "2025-12-13T13:26:06.510Z",
+  "files": {
+    "version-manager-enhanced.js": "v2.0.0",
+    "version-record.js": "v0.0.0",
+    "version-update.js": "v0.1.0",
+    "test-version-sync.js": "v1.0.0",
+    "core\\version-api.js": "v0.1.2",
+    "core\\version-checker.js": "v0.1.2",
+    "core\\version-config.js": "v2.1.0",
+    "core\\version-manager.js": "v0.1.2",
+    "core\\version-updater.js": "v0.1.2",
+    "README.md": "v0.1.0"
+  }
+}

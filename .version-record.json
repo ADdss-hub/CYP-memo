@@ -1,0 +1,14 @@
+{
+  "lastUpdate": "2025-12-13T13:37:27.483Z",
+  "files": {
+    "DEVELOPMENT_DOCS.md": "v0.1.0",
+    "project_structure.md": "v0.1.0",
+    "unified-version-system\\core\\version-api.js": "v0.1.2",
+    "unified-version-system\\core\\version-checker.js": "v0.1.2",
+    "unified-version-system\\core\\version-config.js": "v2.1.0",
+    "unified-version-system\\core\\version-manager.js": "v0.1.2",
+    "unified-version-system\\core\\version-updater.js": "v0.1.2",
+    "unified-version-system\\README.md": "v0.1.0",
+    "app\\static\\assets\\index-Q_NvjIiz.js": "v0.1.2"
+  }
+}
