@@ -1,0 +1,45 @@
+{
+  "name": "@cyp-memo/admin",
+  "version": "1.7.9",
+  "type": "module",
+  "description": "CYP-memo 管理员端应用",
+  "author": {
+    "name": "CYP",
+    "email": "nasDSSCYP@outlook.com"
+  },
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "@cyp-memo/shared": "workspace:*",
+    "vue": "^3.4.3",
+    "vue-router": "^4.2.5",
+    "pinia": "^2.1.7",
+    "element-plus": "^2.5.1",
+    "dexie": "^3.2.4",
+    "@element-plus/icons-vue": "^2.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.2",
+    "@vue/test-utils": "^2.4.3",
+    "@vue/tsconfig": "^0.5.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vue-tsc": "^1.8.27",
+    "vitest": "^1.1.0",
+    "jsdom": "^23.0.1",
+    "fast-check": "^3.15.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.19.2",
+    "prettier": "^3.1.1"
+  }
+}

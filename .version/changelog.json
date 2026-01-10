@@ -1,0 +1,437 @@
+{
+  "schema": "2.1.0",
+  "history": [
+    {
+      "version": "1.7.9",
+      "timestamp": "2026-01-10T15:49:46.366Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "创建子账号错误提示优化：输入主账号用户名时显示友好提示，而非API请求失败400错误"
+        },
+        {
+          "type": "fix",
+          "description": "系统日志按级别筛选：修复管理端系统监控中按级别筛选日志不工作的问题，新增getLogsByLevel方法和API端点"
+        },
+        {
+          "type": "feat",
+          "description": "主账号和子账号备忘录共享：主账号可以看到所有子账号创建的备忘录，子账号也可以看到主账号的备忘录"
+        },
+        {
+          "type": "feat",
+          "description": "备忘录显示创建人信息：备忘录列表中显示创建人用户名和创建日期，方便区分不同账号的备忘录"
+        },
+        {
+          "type": "perf",
+          "description": "界面版权信息中文化：删除所有界面版权信息中的英文内容，统一使用中文显示"
+        },
+        {
+          "type": "perf",
+          "description": "备忘录数据隔离：子账号可以看到同一主账号下其他子账号的备忘录，不同主账号之间的数据完全隔离互不可见"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.7.8",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.8",
+      "timestamp": "2026-01-10T15:24:44.817Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "chore",
+      "previousVersion": "1.7.8",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.7",
+      "timestamp": "2026-01-10T15:01:25.690Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "patch",
+      "previousVersion": "1.7.6",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.6",
+      "timestamp": "2026-01-10T14:41:45.611Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "patch",
+      "previousVersion": "1.7.5",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.5",
+      "timestamp": "2026-01-10T14:36:25.286Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "patch",
+      "previousVersion": "1.7.4",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.4",
+      "timestamp": "2026-01-10T14:25:55.487Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "patch",
+      "previousVersion": "1.7.3",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.3",
+      "timestamp": "2026-01-10T13:56:50.278Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "版权信息分行展示：所有界面的版权信息改为分行展示版和中英融合版，新增copyrightLines getter"
+        },
+        {
+          "type": "fix",
+          "description": "管理端用户删除功能：修复用户管理中删除普通用户的功能，服务器端自动删除用户及其所有关联数据"
+        },
+        {
+          "type": "fix",
+          "description": "数据库清理功能：修复管理端数据库清理功能在远程模式下不工作的问题，新增服务器端清理API"
+        },
+        {
+          "type": "perf",
+          "description": "远程存储适配器：扩展RemoteStorageAdapter支持cleanDeletedMemos、cleanOrphanedFiles、performCleanup方法"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.7.2",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.2",
+      "timestamp": "2026-01-10T13:35:12.621Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "patch",
+      "previousVersion": "1.7.1",
+      "metadata": {}
+    },
+    {
+      "version": "1.7.1",
+      "timestamp": "2026-01-10T13:20:35.325Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "patch",
+      "previousVersion": "1.7.0",
+      "metadata": {}
+    },
+    {
+      "version": "1.6.2",
+      "timestamp": "2026-01-10T12:27:19.489Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "管理员登录失败：修复远程模式下管理员登录时密码验证失败的问题，服务器端不返回passwordHash导致前端无法验证"
+        },
+        {
+          "type": "fix",
+          "description": "服务器端API缺失：添加日志相关的API端点 (POST/GET/DELETE /api/logs)，修复日志记录失败的问题"
+        },
+        {
+          "type": "fix",
+          "description": "清空数据API路径错误：修正RemoteStorageAdapter中clearAllData方法的API路径从/data改为/data/clear"
+        },
+        {
+          "type": "feat",
+          "description": "管理员登录方法：在IStorageAdapter接口中新增adminLogin方法，支持本地和远程两种登录模式"
+        },
+        {
+          "type": "perf",
+          "description": "启动脚本优化：dev.bat自动启动服务器端，无需手动启动多个进程"
+        },
+        {
+          "type": "perf",
+          "description": "自动打开浏览器：关闭Vite开发服务器的自动打开浏览器功能，避免启动时打开多个标签页"
+        },
+        {
+          "type": "perf",
+          "description": "清空数据库确认文本：将确认文本从英文\"CLEAR\"改为中文\"确认\"，提升用户体验"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.6.1",
+      "metadata": {}
+    },
+    {
+      "version": "1.6.1",
+      "timestamp": "2026-01-10T11:49:44.844Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "子账号列表 API：在服务器端实现 getSubAccounts 方法，修复用户端账号管理界面加载子账号列表失败的问题"
+        },
+        {
+          "type": "fix",
+          "description": "主题设置全局生效：将所有组件和视图的深色主题样式从 @media (prefers-color-scheme: dark) 改为 [data-theme='dark']"
+        },
+        {
+          "type": "fix",
+          "description": "管理端用户列表刷新：添加刷新按钮和 onActivated 生命周期钩子，清除数据库后能正确刷新用户列表"
+        },
+        {
+          "type": "fix",
+          "description": "PDF 导出中文格式：修复备忘录数据管理界面 PDF 导出功能的英文文本"
+        },
+        {
+          "type": "perf",
+          "description": "主题样式统一：修复了用户端和管理端所有组件和视图的主题支持"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.6.0",
+      "metadata": {}
+    },
+    {
+      "version": "1.6.0",
+      "timestamp": "2026-01-10T11:26:42.113Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "后端 API 服务器：新增独立的后端服务 (packages/server)，支持 App 和 Admin 共享数据"
+        },
+        {
+          "type": "feat",
+          "description": "JSON 文件存储：后端使用 JSON 文件存储数据，适用于本地和 NAS/容器环境"
+        },
+        {
+          "type": "feat",
+          "description": "管理员系统：独立的管理员账号体系，与用户账号完全分离"
+        },
+        {
+          "type": "feat",
+          "description": "默认管理员：系统启动时自动创建默认管理员 (admin/admin123)"
+        },
+        {
+          "type": "feat",
+          "description": "存储适配器架构：支持本地存储 (IndexedDB) 和远程存储 (REST API) 两种模式"
+        },
+        {
+          "type": "feat",
+          "description": "RemoteStorageAdapter：通过 REST API 与后端通信的存储适配器"
+        },
+        {
+          "type": "feat",
+          "description": "数据导入导出 API：支持从旧数据迁移到新后端"
+        },
+        {
+          "type": "perf",
+          "description": "UserDAO 重构：使用存储管理器，支持本地和远程存储切换"
+        },
+        {
+          "type": "perf",
+          "description": "App 和 Admin 配置：两端都配置为连接后端 API (端口 5170)"
+        },
+        {
+          "type": "fix",
+          "description": "跨端口数据隔离问题：通过共享后端 API 解决 IndexedDB 按域名隔离的问题"
+        }
+      ],
+      "type": "minor",
+      "previousVersion": "1.5.1",
+      "metadata": {}
+    },
+    {
+      "version": "1.4.7",
+      "timestamp": "2026-01-10T09:22:27.785Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "账号密码注册时自动生成个人令牌：用户注册时系统自动为其生成唯一的个人令牌"
+        },
+        {
+          "type": "feat",
+          "description": "令牌显示在注册成功页面：注册完成后立即显示自动生成的令牌，用户可复制保存"
+        },
+        {
+          "type": "feat",
+          "description": "令牌全局应用：自动生成的令牌可用于登录系统，与令牌注册用户享受同等权限"
+        },
+        {
+          "type": "perf",
+          "description": "注册流程：账号密码注册和令牌注册现在都能获得个人令牌，提升用户体验"
+        },
+        {
+          "type": "perf",
+          "description": "令牌管理：所有用户（无论注册方式）都拥有个人令牌，便于全局管理和引用"
+        },
+        {
+          "type": "perf",
+          "description": "注册成功提示：显示自动生成的令牌，提醒用户保存以备后用"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.4.6",
+      "metadata": {}
+    },
+    {
+      "version": "1.4.6",
+      "timestamp": "2026-01-10T09:10:29.461Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "表单字段缺少id属性：为所有el-input元素添加唯一的id属性"
+        },
+        {
+          "type": "fix",
+          "description": "表单标签关联问题：确保label的for属性与表单字段的id匹配"
+        },
+        {
+          "type": "fix",
+          "description": "浏览器自动填充问题：添加id属性使浏览器能正确识别表单字段"
+        },
+        {
+          "type": "fix",
+          "description": "无障碍访问问题：改进屏幕阅读器对表单的识别"
+        },
+        {
+          "type": "perf",
+          "description": "AccountsView表单：为创建子账号表单的所有输入字段添加id"
+        },
+        {
+          "type": "perf",
+          "description": "ProfileView表单：为个人资料编辑表单的所有输入字段添加id"
+        },
+        {
+          "type": "perf",
+          "description": "ProfileView安全问题表单：为安全问题答案输入字段添加id"
+        },
+        {
+          "type": "perf",
+          "description": "ProfileView密码修改表单：为密码修改表单的所有输入字段添加id"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.4.5",
+      "metadata": {}
+    },
+    {
+      "version": "1.4.5",
+      "timestamp": "2026-01-10T08:50:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "创建子账号不能创建的问题：bcryptjs在浏览器中尝试使用Node.js crypto模块导致失败"
+        },
+        {
+          "type": "fix",
+          "description": "密码哈希函数浏览器兼容性：实现浏览器环境中的PBKDF2密码哈希替代方案"
+        },
+        {
+          "type": "fix",
+          "description": "密码验证函数浏览器兼容性：实现浏览器环境中的PBKDF2密码验证替代方案"
+        },
+        {
+          "type": "fix",
+          "description": "表单验证错误：confirmPassword验证器未正确处理空值情况"
+        },
+        {
+          "type": "fix",
+          "description": "Vite配置：添加ssr.noExternal配置确保bcryptjs在浏览器中正确处理"
+        },
+        {
+          "type": "perf",
+          "description": "密码哈希实现：自动检测运行环境，浏览器中使用Web Crypto API，Node.js中使用bcryptjs"
+        },
+        {
+          "type": "perf",
+          "description": "密码验证实现：支持两种环境的密码验证，确保兼容性"
+        },
+        {
+          "type": "perf",
+          "description": "表单验证规则：改进confirmPassword验证器的错误处理逻辑"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.4.4",
+      "metadata": {}
+    },
+    {
+      "version": "1.4.4",
+      "timestamp": "2026-01-10T08:30:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "导入导出文件编码问题：JSON导出使用UTF-8编码，Excel导入改用ArrayBuffer处理，PDF导出文件名改为英文避免乱码"
+        },
+        {
+          "type": "fix",
+          "description": "ShareManageView 加载分享链接失败：修复 authStore.user?.id 应为 authStore.currentUser?.id 的错误"
+        },
+        {
+          "type": "fix",
+          "description": "AccountsView 缺少 UserIf 组件注册：修复模板中使用 <User /> 而未正确导入的问题，改为 <UserIcon />"
+        },
+        {
+          "type": "fix",
+          "description": "Element Plus checkbox 弃用警告：将所有 el-checkbox 的 :label 属性改为 :value 属性，适配 Element Plus 3.0"
+        },
+        {
+          "type": "fix",
+          "description": "crypto 模块浏览器兼容性问题：创建 generateUUID() 函数替代 crypto.randomUUID()，支持所有浏览器环境"
+        },
+        {
+          "type": "perf",
+          "description": "文件导入导出流程：JSON 导出使用 TextEncoder 确保 UTF-8 编码，Excel 导入使用 ArrayBuffer 提高兼容性"
+        },
+        {
+          "type": "perf",
+          "description": "UUID 生成函数：添加 fallback 机制，优先使用 crypto.randomUUID()，不可用时手动生成 UUID v4"
+        },
+        {
+          "type": "perf",
+          "description": "所有 crypto.randomUUID() 调用：统一使用 generateUUID() 函数，提高代码可维护性"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.4.3",
+      "metadata": {}
+    },
+    {
+      "version": "1.3.0",
+      "timestamp": "2026-01-10T07:54:08.205Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "chore",
+      "previousVersion": "1.3.0",
+      "metadata": {}
+    },
+    {
+      "version": "1.2.0",
+      "timestamp": "2026-01-10T07:39:03.113Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "minor",
+      "previousVersion": "1.1.1",
+      "metadata": {}
+    },
+    {
+      "version": "1.1.0",
+      "timestamp": "2026-01-10T07:07:48.180Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "minor",
+      "previousVersion": "1.0.2",
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "updated": "2026-01-10T15:49:46.366Z",
+    "project": "CYP-memo"
+  }
+}

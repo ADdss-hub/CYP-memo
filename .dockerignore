@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.gitignore
+*.md
+.vscode
+.kiro
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+data/
+backup/
+.env
+.env.local
