@@ -242,7 +242,7 @@ const config = {
   generateUpdatesFilesForAllChannels: true,
 
   // 构建后钩子
-  afterSign: 'scripts/notarize.js',
+  afterSign: 'scripts/notarize.cjs',
 
   // 构建选项
   buildDependenciesFromSource: false,
