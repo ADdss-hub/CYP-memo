@@ -17,6 +17,7 @@ CYP-memo 是一款基于浏览器的现代化备忘录管理系统，采用前�
 - **用户端应用** - 供普通用户使用，提供备忘录管理、标签、分享等功能
 - **管理端应用** - 供系统管理员使用，用于管理用户、数据库等系统操作
 - **API 服务器** - 提供 RESTful API，使用 SQLite 数据库存储
+- **桌面客户端** - 基于 Electron 的跨平台桌面应用，支持 Windows/macOS/Linux
 
 ---
 
@@ -33,6 +34,9 @@ CYP-memo 是一款基于浏览器的现代化备忘录管理系统，采用前�
 | 数据统计 | 备忘录统计分析 |
 | 深色主题 | 支持浅色/深色主题切换 |
 | 高性能 | SQLite 数据库，性能提升 10-100 倍 |
+| 桌面客户端 | 支持 Windows/macOS/Linux 三大平台 |
+| 自动更新 | 全端支持版本检测和自动更新 |
+| 离线支持 | 桌面端支持离线模式和数据同步 |
 
 ---
 
@@ -47,6 +51,7 @@ CYP-memo 是一款基于浏览器的现代化备忘录管理系统，采用前�
 | 路由 | Vue Router |
 | 后端 | Express.js |
 | 数据库 | SQLite |
+| 桌面端 | Electron |
 | 构建工具 | Vite |
 | 测试框架 | Vitest + fast-check |
 | 包管理 | pnpm (Monorepo) |
@@ -111,7 +116,8 @@ cyp-memo/
 │   │   └── workers/     # Web Workers
 │   ├── app/             # 用户端应用
 │   ├── admin/           # 管理端应用
-│   └── server/          # API 服务器
+│   ├── server/          # API 服务器
+│   └── desktop/         # 桌面客户端 (Electron)
 ├── scripts/             # 构建脚本
 ├── docs/                # 详细文档
 └── .version/            # 版本历史
@@ -272,6 +278,34 @@ cd packages/server
 pnpm start
 ```
 
+### 桌面端部署
+
+桌面客户端支持 Windows、macOS、Linux 三大平台：
+
+```bash
+# 进入桌面端目录
+cd packages/desktop
+
+# 构建所有平台
+pnpm build:all
+
+# 仅构建 Windows
+pnpm build:win
+
+# 仅构建 macOS
+pnpm build:mac
+
+# 仅构建 Linux
+pnpm build:linux
+```
+
+构建输出：
+- Windows: NSIS 安装程序 (.exe)、便携版 (.exe)
+- macOS: DMG 安装包 (.dmg)、ZIP 压缩包
+- Linux: AppImage、deb、rpm 包
+
+详细说明见 [桌面端构建指南](packages/desktop/BUILD.md)。
+
 ### PM2 部署
 
 ```bash
@@ -411,6 +445,8 @@ pnpm format
 | [开发文档](docs/DEVELOPMENT.md) | 详细开发指南 |
 | [存储架构](docs/STORAGE_ARCHITECTURE.md) | 存储架构说明 |
 | [依赖列表](docs/DEPENDENCIES.md) | 开源依赖及许可证 |
+| [发布指南](docs/RELEASE.md) | 版本发布流程 |
+| [桌面端构建](packages/desktop/BUILD.md) | 桌面客户端构建指南 |
 | [项目文档](文档.md) | 完整中文文档 |
 
 ---
@@ -424,6 +460,7 @@ pnpm format
 - Vue Router (MIT)
 - Express.js (MIT)
 - SQLite (Public Domain)
+- Electron (MIT)
 - Vite (MIT)
 - TypeScript (Apache-2.0)
 

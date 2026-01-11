@@ -238,6 +238,18 @@ pm2 startup
 pm2 save
 ```
 
+### 桌面客户端
+
+从 [GitHub Releases](https://github.com/ADdss-hub/CYP-memo/releases) 下载对应平台的安装包：
+
+- **Windows**: `CYP-memo-x.x.x-setup.exe` 或便携版 `CYP-memo-x.x.x-portable.exe`
+- **macOS**: `CYP-memo-x.x.x.dmg`
+- **Linux**: `CYP-memo-x.x.x.AppImage` 或 `cyp-memo_x.x.x_amd64.deb`
+
+首次启动时可选择：
+- **远程服务器模式**: 连接到已部署的 CYP-memo 服务器
+- **内置服务器模式**: 使用本地内置服务器（无需额外部署）
+
 ---
 
 ## 🔍 故障排除
@@ -297,6 +309,8 @@ pnpm build
 - [SQLite 迁移指南](./SQLITE_MIGRATION.md)
 - [存储架构说明](./STORAGE_ARCHITECTURE.md)
 - [依赖列表](./DEPENDENCIES.md)
+- [发布指南](./RELEASE.md)
+- [桌面端构建指南](../packages/desktop/BUILD.md)
 
 ---
 
@@ -310,6 +324,6 @@ pnpm build
 
 ---
 
-**版本**: v1.7.9  
+**版本**: v1.8.0  
 **作者**: CYP <nasDSSCYP@outlook.com>  
 **许可证**: MIT

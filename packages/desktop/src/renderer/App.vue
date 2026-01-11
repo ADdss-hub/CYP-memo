@@ -112,14 +112,15 @@ onUnmounted(() => {
     <!-- 主应用内容 -->
     <main v-else class="app-main">
       <header class="app-header">
-        <h1>CYP-memo 桌面客户端</h1>
-        <p class="subtitle">Desktop Client</p>
+        <div class="header-logo">💻</div>
+        <h1>CYP-memo</h1>
+        <p class="subtitle">容器备忘录系统 - 桌面客户端</p>
       </header>
 
       <div class="app-content">
         <!-- 系统状态卡片 -->
         <div class="status-card">
-          <h2>系统状态</h2>
+          <h2>🖥️ 系统状态</h2>
           <div class="status-item">
             <span class="label">运行环境:</span>
             <span class="value" :class="{ electron: isElectronEnv }">
@@ -150,36 +151,42 @@ onUnmounted(() => {
 
         <!-- 平台功能卡片 -->
         <div v-if="features" class="status-card">
-          <h2>平台功能</h2>
+          <h2>⚡ 平台功能</h2>
           <div class="status-item">
             <span class="label">任务栏进度:</span>
-            <span class="value">{{ features.supportsTaskbarProgress ? '支持' : '不支持' }}</span>
+            <span class="value">{{ features.supportsTaskbarProgress ? '✓ 支持' : '✗ 不支持' }}</span>
           </div>
           <div class="status-item">
             <span class="label">Dock 徽章:</span>
-            <span class="value">{{ features.supportsDockBadge ? '支持' : '不支持' }}</span>
+            <span class="value">{{ features.supportsDockBadge ? '✓ 支持' : '✗ 不支持' }}</span>
           </div>
           <div class="status-item">
             <span class="label">桌面集成:</span>
-            <span class="value">{{ features.supportsDesktopIntegration ? '支持' : '不支持' }}</span>
+            <span class="value">{{ features.supportsDesktopIntegration ? '✓ 支持' : '✗ 不支持' }}</span>
           </div>
           <div class="status-item">
             <span class="label">原生通知:</span>
-            <span class="value">{{ features.supportsNativeNotifications ? '支持' : '不支持' }}</span>
+            <span class="value">{{ features.supportsNativeNotifications ? '✓ 支持' : '✗ 不支持' }}</span>
           </div>
         </div>
 
-        <!-- 开发说明卡片 -->
+        <!-- 功能特性卡片 -->
         <div class="info-card">
-          <h2>开发说明</h2>
-          <p>此页面为桌面客户端的临时占位页面。</p>
-          <p>后续将集成现有 Vue 3 应用 (packages/app)。</p>
+          <h2>🚀 功能特性</h2>
+          <div class="feature-grid">
+            <div class="feature-item">📝 富文本编辑</div>
+            <div class="feature-item">🏷️ 标签管理</div>
+            <div class="feature-item">📎 文件附件</div>
+            <div class="feature-item">🔍 全文搜索</div>
+            <div class="feature-item">📊 数据统计</div>
+            <div class="feature-item">🔄 离线同步</div>
+          </div>
           <p v-if="currentPath !== '/'">当前导航路径: {{ currentPath }}</p>
         </div>
       </div>
 
       <footer class="app-footer">
-        <p>CYP-memo v1.7.9 | Electron {{ appVersion }}</p>
+        <p>CYP-memo v1.8.0 | Electron {{ appVersion }} | 作者: CYP</p>
       </footer>
     </main>
   </div>
@@ -234,10 +241,21 @@ onUnmounted(() => {
   padding: 2rem;
 }
 
+.header-logo {
+  font-size: 64px;
+  margin-bottom: 16px;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
 .app-header h1 {
   margin: 0;
   font-size: 2.5rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .subtitle {
@@ -311,6 +329,21 @@ onUnmounted(() => {
   margin: 0.5rem 0;
   opacity: 0.9;
   line-height: 1.6;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.feature-item {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
 }
 
 .app-footer {

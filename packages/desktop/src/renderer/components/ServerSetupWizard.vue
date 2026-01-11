@@ -139,7 +139,9 @@ async function completeSetup() {
 <template>
   <div class="setup-wizard">
     <div class="setup-wizard__header">
+      <div class="setup-wizard__logo">📝</div>
       <h1>欢迎使用 CYP-memo</h1>
+      <p class="setup-wizard__subtitle">容器备忘录系统 - 桌面客户端</p>
       <p>请选择您的使用方式</p>
     </div>
 
@@ -241,10 +243,28 @@ async function completeSetup() {
   margin-bottom: 40px;
 }
 
+.setup-wizard__logo {
+  font-size: 64px;
+  margin-bottom: 16px;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
 .setup-wizard__header h1 {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
   color: var(--text-primary, #303133);
+  margin: 0 0 8px;
+}
+
+.setup-wizard__subtitle {
+  font-size: 16px;
+  color: #667eea;
+  font-weight: 500;
   margin: 0 0 8px;
 }
 

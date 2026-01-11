@@ -164,8 +164,8 @@ release/
 1. 更新 `package.json` 中的版本号
 2. 创建并推送 Git 标签：
    ```bash
-   git tag v1.7.11
-   git push origin v1.7.11
+   git tag v1.8.0
+   git push origin v1.8.0
    ```
 3. GitHub Actions 会自动构建并发布到 Releases
 4. electron-updater 会自动生成 `latest.yml`、`latest-mac.yml`、`latest-linux.yml` 文件

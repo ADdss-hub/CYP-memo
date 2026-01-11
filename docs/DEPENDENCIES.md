@@ -12,6 +12,16 @@
 | [TypeScript](https://www.typescriptlang.org/) | ^5.3.3 | Apache-2.0 | JavaScript 的超集，添加类型系统 |
 | [Vite](https://vitejs.dev/) | ^5.0.10 | MIT | 下一代前端构建工具 |
 
+### 桌面端框架
+
+| 依赖 | 版本 | 许可证 | 说明 |
+|------|------|--------|------|
+| [Electron](https://www.electronjs.org/) | ^28.1.0 | MIT | 跨平台桌面应用框架 |
+| [electron-builder](https://www.electron.build/) | ^24.9.1 | MIT | Electron 应用打包工具 |
+| [electron-updater](https://www.electron.build/auto-update) | ^6.1.7 | MIT | Electron 自动更新 |
+| [keytar](https://github.com/atom/node-keytar) | ^7.9.0 | MIT | 系统安全凭证存储 |
+| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | ^9.2.2 | MIT | 高性能 SQLite 绑定 |
+
 ### UI 组件库
 
 | 依赖 | 版本 | 许可证 | 说明 |
@@ -189,4 +199,4 @@ pnpm audit --fix
 
 ---
 
-最后更新: 2026-01-10
+最后更新: 2026-01-11

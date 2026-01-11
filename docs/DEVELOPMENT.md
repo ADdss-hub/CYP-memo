@@ -19,7 +19,8 @@ cyp-memo/
 │   │   └── workers/    # Web Workers
 │   ├── app/            # 用户端应用
 │   ├── admin/          # 管理端应用
-│   └── server/         # API 服务器
+│   ├── server/         # API 服务器
+│   └── desktop/        # 桌面客户端 (Electron)
 ```
 
 ### 技术栈
@@ -69,6 +70,7 @@ pnpm dev
 - 用户端: http://localhost:5173
 - 管理端: http://localhost:5174
 - API 服务器: http://localhost:5170
+- 桌面端: 运行 `pnpm dev` 在 `packages/desktop` 目录
 
 ### 构建
 
@@ -85,6 +87,7 @@ pnpm build
 - 用户端: `packages/app/dist`
 - 管理端: `packages/admin/dist`
 - 服务器端: `packages/server/dist`
+- 桌面端: `packages/desktop/release/{version}/`
 
 ## 测试
 
@@ -308,6 +311,27 @@ pnpm release:major
 ```bash
 docker-compose up -d
 ```
+
+### 桌面端构建
+
+```bash
+# 进入桌面端目录
+cd packages/desktop
+
+# 构建所有平台
+pnpm build:all
+
+# 仅构建 Windows
+pnpm build:win
+
+# 仅构建 macOS
+pnpm build:mac
+
+# 仅构建 Linux
+pnpm build:linux
+```
+
+详细说明见 [桌面端构建指南](../packages/desktop/BUILD.md)。
 
 ### 传统部署
 

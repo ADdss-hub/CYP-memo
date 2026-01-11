@@ -12,6 +12,10 @@ export const VERSION = {
   },
   author: 'CYP',
   email: 'nasDSSCYP@outlook.com',
+  /** 版权信息（单行） */
+  get copyright() {
+    return `版权所有 © ${new Date().getFullYear()} CYP. 保留所有权利.`
+  },
   /** 分行展示版权信息（优化版） */
   get copyrightLines() {
     return {

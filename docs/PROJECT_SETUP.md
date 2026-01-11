@@ -40,15 +40,25 @@ cyp-memo/
 │   │   ├── index.html
 │   │   ├── vite.config.ts
 │   │   └── package.json
-│   └── server/             # API 服务器
+│   ├── server/             # API 服务器
+│   │   ├── src/
+│   │   │   ├── index.ts    # 服务器入口
+│   │   │   └── sqlite-database.ts
+│   │   ├── data/           # 数据库文件
+│   │   └── package.json
+│   └── desktop/            # 桌面客户端 (Electron)
 │       ├── src/
-│       │   ├── index.ts    # 服务器入口
-│       │   └── sqlite-database.ts
-│       ├── data/           # 数据库文件
+│       │   ├── main/       # 主进程代码
+│       │   ├── preload/    # Preload 脚本
+│       │   ├── renderer/   # 渲染进程代码
+│       │   └── shared/     # 共享类型和常量
+│       ├── resources/      # 应用资源（图标等）
+│       ├── scripts/        # 构建脚本
 │       └── package.json
 ├── scripts/
 │   ├── dev.js              # 开发环境启动脚本
-│   └── build.js            # 生产构建脚本
+│   ├── build.js            # 生产构建脚本
+│   └── release.js          # 版本发布脚本
 ├── docs/                   # 文档目录
 ├── .version/               # 版本历史
 ├── .gitignore
@@ -65,6 +75,7 @@ cyp-memo/
 - **Vue 3.4.3** - 渐进式 JavaScript 框架
 - **TypeScript 5.3.3** - 类型安全的 JavaScript 超集
 - **Vite 5.0.10** - 下一代前端构建工具
+- **Electron 28.1.0** - 跨平台桌面应用框架
 
 ### UI 和样式
 - **Element Plus 2.5.1** - Vue 3 组件库（中文友好）
@@ -80,7 +91,14 @@ cyp-memo/
 
 ### 数据存储
 - **SQLite** - 服务器端数据库
+- **better-sqlite3** - 高性能 SQLite 绑定
 - **bcryptjs 2.4.3** - 密码加密库
+
+### 桌面端
+- **Electron 28.1.0** - 跨平台桌面应用框架
+- **electron-builder 24.9.1** - Electron 应用打包工具
+- **electron-updater 6.1.7** - 自动更新支持
+- **keytar 7.9.0** - 系统安全凭证存储
 
 ### 测试
 - **Vitest 1.1.0** - 基于 Vite 的单元测试框架
@@ -104,6 +122,7 @@ cyp-memo/
 - 用户端应用运行在 http://localhost:5173
 - 管理端应用运行在 http://localhost:5174
 - API 服务器运行在 http://localhost:5170
+- 桌面端应用通过 Electron 运行
 - 支持热模块替换（HMR）
 
 ### 3. 构建配置
@@ -159,6 +178,18 @@ pnpm --filter @cyp-memo/app build
 
 # 只构建管理员端
 pnpm --filter @cyp-memo/admin build
+
+# 构建桌面端
+pnpm --filter @cyp-memo/desktop build:all
+
+# 构建桌面端（仅 Windows）
+pnpm --filter @cyp-memo/desktop build:win
+
+# 构建桌面端（仅 macOS）
+pnpm --filter @cyp-memo/desktop build:mac
+
+# 构建桌面端（仅 Linux）
+pnpm --filter @cyp-memo/desktop build:linux
 ```
 
 ### 测试
