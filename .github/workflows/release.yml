@@ -18,8 +18,8 @@ permissions:
   packages: write
 
 env:
-  NODE_VERSION: '20'
-  PNPM_VERSION: '8'
+  NODE_VERSION: '20.19.6'
+  PNPM_VERSION: '8.15.9'
 
 jobs:
   # ========== 构建 Web 端和管理端 ==========
@@ -29,23 +29,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Cache pnpm
+      - name: Cache pnpm & native builds
         uses: actions/cache@v4
         with:
           path: |
             ~/.pnpm-store
             **/node_modules
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
 
       - name: Configure npm registry (优先华为云镜像加速)
         run: |
@@ -88,16 +91,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Cache pnpm & native builds
+        uses: actions/cache@v4
         with:
-          version: ${{ env.PNPM_VERSION }}
+          path: |
+            ~/.pnpm-store
+            **/node_modules
+            ~/AppData/Local/node-gyp
+          key: ${{ runner.os }}-pnpm-native-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-native-
+            ${{ runner.os }}-pnpm-
 
       - name: Configure npm registry (优先华为云镜像，验证预构建二进制)
         shell: pwsh
@@ -135,7 +150,7 @@ jobs:
           }
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
         env:
           npm_config_build_from_source: false
 
@@ -179,16 +194,28 @@ jobs:
           python3 -m pip install setuptools --break-system-packages
           echo "GYP_PYTHON_EXCLUDE=1" >> $GITHUB_ENV
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Cache pnpm & native builds
+        uses: actions/cache@v4
         with:
-          version: ${{ env.PNPM_VERSION }}
+          path: |
+            ~/.pnpm-store
+            **/node_modules
+            ~/Library/Caches/node-gyp
+          key: ${{ runner.os }}-pnpm-native-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-native-
+            ${{ runner.os }}-pnpm-
 
       - name: Configure npm registry (优先华为云镜像，验证预构建二进制)
         run: |
@@ -220,7 +247,9 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+        env:
+          npm_config_build_from_source: false
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
@@ -254,21 +283,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libsecret-1-dev rpm
+
+      - name: Cache pnpm & native builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            **/node_modules
+            ~/.cache/node-gyp
+          key: ${{ runner.os }}-pnpm-native-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-native-
+            ${{ runner.os }}-pnpm-
 
       - name: Configure npm registry (优先华为云镜像，验证预构建二进制)
         run: |
@@ -300,7 +341,9 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+        env:
+          npm_config_build_from_source: false
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"

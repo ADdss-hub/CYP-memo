@@ -16,6 +16,9 @@ dist
 dist-ssr
 *.local
 
+# Desktop release builds (large binary files)
+packages/desktop/release/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

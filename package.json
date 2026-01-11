@@ -1,6 +1,6 @@
 {
   "name": "cyp-memo",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "type": "module",
   "private": true,
   "description": "CYP-memo 容器备忘录系统",
@@ -28,7 +28,19 @@
     "concurrently": "^8.2.2"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=20",
+    "pnpm": ">=8"
+  },
+  "pnpm": {
+    "overrides": {
+      "node-gyp": "latest"
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "keytar",
+      "electron",
+      "esbuild",
+      "sharp"
+    ]
   }
 }

@@ -2,14 +2,58 @@
   "schema": "2.1.0",
   "history": [
     {
-      "version": "1.8.5",
-      "timestamp": "2026-01-11T16:47:07.807Z",
+      "version": "1.8.6",
+      "timestamp": "2026-01-11T17:53:58.444Z",
       "author": "CYP",
       "changes": [],
       "type": "release",
       "previousVersion": "1.8.5",
       "metadata": {
         "autoRelease": true
+      }
+    },
+    {
+      "version": "1.8.6",
+      "timestamp": "2026-01-12T18:00:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Windows 桌面端本地构建：修复 .npmrc 镜像配置，使用 npmmirror 替代华为云镜像解决 better-sqlite3 和 keytar 预构建二进制下载失败问题"
+        },
+        {
+          "type": "fix",
+          "description": "better-sqlite3 预构建二进制：修复华为云镜像返回损坏文件（incorrect header check）导致构建失败"
+        },
+        {
+          "type": "fix",
+          "description": "keytar 预构建二进制：添加 keytar_binary_host 配置指向 npmmirror，解决 GitHub 连接重置（ECONNRESET）导致下载失败"
+        },
+        {
+          "type": "fix",
+          "description": "electron-builder winCodeSign：手动预解压 winCodeSign-2.6.0.7z 到缓存目录，绕过 Windows 普通用户无法创建符号链接的权限限制"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端图标尺寸：构建前运行 create-placeholder-icons.mjs 生成 256x256 占位图标，修复 icon.ico must be at least 256x256 错误"
+        },
+        {
+          "type": "perf",
+          "description": "pnpm 版本兼容性：放宽 engines 配置从固定版本改为 node>=20 和 pnpm>=8，支持更多开发环境"
+        },
+        {
+          "type": "perf",
+          "description": "原生模块自动构建：添加 pnpm.onlyBuiltDependencies 配置，自动批准 better-sqlite3、keytar、electron、esbuild、sharp 的构建脚本执行"
+        },
+        {
+          "type": "perf",
+          "description": "npm 镜像源统一：使用 npmmirror（淘宝源）作为 npm、Electron、原生模块的镜像源，提升国内网络环境下载速度和稳定性"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.8.5",
+      "metadata": {
+        "autoRelease": false
       }
     },
     {
@@ -812,7 +856,7 @@
     }
   ],
   "metadata": {
-    "updated": "2026-01-11T16:47:07.807Z",
+    "updated": "2026-01-11T17:53:58.445Z",
     "project": "CYP-memo"
   }
 }
