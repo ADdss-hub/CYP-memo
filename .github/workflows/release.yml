@@ -39,6 +39,14 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            **/node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+
       - name: Configure npm registry (优先华为云镜像加速)
         run: |
           # 测试华为云镜像可用性
@@ -138,14 +146,12 @@ jobs:
         run: node scripts/create-placeholder-icons.mjs
         working-directory: packages/desktop
 
-      - name: Build desktop app (use npm to avoid pnpm.cjs issue)
-        run: |
-          cd packages/desktop
-          npm run build
-          npx electron-builder --config electron-builder.config.cjs --win --publish never
+      - name: Build desktop app
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          npm_config_force: true
+        run: pnpm --filter @cyp-memo/desktop build:win -- --publish never
         shell: pwsh
 
       - name: List build output
@@ -168,16 +174,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python (for node-gyp)
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install setuptools (for distutils)
+      - name: Setup Python for node-gyp
         run: |
-          python3 -m pip install --upgrade pip setuptools
-          echo "Python path: $(which python3)"
-          python3 --version
+          python3 -m pip install setuptools --break-system-packages
+          echo "GYP_PYTHON_EXCLUDE=1" >> $GITHUB_ENV
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -207,9 +207,6 @@ jobs:
           HUAWEI_PREBUILD=$(test_prebuild "https://repo.huaweicloud.com/better-sqlite3/v9.6.0/better-sqlite3-v9.6.0-electron-v119-darwin-arm64.tar.gz")
           echo "Huawei prebuild: $HUAWEI_PREBUILD"
           
-          # 设置 Python 路径供 node-gyp 使用
-          npm config set python $(which python3)
-          
           if [ "$HUAWEI_PREBUILD" = "valid" ]; then
             echo "Using Huawei mirror (prebuild valid)"
             npm config set registry https://repo.huaweicloud.com/repository/npm/
@@ -224,8 +221,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
-        env:
-          npm_config_python: python3
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
