@@ -39,10 +39,10 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Configure npm registry (华为云镜像)
+      - name: Configure npm registry (GitHub Actions 使用官方源)
         run: |
-          npm config set registry https://repo.huaweicloud.com/repository/npm/
-          pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+          npm config set registry https://registry.npmjs.org/
+          pnpm config set registry https://registry.npmjs.org/
 
       - name: Install dependencies
         run: pnpm install
@@ -82,16 +82,16 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Configure npm registry (华为云镜像)
+      - name: Configure npm registry (GitHub Actions 使用官方源)
         run: |
-          npm config set registry https://repo.huaweicloud.com/repository/npm/
-          pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+          npm config set registry https://registry.npmjs.org/
+          pnpm config set registry https://registry.npmjs.org/
 
       - name: Install dependencies
         run: pnpm install
         env:
-          ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
+          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
@@ -107,9 +107,8 @@ jobs:
           npx electron-builder --config electron-builder.config.cjs --win --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
           CSC_IDENTITY_AUTO_DISCOVERY: false
+        shell: pwsh
 
       - name: List build output
         run: |
@@ -149,16 +148,18 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Configure npm registry (华为云镜像)
+      - name: Configure npm registry (GitHub Actions 使用官方源)
         run: |
-          npm config set registry https://repo.huaweicloud.com/repository/npm/
-          pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+          npm config set registry https://registry.npmjs.org/
+          pnpm config set registry https://registry.npmjs.org/
+          npm config set python $(which python3)
 
       - name: Install dependencies
         run: pnpm install
         env:
-          ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
+          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+          npm_config_python: python3
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
@@ -171,8 +172,6 @@ jobs:
         run: pnpm --filter @cyp-memo/desktop build:mac -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: List build output
@@ -220,16 +219,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libsecret-1-dev rpm
 
-      - name: Configure npm registry (华为云镜像)
+      - name: Configure npm registry (GitHub Actions 使用官方源)
         run: |
-          npm config set registry https://repo.huaweicloud.com/repository/npm/
-          pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+          npm config set registry https://registry.npmjs.org/
+          pnpm config set registry https://registry.npmjs.org/
 
       - name: Install dependencies
         run: pnpm install
         env:
-          ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
+          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
@@ -242,8 +241,6 @@ jobs:
         run: pnpm --filter @cyp-memo/desktop build:linux -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
 
       - name: List build output
         run: ls -la packages/desktop/release/*/
