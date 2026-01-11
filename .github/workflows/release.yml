@@ -79,9 +79,8 @@ jobs:
         run: pnpm --filter @cyp-memo/desktop build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Windows 代码签名（可选）
-          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # 跳过代码签名（如果没有配置证书）
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: List build output
         run: |
