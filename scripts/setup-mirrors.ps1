@@ -28,22 +28,23 @@ if (Test-Command pnpm) {
     Write-Host "⚠ PNPM 未安装，跳过" -ForegroundColor Yellow
 }
 
-# 配置 Electron
-Write-Host "⚡ 配置 Electron 镜像..." -ForegroundColor Blue
-if (Test-Command npm) {
-    npm config set electron_mirror https://npmmirror.com/mirrors/electron/
-    npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
-    Write-Host "✓ Electron 镜像配置完成" -ForegroundColor Green
-}
+# 配置环境变量（Electron 和原生模块）
+Write-Host "⚡ 配置 Electron 和原生模块镜像..." -ForegroundColor Blue
+Write-Host "ℹ 设置用户环境变量..." -ForegroundColor Yellow
 
-# 配置原生模块
-Write-Host "🔧 配置原生模块镜像..." -ForegroundColor Blue
-if (Test-Command npm) {
-    npm config set better_sqlite3_binary_host_mirror https://npmmirror.com/mirrors/better-sqlite3/
-    npm config set sharp_binary_host https://npmmirror.com/mirrors/sharp/
-    npm config set sharp_libvips_binary_host https://npmmirror.com/mirrors/sharp-libvips/
-    npm config set node_sqlite3_binary_host_mirror https://npmmirror.com/mirrors/sqlite3/
-    Write-Host "✓ 原生模块镜像配置完成" -ForegroundColor Green
+try {
+    [System.Environment]::SetEnvironmentVariable('ELECTRON_MIRROR', 'https://npmmirror.com/mirrors/electron/', 'User')
+    [System.Environment]::SetEnvironmentVariable('ELECTRON_BUILDER_BINARIES_MIRROR', 'https://npmmirror.com/mirrors/electron-builder-binaries/', 'User')
+    [System.Environment]::SetEnvironmentVariable('BETTER_SQLITE3_BINARY_HOST_MIRROR', 'https://npmmirror.com/mirrors/better-sqlite3/', 'User')
+    [System.Environment]::SetEnvironmentVariable('SHARP_BINARY_HOST', 'https://npmmirror.com/mirrors/sharp/', 'User')
+    [System.Environment]::SetEnvironmentVariable('SHARP_LIBVIPS_BINARY_HOST', 'https://npmmirror.com/mirrors/sharp-libvips/', 'User')
+    [System.Environment]::SetEnvironmentVariable('NODE_SQLITE3_BINARY_HOST_MIRROR', 'https://npmmirror.com/mirrors/sqlite3/', 'User')
+    
+    Write-Host "✓ 环境变量配置完成" -ForegroundColor Green
+    Write-Host "  请重启终端以使环境变量生效" -ForegroundColor Yellow
+} catch {
+    Write-Host "⚠ 环境变量设置失败: $_" -ForegroundColor Red
+    Write-Host "  请手动在系统设置中添加环境变量" -ForegroundColor Yellow
 }
 
 # Docker 配置提示

@@ -34,12 +34,18 @@ COPY packages/server/package.json ./packages/server/
 
 # 安装全部依赖（包括开发依赖用于构建）
 # 使用 --ignore-scripts 跳过不必要的构建脚本以加速
-RUN pnpm install --frozen-lockfile --ignore-scripts
+# 增加网络超时和并发数以加速 ARM64 构建
+RUN pnpm config set network-timeout 60000 && \
+    pnpm config set fetch-retries 5 && \
+    pnpm config set fetch-retry-mintimeout 20000 && \
+    pnpm install --frozen-lockfile --ignore-scripts
 
 # 复制源代码（在依赖安装后，利用缓存）
 COPY . .
 
 # 执行构建
+# 设置 Node.js 内存限制和优化选项以加速构建
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN pnpm build
 
 # ============================================

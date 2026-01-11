@@ -36,23 +36,22 @@ else
     echo -e "${YELLOW}⚠ PNPM 未安装，跳过${NC}"
 fi
 
-# 配置 Electron
-echo -e "${BLUE}⚡ 配置 Electron 镜像...${NC}"
-if command_exists npm; then
-    npm config set electron_mirror https://npmmirror.com/mirrors/electron/
-    npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
-    echo -e "${GREEN}✓ Electron 镜像配置完成${NC}"
-fi
-
-# 配置原生模块
-echo -e "${BLUE}🔧 配置原生模块镜像...${NC}"
-if command_exists npm; then
-    npm config set better_sqlite3_binary_host_mirror https://npmmirror.com/mirrors/better-sqlite3/
-    npm config set sharp_binary_host https://npmmirror.com/mirrors/sharp/
-    npm config set sharp_libvips_binary_host https://npmmirror.com/mirrors/sharp-libvips/
-    npm config set node_sqlite3_binary_host_mirror https://npmmirror.com/mirrors/sqlite3/
-    echo -e "${GREEN}✓ 原生模块镜像配置完成${NC}"
-fi
+# 配置环境变量（Electron 和原生模块）
+echo -e "${BLUE}⚡ 配置 Electron 和原生模块镜像...${NC}"
+echo -e "${YELLOW}ℹ 添加以下内容到 ~/.bashrc 或 ~/.zshrc:${NC}"
+echo ""
+cat << 'EOF'
+# CYP-memo 镜像配置
+export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+export ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+export BETTER_SQLITE3_BINARY_HOST_MIRROR="https://npmmirror.com/mirrors/better-sqlite3/"
+export SHARP_BINARY_HOST="https://npmmirror.com/mirrors/sharp/"
+export SHARP_LIBVIPS_BINARY_HOST="https://npmmirror.com/mirrors/sharp-libvips/"
+export NODE_SQLITE3_BINARY_HOST_MIRROR="https://npmmirror.com/mirrors/sqlite3/"
+EOF
+echo ""
+echo -e "${GREEN}✓ 环境变量配置说明已显示${NC}"
+echo -e "${YELLOW}  请手动添加到 shell 配置文件，然后运行: source ~/.bashrc${NC}"
 
 # 配置 Docker（如果是 Linux）
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
