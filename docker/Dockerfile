@@ -7,7 +7,7 @@
 # ============================================
 # 阶段 1: Builder - 安装依赖和构建
 # ============================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # 构建参数 - 版本信息
 ARG VERSION=1.8.5
@@ -54,7 +54,7 @@ RUN pnpm build
 # ============================================
 # 阶段 2: Production - 最小化运行时镜像
 # ============================================
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 # 构建参数 - 版本信息
 ARG VERSION=1.8.5

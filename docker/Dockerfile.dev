@@ -1,7 +1,7 @@
 # CYP-memo 开发模式 Dockerfile
 # 支持热重载和调试功能
 
-FROM node:18-alpine
+FROM node:20-alpine
 
 # 配置 Alpine 镜像源（阿里云 - 速度最快 108ms）
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
