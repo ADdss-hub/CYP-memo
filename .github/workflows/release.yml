@@ -19,7 +19,7 @@ permissions:
 
 env:
   NODE_VERSION: '20.19.6'
-  PNPM_VERSION: '8.15.9'
+  PNPM_VERSION: '10.27.0'
 
 jobs:
   # ========== 构建 Web 端和管理端 ==========
