@@ -229,6 +229,10 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
+      - name: Get lowercase owner name
+        id: owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       # 登录 Docker Hub（如果配置了）
       - name: Login to Docker Hub
         if: env.DOCKER_USER != ''
@@ -258,8 +262,8 @@ jobs:
       - name: Generate Docker tags
         id: tags
         run: |
-          TAGS="ghcr.io/${{ github.repository_owner }}/cyp-memo:latest"
-          TAGS="$TAGS,ghcr.io/${{ github.repository_owner }}/cyp-memo:${{ steps.version.outputs.VERSION }}"
+          TAGS="ghcr.io/${{ steps.owner.outputs.OWNER }}/cyp-memo:latest"
+          TAGS="$TAGS,ghcr.io/${{ steps.owner.outputs.OWNER }}/cyp-memo:${{ steps.version.outputs.VERSION }}"
           if [ -n "$DOCKER_USER" ]; then
             TAGS="$TAGS,$DOCKER_USER/cyp-memo:latest"
             TAGS="$TAGS,$DOCKER_USER/cyp-memo:${{ steps.version.outputs.VERSION }}"
