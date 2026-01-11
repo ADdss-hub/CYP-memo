@@ -169,6 +169,8 @@ const config = {
         arch: ['x64'],
       },
     ],
+    // 统一 Linux 包的命名格式，避免使用 @ 符号
+    artifactName: '${productName}-${version}-linux-${arch}.${ext}',
     icon: 'resources/icons',
     category: 'Office',
     synopsis: 'CYP-memo 备忘录应用',
@@ -186,6 +188,7 @@ const config = {
 
   // deb 包配置
   deb: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
     depends: [
       'libgtk-3-0',
       'libnotify4',
@@ -203,6 +206,7 @@ const config = {
 
   // rpm 包配置
   rpm: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
     depends: [
       'gtk3',
       'libnotify',
@@ -237,6 +241,11 @@ const config = {
       // 私有仓库需要设置 GH_TOKEN 环境变量
     },
   ],
+
+  // 发布时如果文件已存在则跳过（避免 422 错误）
+  releaseInfo: {
+    // 发布说明将由 GitHub Actions 生成
+  },
 
   // 生成 blockmap 文件以支持增量更新
   generateUpdatesFilesForAllChannels: true,
