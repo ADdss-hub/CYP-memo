@@ -19,7 +19,7 @@ permissions:
 
 env:
   NODE_VERSION: '20.19.6'
-  PNPM_VERSION: '10.27.0'
+  PNPM_VERSION: '10.11.0'
 
 jobs:
   # ========== 构建 Web 端和管理端 ==========
@@ -150,7 +150,7 @@ jobs:
           }
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
         env:
           npm_config_build_from_source: false
 
@@ -247,7 +247,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
         env:
           npm_config_build_from_source: false
 
@@ -341,7 +341,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
         env:
           npm_config_build_from_source: false
 

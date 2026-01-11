@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  node-gyp: latest
+  node-gyp: 10.3.1
 
 importers:
 
