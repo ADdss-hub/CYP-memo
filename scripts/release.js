@@ -14,13 +14,16 @@
 
 import fs from 'fs'
 import path from 'path'
-import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import readline from 'readline'
+import GitOperations from './git-operations.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.join(__dirname, '..')
+
+// 初始化 Git 操作模块
+const git = new GitOperations({ projectRoot: rootDir })
 
 // 需要更新版本号的文件
 const VERSION_FILES = [
@@ -226,33 +229,6 @@ function updateChangelogMd(newVersion, previousVersion, changelog) {
 }
 
 /**
- * 执行 Git 命令
- */
-function execGit(command, options = {}) {
-  try {
-    return execSync(`git ${command}`, {
-      cwd: rootDir,
-      encoding: 'utf-8',
-      stdio: options.silent ? 'pipe' : 'inherit',
-      ...options,
-    })
-  } catch (error) {
-    if (!options.ignoreError) {
-      throw error
-    }
-    return null
-  }
-}
-
-/**
- * 检查 Git 状态
- */
-function checkGitStatus() {
-  const status = execGit('status --porcelain', { silent: true })
-  return status ? status.trim().split('\n').filter(Boolean) : []
-}
-
-/**
  * 询问用户确认
  */
 async function confirm(message) {
@@ -321,7 +297,7 @@ async function main() {
   console.log(`📦 新版本: ${newVersion}\n`)
 
   // 3. 检查 Git 状态
-  const uncommittedChanges = checkGitStatus()
+  const uncommittedChanges = git.getUncommittedChanges()
   if (uncommittedChanges.length > 0) {
     console.log('⚠️  检测到未提交的更改:')
     uncommittedChanges.slice(0, 5).forEach((line) => console.log(`   ${line}`))
@@ -369,26 +345,14 @@ async function main() {
   updateChangelogMd(newVersion, currentVersion, changelog)
 
   // 9. Git 操作
-  console.log('\n📤 Git 操作...')
-  
-  execGit('add -A')
-  execGit(`commit -m "release: v${newVersion}"`)
-  console.log(`  ✅ 提交更改`)
+  const gitResult = git.release(newVersion, {
+    commitMessage: `release: v${newVersion}`,
+    skipTag: noTag,
+    skipPush: noPush,
+  })
 
-  if (!noTag) {
-    execGit(`tag v${newVersion}`)
-    console.log(`  ✅ 创建 tag: v${newVersion}`)
-  }
-
-  if (!noPush) {
-    console.log('\n🌐 推送到远程...')
-    execGit('push origin main')
-    console.log(`  ✅ 推送代码`)
-    
-    if (!noTag) {
-      execGit(`push origin v${newVersion}`)
-      console.log(`  ✅ 推送 tag`)
-    }
+  if (!gitResult.success && gitResult.errors.length > 0) {
+    console.log(`\n⚠️  Git 操作部分失败: ${gitResult.errors.join(', ')}`)
   }
 
   console.log(`
