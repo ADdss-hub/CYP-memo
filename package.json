@@ -1,6 +1,6 @@
 {
   "name": "cyp-memo",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "type": "module",
   "private": true,
   "description": "CYP-memo 容器备忘录系统",

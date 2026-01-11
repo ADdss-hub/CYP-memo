@@ -186,7 +186,7 @@ onUnmounted(() => {
       </div>
 
       <footer class="app-footer">
-        <p>CYP-memo v1.8.0 | Electron {{ appVersion }} | 作者: CYP</p>
+        <p>CYP-memo v1.8.2 | Electron {{ appVersion }} | 作者: CYP</p>
       </footer>
     </main>
   </div>

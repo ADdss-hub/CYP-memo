@@ -389,6 +389,7 @@ function initializeNotifications(): void {
 /**
  * 初始化自动更新
  * 需求 7.1: 启动时检查更新
+ * 需求 7.7: 定时检查更新
  */
 function initializeAutoUpdate(): void {
   // 开发模式下不检查更新
@@ -402,6 +403,9 @@ function initializeAutoUpdate(): void {
 
   // 设置更新回调
   updateManager.setCallbacks({
+    onCheckingForUpdate: () => {
+      console.log('[Main] Checking for updates...')
+    },
     onUpdateAvailable: (info) => {
       console.log(`[Main] New version available: ${info.version}`)
       // 显示系统通知
@@ -413,14 +417,14 @@ function initializeAutoUpdate(): void {
       // 通知渲染进程
       const mainWindow = windowManager.getMainWindow()
       if (mainWindow) {
-        mainWindow.webContents.send('update:available', info)
+        mainWindow.webContents.send(IPC_CHANNELS.UPDATE_AVAILABLE, info)
       }
     },
     onDownloadProgress: (progress) => {
       // 通知渲染进程下载进度
       const mainWindow = windowManager.getMainWindow()
       if (mainWindow) {
-        mainWindow.webContents.send('update:progress', progress)
+        mainWindow.webContents.send(IPC_CHANNELS.UPDATE_PROGRESS, progress)
       }
     },
     onUpdateDownloaded: () => {
@@ -434,8 +438,11 @@ function initializeAutoUpdate(): void {
       // 通知渲染进程
       const mainWindow = windowManager.getMainWindow()
       if (mainWindow) {
-        mainWindow.webContents.send('update:downloaded')
+        mainWindow.webContents.send(IPC_CHANNELS.UPDATE_DOWNLOADED)
       }
+    },
+    onUpdateNotAvailable: () => {
+      console.log('[Main] No update available')
     },
     onError: (error) => {
       console.error('[Main] Update error:', error.message)
@@ -447,6 +454,9 @@ function initializeAutoUpdate(): void {
     updateManager.checkForUpdates().catch((error) => {
       console.error('[Main] Failed to check for updates:', error.message)
     })
+    
+    // 启动定时检查更新（每小时检查一次）
+    updateManager.startAutoCheck()
   }, 5000)
 }
 

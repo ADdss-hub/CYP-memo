@@ -9,6 +9,10 @@
  * - 7.4: 更新准备就绪提示
  * - 7.5: 下载失败重试（最多3次）
  * - 7.6: 代码签名验证
+ * - 7.7: 定时检查更新（每小时）
+ * - 7.8: 更新日志显示
+ * 
+ * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
 import { autoUpdater, UpdateCheckResult, UpdateInfo as ElectronUpdateInfo, ProgressInfo } from 'electron-updater'
@@ -21,21 +25,48 @@ const MAX_RETRY_COUNT = 3
 // 重试延迟（毫秒）
 const RETRY_DELAY = 5000
 
+// 默认检查间隔（1小时）
+const DEFAULT_CHECK_INTERVAL = 60 * 60 * 1000
+
+// 最小检查间隔（5分钟）
+const MIN_CHECK_INTERVAL = 5 * 60 * 1000
+
 export interface UpdateManagerCallbacks {
   onUpdateAvailable?: (info: UpdateInfo) => void
   onDownloadProgress?: (progress: number) => void
   onUpdateDownloaded?: () => void
   onError?: (error: Error) => void
+  onCheckingForUpdate?: () => void
+  onUpdateNotAvailable?: () => void
+}
+
+export interface UpdateManagerConfig {
+  /** 检查间隔（毫秒） */
+  checkInterval?: number
+  /** 是否自动检查 */
+  autoCheck?: boolean
+  /** 是否自动下载 */
+  autoDownload?: boolean
 }
 
 export class UpdateManager {
   private callbacks: UpdateManagerCallbacks = {}
+  private config: UpdateManagerConfig
   private retryCount = 0
   private isDownloading = false
+  private isChecking = false
   private updateAvailable = false
   private downloadedVersion: string | null = null
+  private latestUpdateInfo: UpdateInfo | null = null
+  private checkTimer: ReturnType<typeof setInterval> | null = null
+  private lastCheckTime: Date | null = null
 
-  constructor() {
+  constructor(config: UpdateManagerConfig = {}) {
+    this.config = {
+      checkInterval: config.checkInterval || DEFAULT_CHECK_INTERVAL,
+      autoCheck: config.autoCheck ?? true,
+      autoDownload: config.autoDownload ?? false,
+    }
     this.setupAutoUpdater()
   }
 
@@ -43,8 +74,8 @@ export class UpdateManager {
    * 配置 autoUpdater
    */
   private setupAutoUpdater(): void {
-    // 禁用自动下载，手动控制下载流程
-    autoUpdater.autoDownload = false
+    // 禁用自动下载，手动控制下载流程（除非配置了自动下载）
+    autoUpdater.autoDownload = this.config.autoDownload ?? false
     
     // 禁用自动安装，让用户选择安装时机
     autoUpdater.autoInstallOnAppQuit = true
@@ -55,27 +86,42 @@ export class UpdateManager {
     // 允许降级（通常不需要）
     autoUpdater.allowDowngrade = false
 
+    // 设置日志级别
+    autoUpdater.logger = {
+      info: (message: string) => console.log('[UpdateManager]', message),
+      warn: (message: string) => console.warn('[UpdateManager]', message),
+      error: (message: string) => console.error('[UpdateManager]', message),
+      debug: (message: string) => console.log('[UpdateManager:debug]', message),
+    }
+
     // 设置事件监听
     autoUpdater.on('checking-for-update', () => {
       console.log('[UpdateManager] Checking for updates...')
+      this.isChecking = true
+      this.callbacks.onCheckingForUpdate?.()
     })
 
     autoUpdater.on('update-available', (info: ElectronUpdateInfo) => {
       console.log('[UpdateManager] Update available:', info.version)
+      this.isChecking = false
       this.updateAvailable = true
       this.retryCount = 0 // 重置重试计数
       
       const updateInfo = this.convertUpdateInfo(info)
+      this.latestUpdateInfo = updateInfo
       this.callbacks.onUpdateAvailable?.(updateInfo)
     })
 
     autoUpdater.on('update-not-available', (info: ElectronUpdateInfo) => {
       console.log('[UpdateManager] No update available, current version:', info.version)
+      this.isChecking = false
       this.updateAvailable = false
+      this.callbacks.onUpdateNotAvailable?.()
     })
 
     autoUpdater.on('download-progress', (progress: ProgressInfo) => {
-      console.log(`[UpdateManager] Download progress: ${progress.percent.toFixed(2)}%`)
+      const percent = Math.round(progress.percent * 100) / 100
+      console.log(`[UpdateManager] Download progress: ${percent}% (${this.formatBytes(progress.transferred)}/${this.formatBytes(progress.total)})`)
       this.callbacks.onDownloadProgress?.(progress.percent)
     })
 
@@ -89,8 +135,20 @@ export class UpdateManager {
 
     autoUpdater.on('error', (error: Error) => {
       console.error('[UpdateManager] Update error:', error.message)
+      this.isChecking = false
       this.handleError(error)
     })
+  }
+
+  /**
+   * 格式化字节数
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   /**
@@ -150,7 +208,13 @@ export class UpdateManager {
    * 需求 7.1: 启动时检查更新
    */
   async checkForUpdates(): Promise<UpdateInfo | null> {
+    if (this.isChecking) {
+      console.log('[UpdateManager] Already checking for updates')
+      return this.latestUpdateInfo
+    }
+
     try {
+      this.lastCheckTime = new Date()
       const result: UpdateCheckResult | null = await autoUpdater.checkForUpdates()
       
       if (result && result.updateInfo) {
@@ -158,15 +222,83 @@ export class UpdateManager {
         // 比较版本号，确认是否有新版本
         if (this.isNewerVersion(info.version, this.getCurrentVersion())) {
           this.updateAvailable = true
-          return this.convertUpdateInfo(info)
+          const updateInfo = this.convertUpdateInfo(info)
+          this.latestUpdateInfo = updateInfo
+          return updateInfo
         }
       }
       
       return null
     } catch (error) {
       console.error('[UpdateManager] Check for updates failed:', error)
+      this.isChecking = false
       throw error
     }
+  }
+
+  /**
+   * 启动定时检查更新
+   * 需求 7.7: 定时检查更新
+   */
+  startAutoCheck(): void {
+    if (this.checkTimer) {
+      console.log('[UpdateManager] Auto check already running')
+      return
+    }
+
+    const interval = Math.max(this.config.checkInterval || DEFAULT_CHECK_INTERVAL, MIN_CHECK_INTERVAL)
+    console.log(`[UpdateManager] Starting auto check with interval: ${interval / 1000 / 60} minutes`)
+
+    this.checkTimer = setInterval(() => {
+      this.checkForUpdates().catch((error) => {
+        console.error('[UpdateManager] Auto check failed:', error.message)
+      })
+    }, interval)
+  }
+
+  /**
+   * 停止定时检查更新
+   */
+  stopAutoCheck(): void {
+    if (this.checkTimer) {
+      clearInterval(this.checkTimer)
+      this.checkTimer = null
+      console.log('[UpdateManager] Auto check stopped')
+    }
+  }
+
+  /**
+   * 设置检查间隔
+   */
+  setCheckInterval(interval: number): void {
+    this.config.checkInterval = Math.max(interval, MIN_CHECK_INTERVAL)
+    
+    // 如果正在运行自动检查，重新启动
+    if (this.checkTimer) {
+      this.stopAutoCheck()
+      this.startAutoCheck()
+    }
+  }
+
+  /**
+   * 获取上次检查时间
+   */
+  getLastCheckTime(): Date | null {
+    return this.lastCheckTime
+  }
+
+  /**
+   * 获取最新的更新信息
+   */
+  getLatestUpdateInfo(): UpdateInfo | null {
+    return this.latestUpdateInfo
+  }
+
+  /**
+   * 检查是否正在检查更新
+   */
+  isCheckingForUpdates(): boolean {
+    return this.isChecking
   }
 
   /**
@@ -301,8 +433,22 @@ export function getUpdateManager(): UpdateManager {
 }
 
 /**
+ * 初始化 UpdateManager（带配置）
+ */
+export function initUpdateManager(config?: UpdateManagerConfig): UpdateManager {
+  if (updateManagerInstance) {
+    updateManagerInstance.stopAutoCheck()
+  }
+  updateManagerInstance = new UpdateManager(config)
+  return updateManagerInstance
+}
+
+/**
  * 重置 UpdateManager（用于测试）
  */
 export function resetUpdateManager(): void {
+  if (updateManagerInstance) {
+    updateManagerInstance.stopAutoCheck()
+  }
   updateManagerInstance = null
 }

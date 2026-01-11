@@ -2,6 +2,54 @@
   "schema": "2.1.0",
   "history": [
     {
+      "version": "1.8.2",
+      "timestamp": "2026-01-11T18:00:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "桌面端定时检查更新：UpdateManager 新增 startAutoCheck/stopAutoCheck 方法，支持每小时自动检查更新"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端更新日志显示：更新通知组件新增更新日志弹窗，支持 Markdown 格式渲染"
+        },
+        {
+          "type": "feat",
+          "description": "Web端/Admin端更新重试机制：版本检测失败时自动重试最多3次，30秒间隔"
+        },
+        {
+          "type": "feat",
+          "description": "Web端/Admin端更新日志显示：新增更新日志对话框，显示版本号、发布日期和更新内容"
+        },
+        {
+          "type": "feat",
+          "description": "Docker更新阿里云镜像支持：Docker更新对话框新增阿里云镜像源选项"
+        },
+        {
+          "type": "perf",
+          "description": "Docker环境检测优化：改进Docker环境检测逻辑，支持多种检测方式（端口、localStorage、meta标签、hostname）"
+        },
+        {
+          "type": "perf",
+          "description": "更新通知UI优化：改进更新通知样式，添加当前版本显示，优化深色主题和移动端适配"
+        },
+        {
+          "type": "perf",
+          "description": "桌面端UpdateManager增强：添加检查状态跟踪、上次检查时间记录、最新更新信息缓存"
+        },
+        {
+          "type": "perf",
+          "description": "复制命令降级方案：剪贴板API不可用时使用execCommand作为备用方案"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.8.1",
+      "metadata": {
+        "autoRelease": false
+      }
+    },
+    {
       "version": "1.8.1",
       "timestamp": "2026-01-11T16:00:00.000Z",
       "author": "CYP",

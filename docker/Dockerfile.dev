@@ -22,7 +22,11 @@ COPY packages/admin/package.json ./packages/admin/
 COPY packages/server/package.json ./packages/server/
 
 # 安装全部依赖（包括开发依赖）
-RUN pnpm install --frozen-lockfile
+# 增加网络超时和重试以提高稳定性
+RUN pnpm config set network-timeout 60000 && \
+    pnpm config set fetch-retries 5 && \
+    pnpm config set fetch-retry-mintimeout 20000 && \
+    pnpm install --frozen-lockfile
 
 # 复制源代码（开发模式下会被挂载覆盖）
 COPY . .
@@ -31,10 +35,14 @@ COPY . .
 RUN mkdir -p /app/data
 
 # 环境变量
+# NODE_OPTIONS: 增加内存限制，加速构建
+# UV_THREADPOOL_SIZE: 增加线程池，加速 I/O
 ENV NODE_ENV=development \
     PORT=5170 \
     DATA_DIR=/app/data \
-    LOG_LEVEL=debug
+    LOG_LEVEL=debug \
+    NODE_OPTIONS="--max-old-space-size=4096" \
+    UV_THREADPOOL_SIZE=16
 
 # 暴露端口
 # 5170: 应用端口

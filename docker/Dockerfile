@@ -45,7 +45,10 @@ COPY . .
 
 # 执行构建
 # 设置 Node.js 内存限制和优化选项以加速构建
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# --max-old-space-size=4096: 增加 V8 堆内存到 4GB
+# UV_THREADPOOL_SIZE=16: 增加 libuv 线程池大小，加速 I/O 操作
+ENV NODE_OPTIONS="--max-old-space-size=4096" \
+    UV_THREADPOOL_SIZE=16
 RUN pnpm build
 
 # ============================================
