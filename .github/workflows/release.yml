@@ -313,9 +313,9 @@ jobs:
         run: |
           TAGS="ghcr.io/${{ steps.owner.outputs.OWNER }}/cyp-memo:latest"
           TAGS="$TAGS,ghcr.io/${{ steps.owner.outputs.OWNER }}/cyp-memo:${{ steps.version.outputs.VERSION }}"
-          if [ -n "$DOCKER_USER" ]; then
-            TAGS="$TAGS,$DOCKER_USER/cyp-memo:latest"
-            TAGS="$TAGS,$DOCKER_USER/cyp-memo:${{ steps.version.outputs.VERSION }}"
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
+            TAGS="$TAGS,${{ secrets.DOCKER_USERNAME }}/cyp-memo:latest"
+            TAGS="$TAGS,${{ secrets.DOCKER_USERNAME }}/cyp-memo:${{ steps.version.outputs.VERSION }}"
           fi
           echo "TAGS=$TAGS" >> $GITHUB_OUTPUT
 
