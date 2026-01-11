@@ -42,3 +42,9 @@ Thumbs.db
 # Backup files
 backups/
 *.tar.gz
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+packages/server/data/
