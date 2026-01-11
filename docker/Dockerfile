@@ -12,8 +12,13 @@ ARG VERSION=1.7.9
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
-# 安装 pnpm
-RUN npm install -g pnpm
+# 配置 Alpine 镜像源（国内加速）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 配置 npm 镜像源并安装 pnpm
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install -g pnpm && \
+    pnpm config set registry https://registry.npmmirror.com
 
 WORKDIR /app
 
@@ -55,8 +60,13 @@ LABEL org.opencontainers.image.title="CYP-memo" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/cyp-memo/cyp-memo"
 
-# 安装 pnpm（仅用于安装生产依赖）
-RUN npm install -g pnpm
+# 配置 Alpine 镜像源（国内加速）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 配置 npm 镜像源并安装 pnpm
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install -g pnpm && \
+    pnpm config set registry https://registry.npmmirror.com
 
 # 创建非 root 用户
 RUN addgroup -g 1001 -S nodejs && \
