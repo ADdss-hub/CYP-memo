@@ -109,9 +109,11 @@ jobs:
             ~/.pnpm-store
             **/node_modules
             ~/AppData/Local/node-gyp
-          key: ${{ runner.os }}-pnpm-native-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ~/AppData/Local/electron
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-pnpm-electron-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-native-
+            ${{ runner.os }}-pnpm-electron-
             ${{ runner.os }}-pnpm-
 
       - name: Configure npm registry (优先华为云镜像，验证预构建二进制)
@@ -212,9 +214,11 @@ jobs:
             ~/.pnpm-store
             **/node_modules
             ~/Library/Caches/node-gyp
-          key: ${{ runner.os }}-pnpm-native-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-pnpm-electron-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-native-
+            ${{ runner.os }}-pnpm-electron-
             ${{ runner.os }}-pnpm-
 
       - name: Configure npm registry (优先华为云镜像，验证预构建二进制)
@@ -306,9 +310,11 @@ jobs:
             ~/.pnpm-store
             **/node_modules
             ~/.cache/node-gyp
-          key: ${{ runner.os }}-pnpm-native-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: ${{ runner.os }}-pnpm-electron-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-native-
+            ${{ runner.os }}-pnpm-electron-
             ${{ runner.os }}-pnpm-
 
       - name: Configure npm registry (优先华为云镜像，验证预构建二进制)
@@ -586,11 +592,9 @@ jobs:
             |------|------|------|
             | Windows | `CYP-memo-*-setup.exe` | NSIS 安装程序 |
             | Windows | `CYP-memo-*-portable.exe` | 便携版，无需安装 |
-            | macOS (Intel) | `CYP-memo-*-x64.dmg` | Intel 芯片 Mac |
-            | macOS (Apple Silicon) | `CYP-memo-*-arm64.dmg` | M1/M2/M3 芯片 Mac |
+            | macOS | `CYP-memo-*-universal.dmg` | 支持 Intel 和 Apple Silicon |
             | Linux | `CYP-memo-*.AppImage` | 通用 Linux 格式 |
             | Linux (Debian/Ubuntu) | `cyp-memo_*.deb` | Debian 包 |
-            | Linux (Fedora/RHEL) | `cyp-memo-*.rpm` | RPM 包 |
             
             #### Web 端
             - `cyp-memo-web-*.zip` - 用户端静态文件

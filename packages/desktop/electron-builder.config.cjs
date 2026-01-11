@@ -54,7 +54,7 @@ const config = {
     target: [
       {
         target: 'nsis',
-        arch: ['x64', 'ia32'],
+        arch: ['x64'],  // 移除 ia32，现在很少有 32 位系统了
       },
       {
         target: 'portable',
@@ -106,11 +106,7 @@ const config = {
     target: [
       {
         target: 'dmg',
-        arch: ['x64', 'arm64'],
-      },
-      {
-        target: 'zip',
-        arch: ['x64', 'arm64'],
+        arch: ['universal'],  // 合并为 universal 二进制，一次构建支持两种架构
       },
     ],
     // icon: 'resources/icon.icns',  // TODO: 添加 macOS 图标
@@ -153,21 +149,14 @@ const config = {
   linux: {
     target: [
       {
-        target: 'AppImage',
+        target: 'AppImage',  // 通用格式，大多数用户用这个
         arch: ['x64'],
       },
       {
-        target: 'deb',
+        target: 'deb',  // Debian/Ubuntu 用户
         arch: ['x64'],
       },
-      {
-        target: 'rpm',
-        arch: ['x64'],
-      },
-      {
-        target: 'tar.gz',
-        arch: ['x64'],
-      },
+      // rpm 和 tar.gz 按需启用，减少构建时间
     ],
     // 统一 Linux 包的命名格式，避免使用 @ 符号
     artifactName: '${productName}-${version}-linux-${arch}.${ext}',
