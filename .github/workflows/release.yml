@@ -101,12 +101,14 @@ jobs:
         working-directory: packages/desktop
 
       - name: Build desktop app
-        run: pnpm --filter @cyp-memo/desktop build:win -- --publish never
+        run: |
+          cd packages/desktop
+          pnpm build
+          npx electron-builder --config electron-builder.config.cjs --win --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
           ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
-          # 跳过代码签名（如果没有配置证书）
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: List build output
@@ -128,6 +130,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Python (for node-gyp)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install setuptools (for distutils)
+        run: pip install setuptools
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -163,7 +173,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://repo.huaweicloud.com/electron/
           ELECTRON_BUILDER_BINARIES_MIRROR: https://repo.huaweicloud.com/electron-builder-binaries/
-          # 跳过代码签名（如果没有配置证书）
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: List build output
