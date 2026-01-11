@@ -1,0 +1,101 @@
+# ============================================
+# CYP-memo Docker 忽略文件
+# 用于生产镜像构建，排除不必要的文件
+# ============================================
+
+# Dependencies (will be installed fresh in container)
+node_modules
+**/node_modules
+
+# Build outputs (will be built in container)
+dist
+**/dist
+
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in production image)
+docs/
+# 保留 README.md 用于参考
+!README.md
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+*.sublime-*
+
+# Kiro specs (开发规范文档)
+.kiro
+
+# Logs
+*.log
+logs/
+
+# Database files (data should be mounted as volume)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+data/
+backup/
+packages/server/data/
+
+# Environment files (should be passed at runtime)
+.env
+.env.local
+.env.*.local
+# 保留 .env.example 作为配置参考
+!.env.example
+
+# Test files (not needed in production)
+**/*.test.ts
+**/*.spec.ts
+**/tests/
+**/test/
+**/__tests__/
+**/vitest.config.ts
+**/vitest.config.js
+coverage/
+.nyc_output/
+
+# Development configuration files
+**/*.map
+.eslintrc*
+.eslintignore
+.prettierrc*
+.prettierignore
+*.tsbuildinfo
+
+# TypeScript config (not needed after build)
+# 注意：开发模式需要这些文件，但生产构建不需要
+tsconfig*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+
+# Development scripts (not needed in production)
+scripts/dev.js
+dev.bat
+
+# Version system tools (development only)
+unified-version-system-v1.0.0/
+
+# Docker development files (not needed in production image)
+Dockerfile.dev
+docker-compose.dev.yml
+
+# Changelog and version history (optional in production)
+CHANGELOG.md
+.version/

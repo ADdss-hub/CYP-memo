@@ -55,8 +55,5 @@ packages/server/data/uploads/
 # Documentation (Chinese)
 文档.md
 
-# Docker folder (local only)
-docker/
-
 # Kiro IDE config
 .kiro/
