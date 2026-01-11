@@ -48,3 +48,12 @@ backups/
 *.sqlite3
 *.db
 packages/server/data/
+
+# Uploads and user data
+packages/server/data/uploads/
+
+# Documentation (Chinese)
+文档.md
+
+# Docker folder (local only)
+docker/
