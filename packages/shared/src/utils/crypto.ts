@@ -25,6 +25,37 @@ if (!isBrowser) {
 }
 
 /**
+ * 将字符串编码为 Base64（支持 Unicode 字符）
+ * 解决 btoa() 无法处理非 Latin1 字符的问题
+ * @param str 要编码的字符串
+ * @returns Base64 编码的字符串
+ */
+function encodeBase64(str: string): string {
+  // 使用 TextEncoder 将字符串转换为 UTF-8 字节数组
+  const encoder = new TextEncoder()
+  const bytes = encoder.encode(str)
+  // 将字节数组转换为二进制字符串，然后使用 btoa 编码
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
+/**
+ * 将 Uint8Array 编码为 Base64
+ * @param bytes 字节数组
+ * @returns Base64 编码的字符串
+ */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
+/**
  * 简单的密码哈希函数（备用方案）
  * 当 Web Crypto API 和 bcryptjs 都不可用时使用
  * 注意：这不是安全的哈希方案，仅作为最后的备用
@@ -44,8 +75,9 @@ async function hashPasswordFallback(password: string): Promise<string> {
   }
   
   // 最后的备用方案：Base64 编码（不安全，仅用于开发/测试）
+  // 使用 encodeBase64 支持 Unicode 字符（如中文用户名/密码）
   console.warn('警告：使用不安全的密码存储方案，请确保 bcryptjs 或 Web Crypto API 可用')
-  return 'base64:' + btoa(password)
+  return 'base64:' + encodeBase64(password)
 }
 
 /**
@@ -57,7 +89,8 @@ async function verifyPasswordFallback(password: string, hash: string): Promise<b
     return newHash === hash
   }
   if (hash.startsWith('base64:')) {
-    return hash === 'base64:' + btoa(password)
+    // 使用 encodeBase64 支持 Unicode 字符
+    return hash === 'base64:' + encodeBase64(password)
   }
   return false
 }
@@ -132,8 +165,8 @@ async function hashPasswordBrowser(password: string): Promise<string> {
   combined.set(salt)
   combined.set(hashArray, salt.length)
 
-  // 转换为 Base64 字符串
-  return btoa(String.fromCharCode(...combined))
+  // 转换为 Base64 字符串（使用 uint8ArrayToBase64 确保兼容性）
+  return uint8ArrayToBase64(combined)
 }
 
 /**
