@@ -2,7 +2,7 @@
   "name": "@cyp-memo/desktop",
   "version": "1.8.1",
   "type": "module",
-  "description": "CYP-memo 桌面客户�?,
+  "description": "CYP-memo 桌面客户端",
   "homepage": "https://github.com/ADdss-hub/CYP-memo",
   "author": {
     "name": "CYP",
