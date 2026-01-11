@@ -25,17 +25,22 @@ app.use(ElementPlus)
  */
 async function initializeStorage() {
   try {
+    // 在生产模式下使用相对路径，开发模式下使用完整 URL
+    const apiUrl = import.meta.env.PROD 
+      ? '/api'  // 生产模式：相对路径，由同一服务器托管
+      : 'http://localhost:5170/api'  // 开发模式：Vite 代理或直接访问
+    
     await storageManager.initialize({
       mode: 'remote',
-      apiUrl: 'http://localhost:5170/api'
+      apiUrl
     })
     console.log('✅ 存储管理器初始化成功 - 使用服务器端存储')
-    console.log('📍 API 地址:', 'http://localhost:5170/api')
+    console.log('📍 API 地址:', apiUrl)
     return true
   } catch (error) {
     console.error('❌ 无法连接到服务器，应用无法正常工作:', error)
     ElMessage.error({
-      message: '无法连接到服务器，请确保服务器正在运行（端口 5170）',
+      message: '无法连接到服务器，请确保服务器正在运行',
       duration: 0,
       showClose: true,
     })
