@@ -101,7 +101,7 @@ jobs:
         working-directory: packages/desktop
 
       - name: Build desktop app
-        run: pnpm --filter @cyp-memo/desktop build:win
+        run: pnpm --filter @cyp-memo/desktop build:win -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
@@ -158,7 +158,7 @@ jobs:
         working-directory: packages/desktop
 
       - name: Build desktop app
-        run: pnpm --filter @cyp-memo/desktop build:mac
+        run: pnpm --filter @cyp-memo/desktop build:mac -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
@@ -230,7 +230,7 @@ jobs:
         working-directory: packages/desktop
 
       - name: Build desktop app
-        run: pnpm --filter @cyp-memo/desktop build:linux
+        run: pnpm --filter @cyp-memo/desktop build:linux -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
