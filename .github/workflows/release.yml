@@ -39,10 +39,34 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Configure npm registry (GitHub Actions 使用官方源)
+      - name: Configure npm registry (自动选择最快镜像)
         run: |
-          npm config set registry https://registry.npmjs.org/
-          pnpm config set registry https://registry.npmjs.org/
+          # 测试镜像可用性并选择最快的
+          test_mirror() {
+            local url=$1
+            local start=$(date +%s%N)
+            if curl -s --connect-timeout 3 --max-time 5 "${url}/-/ping" > /dev/null 2>&1; then
+              local end=$(date +%s%N)
+              echo $(( (end - start) / 1000000 ))
+            else
+              echo "9999"
+            fi
+          }
+          
+          NPMJS_TIME=$(test_mirror "https://registry.npmjs.org")
+          HUAWEI_TIME=$(test_mirror "https://repo.huaweicloud.com/repository/npm")
+          
+          echo "npmjs.org: ${NPMJS_TIME}ms, huaweicloud: ${HUAWEI_TIME}ms"
+          
+          if [ "$HUAWEI_TIME" -lt "$NPMJS_TIME" ] && [ "$HUAWEI_TIME" -lt "9999" ]; then
+            echo "Using Huawei mirror"
+            npm config set registry https://repo.huaweicloud.com/repository/npm/
+            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+          else
+            echo "Using official npm registry"
+            npm config set registry https://registry.npmjs.org/
+            pnpm config set registry https://registry.npmjs.org/
+          fi
 
       - name: Install dependencies
         run: pnpm install
@@ -82,16 +106,61 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Configure npm registry (GitHub Actions 使用官方源)
+      - name: Configure npm registry (自动选择镜像并验证预构建二进制)
+        shell: pwsh
         run: |
-          npm config set registry https://registry.npmjs.org/
-          pnpm config set registry https://registry.npmjs.org/
+          # 测试镜像可用性
+          function Test-Mirror {
+            param($url)
+            try {
+              $start = Get-Date
+              $response = Invoke-WebRequest -Uri "$url/-/ping" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+              $elapsed = ((Get-Date) - $start).TotalMilliseconds
+              return [int]$elapsed
+            } catch {
+              return 9999
+            }
+          }
+          
+          # 验证预构建二进制文件是否有效 (检查 gzip 头)
+          function Test-Prebuild {
+            param($url)
+            try {
+              $response = Invoke-WebRequest -Uri $url -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+              $bytes = $response.Content[0..1]
+              # gzip 文件头: 0x1f 0x8b
+              if ($bytes[0] -eq 0x1f -and $bytes[1] -eq 0x8b) {
+                return $true
+              }
+              return $false
+            } catch {
+              return $false
+            }
+          }
+          
+          $npmjsTime = Test-Mirror "https://registry.npmjs.org"
+          $huaweiTime = Test-Mirror "https://repo.huaweicloud.com/repository/npm"
+          
+          Write-Host "npmjs.org: ${npmjsTime}ms, huaweicloud: ${huaweiTime}ms"
+          
+          # 验证华为云 better-sqlite3 预构建二进制
+          $huaweiPrebuildValid = Test-Prebuild "https://repo.huaweicloud.com/better-sqlite3/v9.6.0/better-sqlite3-v9.6.0-electron-v119-win32-x64.tar.gz"
+          Write-Host "Huawei prebuild valid: $huaweiPrebuildValid"
+          
+          if ($huaweiTime -lt $npmjsTime -and $huaweiTime -lt 9999 -and $huaweiPrebuildValid) {
+            Write-Host "Using Huawei mirror"
+            npm config set registry https://repo.huaweicloud.com/repository/npm/
+            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+            "ELECTRON_MIRROR=https://repo.huaweicloud.com/electron/" | Out-File -FilePath $env:GITHUB_ENV -Append
+            "ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } else {
+            Write-Host "Using official npm registry (prebuild invalid or slower)"
+            npm config set registry https://registry.npmjs.org/
+            pnpm config set registry https://registry.npmjs.org/
+          }
 
       - name: Install dependencies
         run: pnpm install
-        env:
-          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
@@ -130,12 +199,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python (for node-gyp)
+      - name: Setup Python (for node-gyp fallback)
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install setuptools (for distutils)
+      - name: Install setuptools (for distutils compatibility)
         run: pip install setuptools
 
       - name: Setup Node.js
@@ -148,17 +217,58 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Configure npm registry (GitHub Actions 使用官方源)
+      - name: Configure npm registry (自动选择镜像并验证预构建二进制)
         run: |
-          npm config set registry https://registry.npmjs.org/
-          pnpm config set registry https://registry.npmjs.org/
+          # 测试镜像可用性
+          test_mirror() {
+            local url=$1
+            local start=$(date +%s%N)
+            if curl -s --connect-timeout 3 --max-time 5 "${url}/-/ping" > /dev/null 2>&1; then
+              local end=$(date +%s%N)
+              echo $(( (end - start) / 1000000 ))
+            else
+              echo "9999"
+            fi
+          }
+          
+          # 验证预构建二进制文件是否有效 (检查 gzip 头 1f8b)
+          test_prebuild() {
+            local url=$1
+            local header=$(curl -s --connect-timeout 5 --max-time 10 -r 0-1 "$url" | xxd -p)
+            if [ "$header" = "1f8b" ]; then
+              echo "valid"
+            else
+              echo "invalid"
+            fi
+          }
+          
+          NPMJS_TIME=$(test_mirror "https://registry.npmjs.org")
+          HUAWEI_TIME=$(test_mirror "https://repo.huaweicloud.com/repository/npm")
+          
+          echo "npmjs.org: ${NPMJS_TIME}ms, huaweicloud: ${HUAWEI_TIME}ms"
+          
+          # 验证华为云 better-sqlite3 预构建二进制 (macOS arm64)
+          HUAWEI_PREBUILD=$(test_prebuild "https://repo.huaweicloud.com/better-sqlite3/v9.6.0/better-sqlite3-v9.6.0-electron-v119-darwin-arm64.tar.gz")
+          echo "Huawei prebuild: $HUAWEI_PREBUILD"
+          
+          # 设置 Python 路径供 node-gyp 使用
           npm config set python $(which python3)
+          
+          if [ "$HUAWEI_TIME" -lt "$NPMJS_TIME" ] && [ "$HUAWEI_TIME" -lt "9999" ] && [ "$HUAWEI_PREBUILD" = "valid" ]; then
+            echo "Using Huawei mirror"
+            npm config set registry https://repo.huaweicloud.com/repository/npm/
+            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+            echo "ELECTRON_MIRROR=https://repo.huaweicloud.com/electron/" >> $GITHUB_ENV
+            echo "ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/" >> $GITHUB_ENV
+          else
+            echo "Using official npm registry (prebuild invalid or slower)"
+            npm config set registry https://registry.npmjs.org/
+            pnpm config set registry https://registry.npmjs.org/
+          fi
 
       - name: Install dependencies
         run: pnpm install
         env:
-          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
           npm_config_python: python3
 
       - name: Build shared package
@@ -203,32 +313,59 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Configure apt mirror (阿里云 - 速度最快 50ms)
-        run: |
-          # Ubuntu 22.04+ 使用 /etc/apt/sources.list.d/ubuntu.sources
-          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-            sudo sed -i 's|http://azure.archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources
-            sudo sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources
-          else
-            sudo sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
-            sudo sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
-          fi
-
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libsecret-1-dev rpm
 
-      - name: Configure npm registry (GitHub Actions 使用官方源)
+      - name: Configure npm registry (自动选择镜像并验证预构建二进制)
         run: |
-          npm config set registry https://registry.npmjs.org/
-          pnpm config set registry https://registry.npmjs.org/
+          # 测试镜像可用性
+          test_mirror() {
+            local url=$1
+            local start=$(date +%s%N)
+            if curl -s --connect-timeout 3 --max-time 5 "${url}/-/ping" > /dev/null 2>&1; then
+              local end=$(date +%s%N)
+              echo $(( (end - start) / 1000000 ))
+            else
+              echo "9999"
+            fi
+          }
+          
+          # 验证预构建二进制文件是否有效 (检查 gzip 头 1f8b)
+          test_prebuild() {
+            local url=$1
+            local header=$(curl -s --connect-timeout 5 --max-time 10 -r 0-1 "$url" | xxd -p)
+            if [ "$header" = "1f8b" ]; then
+              echo "valid"
+            else
+              echo "invalid"
+            fi
+          }
+          
+          NPMJS_TIME=$(test_mirror "https://registry.npmjs.org")
+          HUAWEI_TIME=$(test_mirror "https://repo.huaweicloud.com/repository/npm")
+          
+          echo "npmjs.org: ${NPMJS_TIME}ms, huaweicloud: ${HUAWEI_TIME}ms"
+          
+          # 验证华为云 better-sqlite3 预构建二进制 (Linux x64)
+          HUAWEI_PREBUILD=$(test_prebuild "https://repo.huaweicloud.com/better-sqlite3/v9.6.0/better-sqlite3-v9.6.0-electron-v119-linux-x64.tar.gz")
+          echo "Huawei prebuild: $HUAWEI_PREBUILD"
+          
+          if [ "$HUAWEI_TIME" -lt "$NPMJS_TIME" ] && [ "$HUAWEI_TIME" -lt "9999" ] && [ "$HUAWEI_PREBUILD" = "valid" ]; then
+            echo "Using Huawei mirror"
+            npm config set registry https://repo.huaweicloud.com/repository/npm/
+            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+            echo "ELECTRON_MIRROR=https://repo.huaweicloud.com/electron/" >> $GITHUB_ENV
+            echo "ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/" >> $GITHUB_ENV
+          else
+            echo "Using official npm registry (prebuild invalid or slower)"
+            npm config set registry https://registry.npmjs.org/
+            pnpm config set registry https://registry.npmjs.org/
+          fi
 
       - name: Install dependencies
         run: pnpm install
-        env:
-          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
 
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
@@ -255,6 +392,7 @@ jobs:
             packages/desktop/release/**/*.rpm
             packages/desktop/release/**/*.tar.gz
             packages/desktop/release/**/latest-linux.yml
+
 
   # ========== 构建 Docker 镜像 (AMD64) ==========
   build-docker-amd64:
