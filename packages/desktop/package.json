@@ -8,7 +8,7 @@
     "email": "nasDSSCYP@outlook.com"
   },
   "license": "MIT",
-  "main": "dist/main/index.js",
+  "main": "dist/main/main/index.js",
   "scripts": {
     "dev": "node scripts/dev.js",
     "build": "tsc -p tsconfig.main.json && vite build",
