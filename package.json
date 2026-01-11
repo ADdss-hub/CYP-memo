@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "description": "CYP-memo 容器备忘录系统",
+  "homepage": "https://github.com/ADdss-hub/CYP-memo",
   "author": {
     "name": "CYP",
     "email": "nasDSSCYP@outlook.com"

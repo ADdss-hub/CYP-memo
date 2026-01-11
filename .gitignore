@@ -60,3 +60,9 @@ packages/server/data/uploads/
 
 # Unified version system
 unified-version-system-v1.0.0/unified-version-system/
+
+# Version tracking (local only)
+.version/
+
+# Build logs (local only)
+docs/gitgud-*.md

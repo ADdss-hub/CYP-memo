@@ -33,7 +33,8 @@ COPY packages/admin/package.json ./packages/admin/
 COPY packages/server/package.json ./packages/server/
 
 # 安装全部依赖（包括开发依赖用于构建）
-RUN pnpm install --frozen-lockfile
+# 使用 --ignore-scripts 跳过不必要的构建脚本以加速
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # 复制源代码（在依赖安装后，利用缓存）
 COPY . .

@@ -12,6 +12,11 @@ on:
         default: 'true'
         type: boolean
 
+# 添加必要的权限
+permissions:
+  contents: write
+  packages: write
+
 env:
   NODE_VERSION: '20'
   PNPM_VERSION: '8'
@@ -33,6 +38,11 @@ jobs:
         uses: pnpm/action-setup@v2
         with:
           version: ${{ env.PNPM_VERSION }}
+
+      - name: Configure npm registry (China mirror)
+        run: |
+          npm config set registry https://registry.npmmirror.com
+          pnpm config set registry https://registry.npmmirror.com
 
       - name: Install dependencies
         run: pnpm install
@@ -71,6 +81,17 @@ jobs:
         uses: pnpm/action-setup@v2
         with:
           version: ${{ env.PNPM_VERSION }}
+
+      - name: Configure npm registry (China mirror)
+        run: |
+          npm config set registry https://registry.npmmirror.com
+          pnpm config set registry https://registry.npmmirror.com
+
+      - name: Configure electron mirror (China)
+        run: |
+          npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+          npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
+        shell: pwsh
 
       - name: Install dependencies
         run: pnpm install
@@ -116,6 +137,16 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
+      - name: Configure npm registry (China mirror)
+        run: |
+          npm config set registry https://registry.npmmirror.com
+          pnpm config set registry https://registry.npmmirror.com
+
+      - name: Configure electron mirror (China)
+        run: |
+          npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+          npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
+
       - name: Install dependencies
         run: pnpm install
 
@@ -159,10 +190,25 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
+      - name: Configure apt mirror (China)
+        run: |
+          sudo sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
+          sudo sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libsecret-1-dev rpm
+
+      - name: Configure npm registry (China mirror)
+        run: |
+          npm config set registry https://registry.npmmirror.com
+          pnpm config set registry https://registry.npmmirror.com
+
+      - name: Configure electron mirror (China)
+        run: |
+          npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+          npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
 
       - name: Install dependencies
         run: pnpm install
@@ -193,6 +239,7 @@ jobs:
   # ========== 构建并推送 Docker 镜像 ==========
   build-docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 120  # 增加超时时间到 2 小时
     env:
       DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
       ALIYUN_USER: ${{ secrets.ALIYUN_USERNAME }}
@@ -205,6 +252,13 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          config-inline: |
+            [registry."docker.io"]
+              mirrors = ["https://docker.mirrors.ustc.edu.cn"]
 
       - name: Extract version
         id: version
@@ -261,6 +315,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.VERSION }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            GIT_COMMIT=${{ github.sha }}
 
   # ========== 发布 GitHub Release ==========
   publish-release:

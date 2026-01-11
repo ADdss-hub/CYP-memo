@@ -3,6 +3,7 @@
   "version": "1.8.0",
   "type": "module",
   "description": "CYP-memo 桌面客户端",
+  "homepage": "https://github.com/ADdss-hub/CYP-memo",
   "author": {
     "name": "CYP",
     "email": "nasDSSCYP@outlook.com"
