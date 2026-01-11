@@ -6,7 +6,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        - VERSION=1.7.9
+        - VERSION=1.7.10
         - BUILD_DATE=${BUILD_DATE:-}
         - GIT_COMMIT=${GIT_COMMIT:-}
     image: cyp-memo:latest
@@ -22,9 +22,14 @@ services:
       - PORT=5170
       - DATA_DIR=/app/data
       - TZ=Asia/Shanghai
+      # 用户权限配置（适配不同 NAS 系统）
+      # 飞牛 NAS 默认用户 UID/GID 通常为 1000
+      # 群晖 NAS 默认用户 UID/GID 通常为 1026
+      # 威联通 NAS 默认用户 UID/GID 通常为 1000
+      # 可根据实际情况修改
+      - PUID=${PUID:-1001}
+      - PGID=${PGID:-1001}
     restart: unless-stopped
-    # 使用非 root 用户运行（在 Dockerfile 中配置）
-    # user: "1001:1001"  # 可选：显式指定用户
     
     # 安全加固配置
     security_opt:
@@ -33,8 +38,8 @@ services:
       - ALL                      # 移除所有 Linux capabilities
     cap_add:
       - CHOWN                    # 允许修改文件所有者（数据目录初始化需要）
-      - SETUID                   # 允许设置用户 ID（Node.js 运行需要）
-      - SETGID                   # 允许设置组 ID（Node.js 运行需要）
+      - SETUID                   # 允许设置用户 ID（权限切换需要）
+      - SETGID                   # 允许设置组 ID（权限切换需要）
     # 只读文件系统配置（可选，取消注释启用）
     # read_only: true            # 启用只读文件系统
     # tmpfs:
@@ -45,7 +50,7 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 10s
     networks:
       - cyp-memo-network
 

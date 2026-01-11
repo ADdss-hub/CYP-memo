@@ -2,6 +2,148 @@
   "schema": "2.1.0",
   "history": [
     {
+      "version": "1.8.0",
+      "timestamp": "2026-01-11T14:00:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "桌面端核心功能完成：窗口管理、系统托盘、全局快捷键、本地缓存、离线同步、通知系统、自动更新"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端安全增强：凭证管理器使用系统安全存储、AES-256 本地数据加密、HTTPS 强制、CSP 内容安全策略"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端跨平台支持：Windows/macOS/Linux 平台特定功能、统一拖放处理、跨平台路径处理"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端服务器连接：支持远程服务器和内置服务器两种模式、首次启动配置向导"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端构建配置：electron-builder 多平台打包、代码签名配置、GitHub Releases 自动发布"
+        },
+        {
+          "type": "docs",
+          "description": "桌面端文档完善：BUILD.md 构建指南、README.md 功能说明、设计文档和任务列表更新"
+        }
+      ],
+      "type": "minor",
+      "previousVersion": "1.7.11",
+      "metadata": {
+        "autoRelease": false
+      }
+    },
+    {
+      "version": "1.7.11",
+      "timestamp": "2026-01-11T12:00:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "桌面端核心功能完成：窗口管理、系统托盘、全局快捷键、本地缓存、离线同步、通知系统、自动更新"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端安全增强：凭证管理器使用系统安全存储、AES-256 本地数据加密、HTTPS 强制、CSP 内容安全策略"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端跨平台支持：Windows/macOS/Linux 平台特定功能、统一拖放处理、跨平台路径处理"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端服务器连接：支持远程服务器和内置服务器两种模式、首次启动配置向导"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端构建配置：electron-builder 多平台打包、代码签名配置、GitHub Releases 自动发布"
+        },
+        {
+          "type": "docs",
+          "description": "桌面端文档完善：BUILD.md 构建指南、README.md 功能说明、设计文档和任务列表更新"
+        },
+        {
+          "type": "feat",
+          "description": "全端版本更新检测：所有端（桌面端、Web用户端、Web管理端、Docker）都支持自动检测新版本并提示更新"
+        },
+        {
+          "type": "feat",
+          "description": "桌面端自动更新：集成 electron-updater，启动时检查 GitHub Releases，后台下载更新并提示安装"
+        },
+        {
+          "type": "feat",
+          "description": "Web 端更新提示：每 5 分钟检测服务器版本，发现新版本在页面顶部显示提示条"
+        },
+        {
+          "type": "feat",
+          "description": "Docker 更新支持：自动检测 Docker 环境，显示 Watchtower 自动更新和手动更新两种方式"
+        },
+        {
+          "type": "feat",
+          "description": "多镜像源支持：Docker 更新命令支持 Docker Hub 和 GHCR 两个镜像源"
+        },
+        {
+          "type": "feat",
+          "description": "一键发布脚本：整合版本更新工具和 Git 操作，支持 patch/minor/major 版本发布"
+        },
+        {
+          "type": "feat",
+          "description": "GitHub Actions 自动发布：创建 tag 后自动构建所有端并发布到 GitHub Releases"
+        },
+        {
+          "type": "feat",
+          "description": "服务器版本 API：新增 /api/version/latest 端点，从 GitHub Releases 获取最新版本信息"
+        },
+        {
+          "type": "docs",
+          "description": "发布指南文档：新增 docs/RELEASE.md，详细说明发布流程和各端更新方式"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.7.10",
+      "metadata": {
+        "autoRelease": false
+      }
+    },
+    {
+      "version": "1.7.10",
+      "timestamp": "2026-01-11T08:00:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Docker 容器数据目录权限问题：修复在飞牛 NAS 等设备上使用绑定挂载时出现 EACCES permission denied 错误"
+        },
+        {
+          "type": "feat",
+          "description": "Docker 入口脚本：新增 entrypoint.sh 处理数据目录权限，支持 PUID/PGID 环境变量配置运行用户"
+        },
+        {
+          "type": "feat",
+          "description": "多 NAS 系统支持：支持飞牛 NAS、群晖、威联通、铁威马、Unraid 等多种 NAS 系统的 Docker 部署"
+        },
+        {
+          "type": "perf",
+          "description": "错误提示优化：数据目录权限错误时提供详细的解决方案和各 NAS 系统的配置示例"
+        },
+        {
+          "type": "perf",
+          "description": "Docker 镜像优化：安装 su-exec 工具支持运行时权限切换，数据目录默认设置宽松权限"
+        },
+        {
+          "type": "docs",
+          "description": "Docker 文档更新：添加各 NAS 系统的部署指南和权限问题排查方法"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.7.9",
+      "metadata": {}
+    },
+    {
       "version": "1.7.9",
       "timestamp": "2026-01-10T15:49:46.366Z",
       "author": "CYP",
@@ -431,7 +573,7 @@
     }
   ],
   "metadata": {
-    "updated": "2026-01-10T15:49:46.366Z",
+    "updated": "2026-01-11T14:00:00.000Z",
     "project": "CYP-memo"
   }
 }

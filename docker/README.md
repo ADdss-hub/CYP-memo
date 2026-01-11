@@ -11,7 +11,7 @@
 docker pull cyp97/cyp-memo:latest
 
 # 拉取指定版本
-docker pull cyp97/cyp-memo:1.7.9
+docker pull cyp97/cyp-memo:1.7.10
 ```
 
 ## 快速部署
@@ -35,6 +35,7 @@ docker run -d \
 | `Dockerfile.dev` | 开发环境镜像构建文件（支持热重载） |
 | `docker-compose.yml` | 生产环境编排配置 |
 | `docker-compose.dev.yml` | 开发环境编排配置 |
+| `entrypoint.sh` | 容器入口脚本（处理权限问题） |
 | `.dockerignore` | Docker 构建忽略文件 |
 
 ## 使用方法
@@ -83,6 +84,8 @@ docker build -f docker/Dockerfile.dev -t cyp-memo:dev .
 | `DATA_DIR` | /app/data | 数据目录 |
 | `LOG_LEVEL` | info | 日志级别 |
 | `TZ` | Asia/Shanghai | 时区 |
+| `PUID` | 1001 | 运行用户 UID |
+| `PGID` | 1001 | 运行用户 GID |
 
 ## 数据持久化
 
@@ -99,3 +102,156 @@ docker build -f docker/Dockerfile.dev -t cyp-memo:dev .
 # 绑定挂载
 -v /path/to/data:/app/data
 ```
+
+## NAS 部署指南
+
+### 权限问题解决
+
+如果遇到 `数据目录不可写: /app/data` 错误，请按以下方法解决：
+
+#### 方法一：使用 PUID/PGID 环境变量（推荐）
+
+```bash
+# 查看 NAS 用户的 UID 和 GID
+id username
+
+# 使用对应的 UID/GID 启动容器
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -v /path/to/data:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+#### 方法二：修改宿主机目录权限
+
+```bash
+# 在 NAS 上创建数据目录并设置权限
+mkdir -p /path/to/data
+chmod 777 /path/to/data
+```
+
+### 各 NAS 系统配置
+
+#### 飞牛 NAS (fnOS)
+
+```bash
+# 飞牛 NAS 默认用户 UID/GID 通常为 1000
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=Asia/Shanghai \
+  -v /vol1/docker/cyp-memo:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+#### 群晖 NAS (Synology)
+
+```bash
+# 群晖 NAS 默认用户 UID/GID 通常为 1026
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -e PUID=1026 \
+  -e PGID=100 \
+  -e TZ=Asia/Shanghai \
+  -v /volume1/docker/cyp-memo:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+#### 威联通 NAS (QNAP)
+
+```bash
+# 威联通 NAS 默认用户 UID/GID 通常为 1000
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=Asia/Shanghai \
+  -v /share/Container/cyp-memo:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+#### 铁威马 NAS (TerraMaster)
+
+```bash
+# 铁威马 NAS 默认用户 UID/GID 通常为 1000
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=Asia/Shanghai \
+  -v /Volume1/docker/cyp-memo:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+#### Unraid
+
+```bash
+# Unraid 默认使用 nobody 用户，UID/GID 为 99
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -e PUID=99 \
+  -e PGID=100 \
+  -e TZ=Asia/Shanghai \
+  -v /mnt/user/appdata/cyp-memo:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+### Docker Compose 配置示例
+
+```yaml
+version: '3.8'
+
+services:
+  cyp-memo:
+    image: cyp97/cyp-memo:latest
+    container_name: cyp-memo
+    ports:
+      - "5170:5170"
+    environment:
+      - NODE_ENV=production
+      - PORT=5170
+      - DATA_DIR=/app/data
+      - TZ=Asia/Shanghai
+      - PUID=1000  # 修改为你的用户 UID
+      - PGID=1000  # 修改为你的用户 GID
+    volumes:
+      - /path/to/data:/app/data  # 修改为你的数据目录
+    restart: unless-stopped
+```
+
+### 常见问题排查
+
+1. **查看容器日志**
+   ```bash
+   docker logs cyp-memo
+   ```
+
+2. **检查数据目录权限**
+   ```bash
+   ls -la /path/to/data
+   ```
+
+3. **查看当前用户 UID/GID**
+   ```bash
+   id
+   ```
+
+4. **进入容器调试**
+   ```bash
+   docker exec -it cyp-memo sh
+   ```

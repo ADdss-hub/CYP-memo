@@ -1,6 +1,8 @@
 # CYP-memo Docker 镜像
 # 多阶段构建，优化镜像体积和构建速度
 # 基于 Alpine 镜像以最小化体积
+# 支持飞牛 NAS、群晖、威联通等多种 NAS 系统
+# Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 
 # ============================================
 # 阶段 1: Builder - 安装依赖和构建
@@ -8,7 +10,7 @@
 FROM node:18-alpine AS builder
 
 # 构建参数 - 版本信息
-ARG VERSION=1.7.9
+ARG VERSION=1.7.10
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
@@ -45,7 +47,7 @@ RUN pnpm build
 FROM node:18-alpine AS production
 
 # 构建参数 - 版本信息
-ARG VERSION=1.7.9
+ARG VERSION=1.7.10
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
@@ -63,12 +65,14 @@ LABEL org.opencontainers.image.title="CYP-memo" \
 # 配置 Alpine 镜像源（国内加速）
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
+# 安装必要工具：su-exec 用于权限切换
 # 配置 npm 镜像源并安装 pnpm
-RUN npm config set registry https://registry.npmmirror.com && \
+RUN apk add --no-cache su-exec && \
+    npm config set registry https://registry.npmmirror.com && \
     npm install -g pnpm && \
     pnpm config set registry https://registry.npmmirror.com
 
-# 创建非 root 用户
+# 创建默认用户组和用户（可通过 PUID/PGID 环境变量覆盖）
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 -G nodejs
 
@@ -86,25 +90,29 @@ COPY --from=builder /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/pnpm-lock.yaml ./
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 
+# 复制入口脚本
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # 安装生产依赖（排除开发依赖）
 WORKDIR /app/packages/server
 RUN pnpm install --prod --frozen-lockfile
 
-# 创建数据目录并设置权限
+# 创建数据目录并设置宽松权限（允许任意用户写入）
 RUN mkdir -p /app/data && \
-    chown -R nodejs:nodejs /app/data && \
+    chmod 777 /app/data && \
     chown -R nodejs:nodejs /app/packages
-
-# 切换到非 root 用户
-USER nodejs
 
 # 设置工作目录
 WORKDIR /app/packages/server
 
 # 环境变量
+# PUID/PGID: 用于指定运行用户的 UID/GID，适配不同 NAS 系统
 ENV NODE_ENV=production \
     PORT=5170 \
-    DATA_DIR=/app/data
+    DATA_DIR=/app/data \
+    PUID=1001 \
+    PGID=1001
 
 # 暴露端口
 EXPOSE 5170
@@ -113,8 +121,11 @@ EXPOSE 5170
 VOLUME ["/app/data"]
 
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:5170/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# 使用入口脚本处理权限问题
+ENTRYPOINT ["/entrypoint.sh"]
 
 # 启动服务
 CMD ["node", "dist/index.js"]

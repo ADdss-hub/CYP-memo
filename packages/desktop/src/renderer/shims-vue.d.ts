@@ -1,0 +1,10 @@
+/**
+ * Vue 单文件组件类型声明
+ * Type declarations for Vue single-file components
+ */
+
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue'
+  const component: DefineComponent<object, object, unknown>
+  export default component
+}

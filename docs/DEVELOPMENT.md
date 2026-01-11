@@ -286,6 +286,23 @@ const logs = await logManager.getLogs()
 pnpm build
 ```
 
+### 发布新版本
+
+使用一键发布脚本：
+
+```bash
+# 补丁版本 (1.7.10 -> 1.7.11)
+pnpm release:patch
+
+# 次版本 (1.7.10 -> 1.8.0)
+pnpm release:minor
+
+# 主版本 (1.7.10 -> 2.0.0)
+pnpm release:major
+```
+
+详细说明见 [发布指南](./RELEASE.md)。
+
 ### Docker 部署（推荐）
 
 ```bash

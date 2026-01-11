@@ -1,0 +1,59 @@
+{
+  "name": "@cyp-memo/desktop",
+  "version": "1.8.0",
+  "type": "module",
+  "description": "CYP-memo 桌面客户端",
+  "author": {
+    "name": "CYP",
+    "email": "nasDSSCYP@outlook.com"
+  },
+  "license": "MIT",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "build": "tsc -p tsconfig.main.json && vite build",
+    "build:electron": "electron-builder --config electron-builder.config.js",
+    "build:all": "pnpm build && pnpm build:electron",
+    "build:win": "pnpm build && electron-builder --config electron-builder.config.js --win",
+    "build:mac": "pnpm build && electron-builder --config electron-builder.config.js --mac",
+    "build:linux": "pnpm build && electron-builder --config electron-builder.config.js --linux",
+    "build:portable": "pnpm build && electron-builder --config electron-builder.config.js --win portable",
+    "pack": "pnpm build && electron-builder --config electron-builder.config.js --dir",
+    "release": "pnpm build && electron-builder --config electron-builder.config.js --publish always",
+    "release:draft": "pnpm build && electron-builder --config electron-builder.config.js --publish onTagOrDraft",
+    "generate-icons": "node scripts/generate-icons.js",
+    "check-signing": "node scripts/check-signing.js",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "lint": "eslint . --ext .ts,.vue --fix",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "@cyp-memo/shared": "workspace:*",
+    "electron-updater": "^6.1.7",
+    "keytar": "^7.9.0",
+    "better-sqlite3": "^9.2.2"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^2.2.0",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitejs/plugin-vue": "^5.0.2",
+    "@vue/tsconfig": "^0.5.1",
+    "chokidar": "^3.5.3",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.19.2",
+    "fast-check": "^3.15.0",
+    "prettier": "^3.1.1",
+    "sharp": "^0.33.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vitest": "^1.1.0",
+    "vue": "^3.4.3",
+    "vue-tsc": "^1.8.27"
+  }
+}

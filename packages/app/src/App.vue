@@ -10,17 +10,19 @@
       :hint="sessionExpiredHint"
       @confirm="handleSessionExpiredConfirm"
     />
+    <UpdateNotification />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { VERSION } from '@shared/config/version'
+import { VERSION } from '@cyp-memo/shared'
 import { useSettingsStore } from './stores/settings'
 import { useAuthStore } from './stores/auth'
 import TermsDialog from './components/TermsDialog.vue'
 import SessionExpiredDialog from './components/SessionExpiredDialog.vue'
+import UpdateNotification from './components/UpdateNotification.vue'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()

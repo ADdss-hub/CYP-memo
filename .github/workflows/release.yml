@@ -1,0 +1,336 @@
+name: Release All Platforms
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v 开头的 tag 时触发，如 v1.7.10
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to GitHub Releases'
+        required: true
+        default: 'true'
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8'
+
+jobs:
+  # ========== 构建 Web 端和管理端 ==========
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build web app
+        run: pnpm --filter @cyp-memo/app build
+
+      - name: Build admin app
+        run: pnpm --filter @cyp-memo/admin build
+
+      - name: Package web artifacts
+        run: |
+          mkdir -p artifacts
+          cd packages/app && zip -r ../../artifacts/cyp-memo-web-${{ github.ref_name }}.zip dist
+          cd ../admin && zip -r ../../artifacts/cyp-memo-admin-${{ github.ref_name }}.zip dist
+
+      - name: Upload web artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-artifacts
+          path: artifacts/*.zip
+
+  # ========== 构建桌面端 (Windows) ==========
+  build-desktop-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build desktop app
+        run: pnpm --filter @cyp-memo/desktop build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Windows 代码签名（可选）
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: List build output
+        run: |
+          Get-ChildItem -Path packages/desktop/release -Recurse | Format-Table Name, Length
+        shell: pwsh
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: |
+            packages/desktop/release/**/*.exe
+            packages/desktop/release/**/latest.yml
+
+  # ========== 构建桌面端 (macOS) ==========
+  build-desktop-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      # 导入代码签名证书（如果配置了）
+      - name: Import Code Signing Certificate
+        if: ${{ env.CSC_LINK != '' }}
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          # 创建临时钥匙串
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # 导入证书
+          echo "$CSC_LINK" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          
+          # 允许 codesign 访问证书
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+      - name: Build desktop app
+        run: pnpm --filter @cyp-memo/desktop build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS 代码签名
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # macOS 公证
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # 启用 CI 模式以触发公证
+          CI: true
+
+      - name: List build output
+        run: ls -la packages/desktop/release/*/
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos
+          path: |
+            packages/desktop/release/**/*.dmg
+            packages/desktop/release/**/*.zip
+            packages/desktop/release/**/latest-mac.yml
+
+  # ========== 构建桌面端 (Linux) ==========
+  build-desktop-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev rpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build desktop app
+        run: pnpm --filter @cyp-memo/desktop build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build output
+        run: ls -la packages/desktop/release/*/
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux
+          path: |
+            packages/desktop/release/**/*.AppImage
+            packages/desktop/release/**/*.deb
+            packages/desktop/release/**/*.rpm
+            packages/desktop/release/**/*.tar.gz
+            packages/desktop/release/**/latest-linux.yml
+
+  # ========== 构建并推送 Docker 镜像 ==========
+  build-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      # 登录 Docker Hub（如果配置了）
+      - name: Login to Docker Hub
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 登录 GitHub Container Registry
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 登录阿里云镜像仓库（如果配置了）
+      - name: Login to Aliyun Container Registry
+        if: ${{ secrets.ALIYUN_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cyp-memo:latest
+            ghcr.io/${{ github.repository_owner }}/cyp-memo:${{ steps.version.outputs.VERSION }}
+            ${{ secrets.DOCKER_USERNAME != '' && format('{0}/cyp-memo:latest', secrets.DOCKER_USERNAME) || '' }}
+            ${{ secrets.DOCKER_USERNAME != '' && format('{0}/cyp-memo:{1}', secrets.DOCKER_USERNAME, steps.version.outputs.VERSION) || '' }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ========== 发布 GitHub Release ==========
+  publish-release:
+    needs: [build-web, build-desktop-windows, build-desktop-macos, build-desktop-linux]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || github.event.inputs.publish == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: Prepare release files
+        run: |
+          mkdir -p final-release
+          # 复制所有文件到 final-release，保持扁平结构
+          find release -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.yml" \) -exec cp {} final-release/ \;
+          ls -la final-release/
+
+      - name: Extract version for release notes
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: final-release/*
+          generate_release_notes: true
+          body: |
+            ## CYP-memo v${{ steps.version.outputs.VERSION }}
+            
+            ### 下载
+            
+            #### 桌面客户端
+            | 平台 | 下载 | 说明 |
+            |------|------|------|
+            | Windows | `CYP-memo-*-setup.exe` | NSIS 安装程序 |
+            | Windows | `CYP-memo-*-portable.exe` | 便携版，无需安装 |
+            | macOS (Intel) | `CYP-memo-*-x64.dmg` | Intel 芯片 Mac |
+            | macOS (Apple Silicon) | `CYP-memo-*-arm64.dmg` | M1/M2/M3 芯片 Mac |
+            | Linux | `CYP-memo-*.AppImage` | 通用 Linux 格式 |
+            | Linux (Debian/Ubuntu) | `cyp-memo_*.deb` | Debian 包 |
+            | Linux (Fedora/RHEL) | `cyp-memo-*.rpm` | RPM 包 |
+            
+            #### Web 端
+            - `cyp-memo-web-*.zip` - 用户端静态文件
+            - `cyp-memo-admin-*.zip` - 管理端静态文件
+            
+            #### Docker
+            ```bash
+            # GitHub Container Registry
+            docker pull ghcr.io/addss-hub/cyp-memo:${{ steps.version.outputs.VERSION }}
+            
+            # Docker Hub（如果配置了）
+            docker pull cyp97/cyp-memo:${{ steps.version.outputs.VERSION }}
+            ```
+            
+            ### 自动更新
+            
+            桌面客户端支持自动更新。如果您已安装旧版本，应用会自动检测并提示更新。
+            
+            ### 更新日志
+            
+            请查看下方自动生成的更新日志。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

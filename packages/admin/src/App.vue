@@ -2,14 +2,15 @@
   <div id="app">
     <router-view />
     <TermsDialog />
+    <UpdateNotification />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { VERSION } from '@shared/config/version'
-import { logManager } from '@cyp-memo/shared'
+import { VERSION, logManager } from '@cyp-memo/shared'
 import TermsDialog from './components/TermsDialog.vue'
+import UpdateNotification from './components/UpdateNotification.vue'
 
 console.log(`CYP-memo Admin v${VERSION.full}`)
 console.log(VERSION.copyright)

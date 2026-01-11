@@ -1,6 +1,6 @@
 {
   "name": "cyp-memo",
-  "version": "1.7.9",
+  "version": "1.8.0",
   "type": "module",
   "private": true,
   "description": "CYP-memo 容器备忘录系统",
@@ -16,7 +16,12 @@
     "build": "node scripts/build.js",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "format": "pnpm -r format"
+    "format": "pnpm -r format",
+    "release": "node scripts/release.js",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
+    "version:info": "node scripts/verify-version.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

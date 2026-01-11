@@ -6,6 +6,7 @@
 
 - **作者**: CYP
 - **邮箱**: nasDSSCYP@outlook.com
+- **版本**: 1.8.0
 
 ---
 

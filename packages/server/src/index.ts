@@ -189,6 +189,84 @@ app.get('/api/config', (_req, res) => {
   })
 })
 
+// 检查 Docker Hub 最新版本
+app.get('/api/version/latest', async (_req, res) => {
+  try {
+    // 从 GitHub Releases 获取最新版本（更可靠）
+    const response = await fetch(
+      'https://api.github.com/repos/ADdss-hub/CYP-memo/releases/latest',
+      {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'CYP-memo-Server'
+        }
+      }
+    )
+
+    if (!response.ok) {
+      // 如果 GitHub API 失败，返回当前版本
+      res.json({
+        success: true,
+        data: {
+          currentVersion: config.version,
+          latestVersion: config.version,
+          hasUpdate: false,
+          releaseUrl: null,
+          releaseNotes: null
+        }
+      })
+      return
+    }
+
+    const release = await response.json()
+    const latestVersion = (release.tag_name as string).replace(/^v/, '')
+    const hasUpdate = compareVersions(latestVersion, config.version) > 0
+
+    res.json({
+      success: true,
+      data: {
+        currentVersion: config.version,
+        latestVersion,
+        hasUpdate,
+        releaseUrl: release.html_url,
+        releaseNotes: release.body || '',
+        publishedAt: release.published_at
+      }
+    })
+  } catch (error) {
+    // 网络错误时返回当前版本
+    res.json({
+      success: true,
+      data: {
+        currentVersion: config.version,
+        latestVersion: config.version,
+        hasUpdate: false,
+        releaseUrl: null,
+        releaseNotes: null,
+        error: 'Failed to check for updates'
+      }
+    })
+  }
+})
+
+/**
+ * 比较版本号
+ */
+function compareVersions(v1: string, v2: string): number {
+  const parseVersion = (v: string): number[] => {
+    return v.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
+  }
+  const parts1 = parseVersion(v1)
+  const parts2 = parseVersion(v2)
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const p1 = parts1[i] || 0
+    const p2 = parts2[i] || 0
+    if (p1 > p2) return 1
+    if (p1 < p2) return -1
+  }
+  return 0
+}
+
 // ========== 管理员 API ==========
 
 // 管理员登录

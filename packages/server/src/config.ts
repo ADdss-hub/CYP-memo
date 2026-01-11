@@ -76,6 +76,7 @@ function validateLogLevel(level: string): LogLevel {
 
 /**
  * 验证数据目录是否可访问
+ * 支持多种 NAS 系统和 Docker 环境
  */
 function validateDataDir(dataDir: string): void {
   // 尝试创建目录（如果不存在）
@@ -83,8 +84,14 @@ function validateDataDir(dataDir: string): void {
     try {
       fs.mkdirSync(dataDir, { recursive: true })
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
       throw new ConfigValidationError(
-        `无法创建数据目录: ${dataDir}，错误: ${err instanceof Error ? err.message : String(err)}`
+        `无法创建数据目录: ${dataDir}\n` +
+        `错误: ${errorMsg}\n\n` +
+        `解决方案:\n` +
+        `1. 确保宿主机目录存在并有正确权限\n` +
+        `2. 使用 PUID 和 PGID 环境变量指定用户 ID\n` +
+        `3. 或在宿主机执行: mkdir -p ${dataDir} && chmod 777 ${dataDir}`
       )
     }
   }
@@ -95,8 +102,23 @@ function validateDataDir(dataDir: string): void {
     fs.writeFileSync(testFile, '')
     fs.unlinkSync(testFile)
   } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    const isPermissionError = errorMsg.includes('EACCES') || errorMsg.includes('permission')
+    
+    let solution = ''
+    if (isPermissionError) {
+      solution = `\n\n解决方案:\n` +
+        `1. 使用 PUID/PGID 环境变量指定正确的用户 ID:\n` +
+        `   docker run -e PUID=1000 -e PGID=1000 ...\n` +
+        `2. 或修改宿主机目录权限:\n` +
+        `   chmod 777 ${dataDir}\n` +
+        `3. 飞牛 NAS 用户请使用 PUID=1000 PGID=1000\n` +
+        `4. 群晖 NAS 用户请使用 PUID=1026 PGID=100`
+    }
+    
     throw new ConfigValidationError(
-      `数据目录不可写: ${dataDir}，错误: ${err instanceof Error ? err.message : String(err)}`
+      `数据目录不可写: ${dataDir}\n` +
+      `错误: ${errorMsg}${solution}`
     )
   }
 }
