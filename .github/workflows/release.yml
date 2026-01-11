@@ -93,6 +93,9 @@ jobs:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
 
+      - name: Build shared package
+        run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
+
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
         working-directory: packages/desktop
@@ -146,6 +149,9 @@ jobs:
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+
+      - name: Build shared package
+        run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
 
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
@@ -209,6 +215,9 @@ jobs:
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+
+      - name: Build shared package
+        run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
 
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
