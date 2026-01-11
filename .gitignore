@@ -57,3 +57,6 @@ packages/server/data/uploads/
 
 # Docker folder (local only)
 docker/
+
+# Kiro IDE config
+.kiro/
