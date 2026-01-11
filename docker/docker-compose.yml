@@ -6,7 +6,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        - VERSION=1.7.10
+        - VERSION=1.8.1
         - BUILD_DATE=${BUILD_DATE:-}
         - GIT_COMMIT=${GIT_COMMIT:-}
     image: cyp-memo:latest

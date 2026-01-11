@@ -10,7 +10,7 @@
 FROM node:18-alpine AS builder
 
 # 构建参数 - 版本信息
-ARG VERSION=1.7.10
+ARG VERSION=1.8.1
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
@@ -54,7 +54,7 @@ RUN pnpm build
 FROM node:18-alpine AS production
 
 # 构建参数 - 版本信息
-ARG VERSION=1.7.10
+ARG VERSION=1.8.1
 ARG BUILD_DATE
 ARG GIT_COMMIT
 

@@ -9,10 +9,15 @@ import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import { execSync } from 'child_process'
+import { fileURLToPath } from 'url'
 import { initDatabase, database } from './sqlite-database.js'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
 import { getConfig, formatConfigInfo, type ContainerConfig } from './config.js'
+
+// 获取当前文件的目录路径（兼容 ESM 和各种平台）
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * 健康状态类型
@@ -120,22 +125,32 @@ app.use(express.json({ limit: '50mb' }))
 // ========== 生产环境静态文件服务 ==========
 // 在生产环境中，服务器需要托管前端静态文件
 if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(new URL(import.meta.url).pathname)
-  
   // 用户端静态文件
   const appDistPath = path.join(__dirname, '../../app/dist')
   // 管理端静态文件
   const adminDistPath = path.join(__dirname, '../../admin/dist')
   
-  // 管理端路由 (必须在用户端之前)
-  app.use('/admin', express.static(adminDistPath))
+  // 检查静态文件目录是否存在
+  const appDistExists = fs.existsSync(appDistPath)
+  const adminDistExists = fs.existsSync(adminDistPath)
   
-  // 用户端路由
-  app.use(express.static(appDistPath))
-  
-  console.log('📁 静态文件服务已启用 (生产模式)')
-  console.log(`   用户端: ${appDistPath}`)
-  console.log(`   管理端: ${adminDistPath}`)
+  if (appDistExists) {
+    // 管理端路由 (必须在用户端之前)
+    if (adminDistExists) {
+      app.use('/admin', express.static(adminDistPath))
+    }
+    
+    // 用户端路由
+    app.use(express.static(appDistPath))
+    
+    console.log('📁 静态文件服务已启用 (生产模式)')
+    console.log(`   用户端: ${appDistPath} (${appDistExists ? '存在' : '不存在'})`)
+    console.log(`   管理端: ${adminDistPath} (${adminDistExists ? '存在' : '不存在'})`)
+  } else {
+    console.warn('⚠️ 静态文件目录不存在，跳过静态文件服务')
+    console.warn(`   用户端: ${appDistPath}`)
+    console.warn(`   管理端: ${adminDistPath}`)
+  }
 }
 
 // 健康检查（包含版本、运行时间、数据库状态和磁盘空间信息）
@@ -1018,21 +1033,38 @@ app.post('/api/cleanup/perform', (req, res) => {
 // ========== SPA 路由回退 (生产环境) ==========
 // 必须放在所有 API 路由之后
 if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(new URL(import.meta.url).pathname)
   const appDistPath = path.join(__dirname, '../../app/dist')
   const adminDistPath = path.join(__dirname, '../../admin/dist')
   
-  // 管理端 SPA 回退
-  app.get('/admin/*', (_req, res) => {
-    res.sendFile(path.join(adminDistPath, 'index.html'))
-  })
+  // 检查静态文件目录是否存在
+  const appDistExists = fs.existsSync(appDistPath)
+  const adminDistExists = fs.existsSync(adminDistPath)
   
-  // 用户端 SPA 回退 (排除 API 路由)
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(appDistPath, 'index.html'))
+  if (appDistExists) {
+    // 管理端 SPA 回退
+    if (adminDistExists) {
+      app.get('/admin/*', (_req, res) => {
+        const indexPath = path.join(adminDistPath, 'index.html')
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath)
+        } else {
+          res.status(404).send('Admin index.html not found')
+        }
+      })
     }
-  })
+    
+    // 用户端 SPA 回退 (排除 API 路由)
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api')) {
+        const indexPath = path.join(appDistPath, 'index.html')
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath)
+        } else {
+          res.status(404).send('App index.html not found')
+        }
+      }
+    })
+  }
 }
 
 // 启动服务器

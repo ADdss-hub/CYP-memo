@@ -2,6 +2,22 @@
 
 本文档记录 CYP-memo 容器备忘录系统的所有重要变更。
 
+## [1.8.1] - 2026-01-11
+
+### 修复 🐛
+
+- **Docker 生产模式启动失败**: 修复服务器入口文件中 `__dirname` 路径解析问题，使用 `fileURLToPath` 替代 `new URL().pathname`，解决在飞牛 NAS 等设备上的兼容性问题
+- **Web Crypto API 兼容性**: 修复 `crypto.subtle.importKey` 在某些环境下未定义导致的 "Cannot read properties of undefined (reading 'importKey')" 错误
+- **静态文件服务**: 添加静态文件目录存在性检查，避免目录不存在时服务器崩溃
+
+### 优化 ⚡
+
+- **加密工具增强**: 为 `hashPassword`、`verifyPassword`、`generateToken`、`generateUUID` 添加完整的错误处理和备用方案
+- **SPA 路由回退优化**: 添加 `index.html` 文件存在性检查，提供更友好的错误提示
+- **环境检测改进**: 添加 `isWebCryptoAvailable` 检测，在 Web Crypto API 不可用时自动使用备用方案
+
+---
+
 ## [1.8.0] - 2026-01-11
 
 ### 🚀 重大更新：桌面客户端

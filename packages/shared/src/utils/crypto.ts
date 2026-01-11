@@ -9,13 +9,57 @@ let bcrypt: any = null
 // 检查是否在浏览器环境中
 const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined'
 
+// 检查 Web Crypto API 是否可用
+const isWebCryptoAvailable = typeof crypto !== 'undefined' && 
+  typeof crypto.subtle !== 'undefined' && 
+  typeof crypto.subtle.importKey === 'function'
+
 // 如果不在浏览器环境中，导入 bcryptjs
 if (!isBrowser) {
   try {
     bcrypt = require('bcryptjs')
   } catch (e) {
     // bcryptjs 不可用
+    console.warn('bcryptjs 不可用，将使用备用方案')
   }
+}
+
+/**
+ * 简单的密码哈希函数（备用方案）
+ * 当 Web Crypto API 和 bcryptjs 都不可用时使用
+ * 注意：这不是安全的哈希方案，仅作为最后的备用
+ */
+async function hashPasswordFallback(password: string): Promise<string> {
+  // 使用简单的 SHA-256 哈希（如果可用）
+  if (typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined') {
+    try {
+      const encoder = new TextEncoder()
+      const data = encoder.encode(password)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = new Uint8Array(hashBuffer)
+      return 'sha256:' + Array.from(hashArray, byte => byte.toString(16).padStart(2, '0')).join('')
+    } catch (e) {
+      // SHA-256 也不可用
+    }
+  }
+  
+  // 最后的备用方案：Base64 编码（不安全，仅用于开发/测试）
+  console.warn('警告：使用不安全的密码存储方案，请确保 bcryptjs 或 Web Crypto API 可用')
+  return 'base64:' + btoa(password)
+}
+
+/**
+ * 简单的密码验证函数（备用方案）
+ */
+async function verifyPasswordFallback(password: string, hash: string): Promise<boolean> {
+  if (hash.startsWith('sha256:')) {
+    const newHash = await hashPasswordFallback(password)
+    return newHash === hash
+  }
+  if (hash.startsWith('base64:')) {
+    return hash === 'base64:' + btoa(password)
+  }
+  return false
 }
 
 /**
@@ -26,24 +70,28 @@ if (!isBrowser) {
  * @returns Promise<string> 哈希后的密码
  */
 export async function hashPassword(password: string): Promise<string> {
-  // 在浏览器环境中，使用 Web Crypto API 生成密码哈希
-  if (isBrowser) {
-    return await hashPasswordBrowser(password)
-  }
-
-  // 在 Node.js 环境中，使用 bcryptjs
-  if (bcrypt) {
+  // 在 Node.js 环境中，优先使用 bcryptjs
+  if (!isBrowser && bcrypt) {
     const saltRounds = 8
     try {
       const hash = await bcrypt.hash(password, saltRounds)
       return hash
     } catch (error) {
-      throw new Error(`密码哈希失败: ${error instanceof Error ? error.message : '未知错误'}`)
+      console.error('bcryptjs 哈希失败，尝试备用方案:', error)
     }
   }
 
-  // 如果 bcryptjs 不可用，使用浏览器 API
-  return await hashPasswordBrowser(password)
+  // 在浏览器环境中，检查 Web Crypto API 是否可用
+  if (isBrowser && isWebCryptoAvailable) {
+    try {
+      return await hashPasswordBrowser(password)
+    } catch (error) {
+      console.error('Web Crypto API 哈希失败，尝试备用方案:', error)
+    }
+  }
+
+  // 使用备用方案
+  return await hashPasswordFallback(password)
 }
 
 /**
@@ -53,6 +101,11 @@ export async function hashPassword(password: string): Promise<string> {
  * @returns Promise<string> 哈希后的密码（Base64 编码）
  */
 async function hashPasswordBrowser(password: string): Promise<string> {
+  // 检查 Web Crypto API 是否可用
+  if (!isWebCryptoAvailable) {
+    throw new Error('Web Crypto API 不可用')
+  }
+
   // 生成随机盐（16 字节）
   const salt = crypto.getRandomValues(new Uint8Array(16))
 
@@ -91,22 +144,39 @@ async function hashPasswordBrowser(password: string): Promise<string> {
  * @returns Promise<boolean> 是否匹配
  */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  // 在浏览器环境中，使用 Web Crypto API 验证
-  if (isBrowser) {
-    return await verifyPasswordBrowser(password, hash)
+  // 检查是否是备用方案的哈希
+  if (hash.startsWith('sha256:') || hash.startsWith('base64:')) {
+    return await verifyPasswordFallback(password, hash)
   }
 
-  // 在 Node.js 环境中，使用 bcryptjs
-  if (bcrypt) {
+  // 在 Node.js 环境中，优先使用 bcryptjs
+  if (!isBrowser && bcrypt) {
     try {
       return await bcrypt.compare(password, hash)
     } catch (error) {
-      return false
+      console.error('bcryptjs 验证失败，尝试其他方案:', error)
     }
   }
 
-  // 如果 bcryptjs 不可用，使用浏览器 API
-  return await verifyPasswordBrowser(password, hash)
+  // 在浏览器环境中，检查 Web Crypto API 是否可用
+  if (isBrowser && isWebCryptoAvailable) {
+    try {
+      return await verifyPasswordBrowser(password, hash)
+    } catch (error) {
+      console.error('Web Crypto API 验证失败:', error)
+    }
+  }
+
+  // 尝试使用浏览器 API 验证（可能是 PBKDF2 哈希）
+  if (isWebCryptoAvailable) {
+    try {
+      return await verifyPasswordBrowser(password, hash)
+    } catch (error) {
+      // 验证失败
+    }
+  }
+
+  return false
 }
 
 /**
@@ -116,6 +186,11 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
  * @returns Promise<boolean> 是否匹配
  */
 async function verifyPasswordBrowser(password: string, hash: string): Promise<boolean> {
+  // 检查 Web Crypto API 是否可用
+  if (!isWebCryptoAvailable) {
+    throw new Error('Web Crypto API 不可用')
+  }
+
   try {
     // 解码 Base64 哈希
     const combined = new Uint8Array(atob(hash).split('').map((c) => c.charCodeAt(0)))
@@ -149,6 +224,7 @@ async function verifyPasswordBrowser(password: string, hash: string): Promise<bo
       storedHash.every((byte, index) => byte === derivedHash[index])
     )
   } catch (error) {
+    console.error('密码验证失败:', error)
     return false
   }
 }
@@ -159,12 +235,23 @@ async function verifyPasswordBrowser(password: string, hash: string): Promise<bo
  * @returns string 生成的令牌（十六进制格式）
  */
 export function generateToken(): string {
-  // 生成 32 字节（256 位）的随机数据
-  const array = new Uint8Array(32)
-  crypto.getRandomValues(array)
+  // 检查 crypto.getRandomValues 是否可用
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    // 生成 32 字节（256 位）的随机数据
+    const array = new Uint8Array(32)
+    crypto.getRandomValues(array)
 
-  // 转换为十六进制字符串
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
+    // 转换为十六进制字符串
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  }
+
+  // 备用方案：使用 Math.random（不安全，仅用于开发/测试）
+  console.warn('警告：crypto.getRandomValues 不可用，使用不安全的随机数生成')
+  let token = ''
+  for (let i = 0; i < 64; i++) {
+    token += Math.floor(Math.random() * 16).toString(16)
+  }
+  return token
 }
 
 /**
@@ -173,22 +260,37 @@ export function generateToken(): string {
  * @returns string 生成的 UUID
  */
 export function generateUUID(): string {
-  // 使用 crypto.randomUUID() 如果可用，否则手动生成
+  // 使用 crypto.randomUUID() 如果可用
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+    try {
+      return crypto.randomUUID()
+    } catch (e) {
+      // randomUUID 调用失败，使用备用方案
+    }
   }
 
-  // 手动生成 UUID v4
-  const array = new Uint8Array(16)
-  crypto.getRandomValues(array)
+  // 检查 crypto.getRandomValues 是否可用
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    // 手动生成 UUID v4
+    const array = new Uint8Array(16)
+    crypto.getRandomValues(array)
 
-  // 设置版本为 4 和变体为 RFC 4122
-  array[6] = (array[6] & 0x0f) | 0x40
-  array[8] = (array[8] & 0x3f) | 0x80
+    // 设置版本为 4 和变体为 RFC 4122
+    array[6] = (array[6] & 0x0f) | 0x40
+    array[8] = (array[8] & 0x3f) | 0x80
 
-  // 转换为 UUID 字符串格式
-  const hex = Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+    // 转换为 UUID 字符串格式
+    const hex = Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
+
+  // 备用方案：使用 Math.random（不安全，仅用于开发/测试）
+  console.warn('警告：crypto API 不可用，使用不安全的 UUID 生成')
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
 }
 
 /**
