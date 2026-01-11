@@ -14,13 +14,13 @@ ARG VERSION=1.8.1
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
-# 配置 Alpine 镜像源（国内加速）
+# 配置 Alpine 镜像源（阿里云 - 速度最快 108ms）
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
-# 配置 npm 镜像源并安装 pnpm
-RUN npm config set registry https://registry.npmmirror.com && \
+# 配置 npm 镜像源并安装 pnpm (华为云 - 速度最快)
+RUN npm config set registry https://repo.huaweicloud.com/repository/npm/ && \
     npm install -g pnpm && \
-    pnpm config set registry https://registry.npmmirror.com
+    pnpm config set registry https://repo.huaweicloud.com/repository/npm/
 
 WORKDIR /app
 
@@ -69,18 +69,18 @@ LABEL org.opencontainers.image.title="CYP-memo" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/cyp-memo/cyp-memo"
 
-# 配置 Alpine 镜像源（国内加速）
+# 配置 Alpine 镜像源（阿里云 - 速度最快 108ms）
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # 安装必要工具：
 # - su-exec: 用于权限切换
 # - bash: 提供完整的 bash shell（用于终端连接）
 # - curl: 用于健康检查和调试
-# 配置 npm 镜像源并安装 pnpm
+# 配置 npm 镜像源并安装 pnpm (华为云 - 速度最快)
 RUN apk add --no-cache su-exec bash curl && \
-    npm config set registry https://registry.npmmirror.com && \
+    npm config set registry https://repo.huaweicloud.com/repository/npm/ && \
     npm install -g pnpm && \
-    pnpm config set registry https://registry.npmmirror.com
+    pnpm config set registry https://repo.huaweicloud.com/repository/npm/
 
 # 创建默认用户组和用户（可通过 PUID/PGID 环境变量覆盖）
 RUN addgroup -g 1001 -S nodejs && \

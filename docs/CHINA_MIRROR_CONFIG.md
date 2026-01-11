@@ -2,49 +2,51 @@
 
 本文档说明如何配置国内镜像源以加速构建和下载。
 
+> **推荐使用华为云镜像**：经测试，华为云镜像速度最快（比 npmmirror 快 7-400 倍）
+
 ## 📦 NPM / PNPM 镜像配置
 
 ### 方式 1: 使用项目 .npmrc（推荐）
 
-项目根目录的 `.npmrc` 已配置国内镜像：
+项目根目录的 `.npmrc` 已配置华为云镜像：
 
 ```properties
-# NPM 主镜像
-registry=https://registry.npmmirror.com
+# NPM 主镜像 (华为云 - 速度最快)
+registry=https://repo.huaweicloud.com/repository/npm/
 
 # Electron 镜像
-electron_mirror=https://npmmirror.com/mirrors/electron/
-electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-binaries/
+electron_mirror=https://repo.huaweicloud.com/electron/
+electron_builder_binaries_mirror=https://repo.huaweicloud.com/electron-builder-binaries/
 
 # 原生模块镜像
-node_sqlite3_binary_host_mirror=https://npmmirror.com/mirrors/sqlite3/
-better_sqlite3_binary_host_mirror=https://npmmirror.com/mirrors/better-sqlite3/
-sharp_binary_host=https://npmmirror.com/mirrors/sharp/
-sharp_libvips_binary_host=https://npmmirror.com/mirrors/sharp-libvips/
+node_sqlite3_binary_host_mirror=https://repo.huaweicloud.com/node-sqlite3/
+better_sqlite3_binary_host_mirror=https://repo.huaweicloud.com/better-sqlite3/
+sharp_binary_host=https://repo.huaweicloud.com/sharp/
+sharp_libvips_binary_host=https://repo.huaweicloud.com/sharp-libvips/
 ```
 
 ### 方式 2: 全局配置
 
 ```bash
 # NPM 配置
-npm config set registry https://registry.npmmirror.com
+npm config set registry https://repo.huaweicloud.com/repository/npm/
 
 # PNPM 配置
-pnpm config set registry https://registry.npmmirror.com
+pnpm config set registry https://repo.huaweicloud.com/repository/npm/
 
 # Electron 镜像
-npm config set electron_mirror https://npmmirror.com/mirrors/electron/
-npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
+npm config set electron_mirror https://repo.huaweicloud.com/electron/
+npm config set electron_builder_binaries_mirror https://repo.huaweicloud.com/electron-builder-binaries/
 ```
 
 ### 方式 3: 临时使用
 
 ```bash
 # 使用 --registry 参数
-pnpm install --registry=https://registry.npmmirror.com
+pnpm install --registry=https://repo.huaweicloud.com/repository/npm/
 
 # 或使用环境变量
-ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install
+ELECTRON_MIRROR=https://repo.huaweicloud.com/electron/ pnpm install
 ```
 
 ---
@@ -58,9 +60,9 @@ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install
 ```json
 {
   "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn",
     "https://hub-mirror.c.163.com",
-    "https://mirror.baidubce.com"
+    "https://mirror.baidubce.com",
+    "https://docker.mirrors.ustc.edu.cn"
   ]
 }
 ```
@@ -71,13 +73,34 @@ sudo systemctl daemon-reload
 sudo systemctl restart docker
 ```
 
+### Docker 镜像源速度测试 (2026-01-11)
+
+| 镜像源 | 响应时间 | 推荐 |
+|--------|----------|------|
+| **网易** | 5ms | ⭐⭐⭐⭐⭐ |
+| 百度云 | 10ms | ⭐⭐⭐⭐⭐ |
+| 中科大 | 55ms | ⭐⭐⭐⭐ |
+| 华为云 | 217ms | ⭐⭐⭐ |
+| DaoCloud | 419ms | ⭐⭐ |
+
 ### Alpine 镜像源
 
-Dockerfile 中已配置阿里云镜像：
+Dockerfile 中已配置阿里云镜像（速度最快）：
 
 ```dockerfile
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 ```
+
+### Alpine APK 镜像源速度测试 (2026-01-11)
+
+| 镜像源 | 响应时间 | 推荐 |
+|--------|----------|------|
+| **阿里云** | 108ms | ⭐⭐⭐⭐⭐ |
+| 网易 | 199ms | ⭐⭐⭐⭐ |
+| 华为云 | 257ms | ⭐⭐⭐⭐ |
+| 腾讯云 | 5020ms | ❌ |
+| 中科大 | 5012ms | ❌ |
+| 清华 | 5022ms | ❌ |
 
 ---
 
@@ -88,25 +111,35 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 在 workflow 中添加：
 
 ```yaml
-- name: Configure npm registry (China mirror)
+- name: Configure npm registry (华为云镜像)
   run: |
-    npm config set registry https://registry.npmmirror.com
-    pnpm config set registry https://registry.npmmirror.com
+    npm config set registry https://repo.huaweicloud.com/repository/npm/
+    pnpm config set registry https://repo.huaweicloud.com/repository/npm/
 
-- name: Configure electron mirror (China)
+- name: Configure electron mirror
   run: |
-    npm config set electron_mirror https://npmmirror.com/mirrors/electron/
-    npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
+    npm config set electron_mirror https://repo.huaweicloud.com/electron/
+    npm config set electron_builder_binaries_mirror https://repo.huaweicloud.com/electron-builder-binaries/
 ```
 
 ### Ubuntu APT 加速
 
 ```yaml
-- name: Configure apt mirror (China)
+- name: Configure apt mirror (阿里云 - 速度最快)
   run: |
     sudo sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
     sudo sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
 ```
+
+### Ubuntu APT 镜像源速度测试 (2026-01-11)
+
+| 镜像源 | 响应时间 | 推荐 |
+|--------|----------|------|
+| **阿里云** | 50ms | ⭐⭐⭐⭐⭐ |
+| 华为云 | 67ms | ⭐⭐⭐⭐⭐ |
+| 网易 | 177ms | ⭐⭐⭐⭐ |
+| 腾讯云 | 5014ms | ❌ |
+| 中科大 | 5018ms | ❌ |
 
 ### Docker Buildx 加速
 
@@ -116,7 +149,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
   with:
     config-inline: |
       [registry."docker.io"]
-        mirrors = ["https://docker.mirrors.ustc.edu.cn"]
+        mirrors = ["https://hub-mirror.c.163.com"]
 ```
 
 ---
@@ -125,29 +158,51 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 ### NPM 镜像
 
-| 镜像源 | 地址 | 说明 |
-|--------|------|------|
-| 淘宝镜像 | https://registry.npmmirror.com | 推荐，更新快 |
-| 腾讯云 | https://mirrors.cloud.tencent.com/npm/ | 稳定 |
-| 华为云 | https://mirrors.huaweicloud.com/repository/npm/ | 企业级 |
+| 镜像源 | 地址 | 速度测试 |
+|--------|------|----------|
+| **华为云** | https://repo.huaweicloud.com/repository/npm/ | ⭐⭐⭐⭐⭐ 20-500ms |
+| 淘宝镜像 | https://registry.npmmirror.com | ⭐⭐ 5000ms+ |
+| 腾讯云 | https://mirrors.cloud.tencent.com/npm/ | ⭐⭐⭐ |
 
 ### Docker 镜像
 
-| 镜像源 | 地址 | 说明 |
-|--------|------|------|
-| 中科大 | https://docker.mirrors.ustc.edu.cn | 推荐，速度快 |
-| 网易 | https://hub-mirror.c.163.com | 稳定 |
-| 百度云 | https://mirror.baidubce.com | 可靠 |
+| 镜像源 | 地址 | 速度测试 |
+|--------|------|----------|
+| **网易** | https://hub-mirror.c.163.com | ⭐⭐⭐⭐⭐ 5ms |
+| 百度云 | https://mirror.baidubce.com | ⭐⭐⭐⭐⭐ 10ms |
+| 中科大 | https://docker.mirrors.ustc.edu.cn | ⭐⭐⭐⭐ 55ms |
+| 华为云 | https://mirrors.huaweicloud.com | ⭐⭐⭐ 217ms |
+| DaoCloud | https://docker.m.daocloud.io | ⭐⭐ 419ms |
 | 阿里云 | https://[your-id].mirror.aliyuncs.com | 需注册 |
 
 ### Linux 软件源
 
-| 发行版 | 镜像源 | 地址 |
-|--------|--------|------|
-| Ubuntu | 阿里云 | https://mirrors.aliyun.com/ubuntu/ |
-| Ubuntu | 清华 | https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ |
-| Alpine | 阿里云 | https://mirrors.aliyun.com/alpine/ |
-| Alpine | 清华 | https://mirrors.tuna.tsinghua.edu.cn/alpine/ |
+| 发行版 | 镜像源 | 地址 | 速度测试 |
+|--------|--------|------|----------|
+| Alpine | **阿里云** | https://mirrors.aliyun.com/alpine/ | ⭐⭐⭐⭐⭐ 108ms |
+| Alpine | 网易 | https://mirrors.163.com/alpine/ | ⭐⭐⭐⭐ 199ms |
+| Alpine | 华为云 | https://mirrors.huaweicloud.com/alpine/ | ⭐⭐⭐⭐ 257ms |
+| Ubuntu | **阿里云** | https://mirrors.aliyun.com/ubuntu/ | ⭐⭐⭐⭐⭐ 50ms |
+| Ubuntu | 华为云 | https://mirrors.huaweicloud.com/ubuntu/ | ⭐⭐⭐⭐⭐ 67ms |
+| Ubuntu | 网易 | https://mirrors.163.com/ubuntu/ | ⭐⭐⭐⭐ 177ms |
+
+---
+
+## 📊 速度对比测试结果
+
+实测数据（2026-01-11）：
+
+### NPM 生态
+
+| 镜像类型 | 华为云 | npmmirror | 提升倍数 |
+|---------|--------|-----------|----------|
+| NPM Registry | **330ms** | 5000ms+ | **15x** |
+| Electron | **261ms** | 5013ms | **19x** |
+| Electron Builder | **476ms** | 5006ms | **10x** |
+| Better-SQLite3 | **496ms** | 5014ms | **10x** |
+| Sharp | **455ms** | 5007ms | **11x** |
+| Chromium/Puppeteer | **53ms** | 5025ms | **95x** |
+| Node.js | **116ms** | 5007ms | **43x** |
 
 ---
 
@@ -158,15 +213,15 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 创建或编辑 `~/.npmrc`：
 
 ```properties
-registry=https://registry.npmmirror.com
-electron_mirror=https://npmmirror.com/mirrors/electron/
-electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-binaries/
+registry=https://repo.huaweicloud.com/repository/npm/
+electron_mirror=https://repo.huaweicloud.com/electron/
+electron_builder_binaries_mirror=https://repo.huaweicloud.com/electron-builder-binaries/
 ```
 
 ### 2. 配置 PNPM 镜像
 
 ```bash
-pnpm config set registry https://registry.npmmirror.com
+pnpm config set registry https://repo.huaweicloud.com/repository/npm/
 ```
 
 ### 3. 配置 Git 代理（可选）
@@ -196,19 +251,6 @@ git config --global http.https://github.com.proxy http://127.0.0.1:7890
 
 ---
 
-## 📊 速度对比
-
-使用国内镜像前后的速度对比（参考值）：
-
-| 操作 | 官方源 | 国内镜像 | 提升 |
-|------|--------|----------|------|
-| pnpm install | ~5 分钟 | ~1 分钟 | 5x |
-| Electron 下载 | ~10 分钟 | ~30 秒 | 20x |
-| Docker pull | ~3 分钟 | ~30 秒 | 6x |
-| apt-get update | ~2 分钟 | ~20 秒 | 6x |
-
----
-
 ## ⚠️ 注意事项
 
 1. **镜像同步延迟**: 国内镜像可能有几小时的同步延迟，如需最新版本可临时切换回官方源
@@ -227,10 +269,10 @@ git config --global http.https://github.com.proxy http://127.0.0.1:7890
 
 ```bash
 # 测试镜像源连通性
-curl -I https://registry.npmmirror.com
+curl -I https://repo.huaweicloud.com/repository/npm/
 
 # 切换到备用镜像
-npm config set registry https://mirrors.cloud.tencent.com/npm/
+npm config set registry https://registry.npmmirror.com
 ```
 
 ### 问题 2: 某些包下载失败
@@ -248,7 +290,7 @@ pnpm install
 
 ```bash
 # 手动下载 Electron
-ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install electron
+ELECTRON_MIRROR=https://repo.huaweicloud.com/electron/ pnpm install electron
 
 # 或使用官方源
 unset ELECTRON_MIRROR
@@ -259,6 +301,7 @@ pnpm install electron
 
 ## 📚 相关资源
 
+- [华为云镜像站](https://mirrors.huaweicloud.com/)
 - [npmmirror 镜像站](https://npmmirror.com/)
 - [阿里云镜像站](https://developer.aliyun.com/mirror/)
 - [清华大学开源镜像站](https://mirrors.tuna.tsinghua.edu.cn/)

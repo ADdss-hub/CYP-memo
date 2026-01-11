@@ -11,18 +11,18 @@ function Test-Command {
 }
 
 # 配置 NPM
-Write-Host "📦 配置 NPM 镜像..." -ForegroundColor Blue
+Write-Host "📦 配置 NPM 镜像 (华为云)..." -ForegroundColor Blue
 if (Test-Command npm) {
-    npm config set registry https://registry.npmmirror.com
+    npm config set registry https://repo.huaweicloud.com/repository/npm/
     Write-Host "✓ NPM 镜像配置完成" -ForegroundColor Green
 } else {
     Write-Host "⚠ NPM 未安装，跳过" -ForegroundColor Yellow
 }
 
 # 配置 PNPM
-Write-Host "📦 配置 PNPM 镜像..." -ForegroundColor Blue
+Write-Host "📦 配置 PNPM 镜像 (华为云)..." -ForegroundColor Blue
 if (Test-Command pnpm) {
-    pnpm config set registry https://registry.npmmirror.com
+    pnpm config set registry https://repo.huaweicloud.com/repository/npm/
     Write-Host "✓ PNPM 镜像配置完成" -ForegroundColor Green
 } else {
     Write-Host "⚠ PNPM 未安装，跳过" -ForegroundColor Yellow
@@ -33,12 +33,13 @@ Write-Host "⚡ 配置 Electron 和原生模块镜像..." -ForegroundColor Blue
 Write-Host "ℹ 设置用户环境变量..." -ForegroundColor Yellow
 
 try {
-    [System.Environment]::SetEnvironmentVariable('ELECTRON_MIRROR', 'https://npmmirror.com/mirrors/electron/', 'User')
-    [System.Environment]::SetEnvironmentVariable('ELECTRON_BUILDER_BINARIES_MIRROR', 'https://npmmirror.com/mirrors/electron-builder-binaries/', 'User')
-    [System.Environment]::SetEnvironmentVariable('BETTER_SQLITE3_BINARY_HOST_MIRROR', 'https://npmmirror.com/mirrors/better-sqlite3/', 'User')
-    [System.Environment]::SetEnvironmentVariable('SHARP_BINARY_HOST', 'https://npmmirror.com/mirrors/sharp/', 'User')
-    [System.Environment]::SetEnvironmentVariable('SHARP_LIBVIPS_BINARY_HOST', 'https://npmmirror.com/mirrors/sharp-libvips/', 'User')
-    [System.Environment]::SetEnvironmentVariable('NODE_SQLITE3_BINARY_HOST_MIRROR', 'https://npmmirror.com/mirrors/sqlite3/', 'User')
+    # 华为云镜像 - 速度最快
+    [System.Environment]::SetEnvironmentVariable('ELECTRON_MIRROR', 'https://repo.huaweicloud.com/electron/', 'User')
+    [System.Environment]::SetEnvironmentVariable('ELECTRON_BUILDER_BINARIES_MIRROR', 'https://repo.huaweicloud.com/electron-builder-binaries/', 'User')
+    [System.Environment]::SetEnvironmentVariable('BETTER_SQLITE3_BINARY_HOST_MIRROR', 'https://repo.huaweicloud.com/better-sqlite3/', 'User')
+    [System.Environment]::SetEnvironmentVariable('SHARP_BINARY_HOST', 'https://repo.huaweicloud.com/sharp/', 'User')
+    [System.Environment]::SetEnvironmentVariable('SHARP_LIBVIPS_BINARY_HOST', 'https://repo.huaweicloud.com/sharp-libvips/', 'User')
+    [System.Environment]::SetEnvironmentVariable('NODE_SQLITE3_BINARY_HOST_MIRROR', 'https://repo.huaweicloud.com/node-sqlite3/', 'User')
     
     Write-Host "✓ 环境变量配置完成" -ForegroundColor Green
     Write-Host "  请重启终端以使环境变量生效" -ForegroundColor Yellow

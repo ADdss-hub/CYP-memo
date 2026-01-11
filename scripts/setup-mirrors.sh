@@ -19,18 +19,18 @@ command_exists() {
 }
 
 # 配置 NPM
-echo -e "${BLUE}📦 配置 NPM 镜像...${NC}"
+echo -e "${BLUE}📦 配置 NPM 镜像 (华为云)...${NC}"
 if command_exists npm; then
-    npm config set registry https://registry.npmmirror.com
+    npm config set registry https://repo.huaweicloud.com/repository/npm/
     echo -e "${GREEN}✓ NPM 镜像配置完成${NC}"
 else
     echo -e "${YELLOW}⚠ NPM 未安装，跳过${NC}"
 fi
 
 # 配置 PNPM
-echo -e "${BLUE}📦 配置 PNPM 镜像...${NC}"
+echo -e "${BLUE}📦 配置 PNPM 镜像 (华为云)...${NC}"
 if command_exists pnpm; then
-    pnpm config set registry https://registry.npmmirror.com
+    pnpm config set registry https://repo.huaweicloud.com/repository/npm/
     echo -e "${GREEN}✓ PNPM 镜像配置完成${NC}"
 else
     echo -e "${YELLOW}⚠ PNPM 未安装，跳过${NC}"
@@ -41,13 +41,13 @@ echo -e "${BLUE}⚡ 配置 Electron 和原生模块镜像...${NC}"
 echo -e "${YELLOW}ℹ 添加以下内容到 ~/.bashrc 或 ~/.zshrc:${NC}"
 echo ""
 cat << 'EOF'
-# CYP-memo 镜像配置
-export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
-export ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
-export BETTER_SQLITE3_BINARY_HOST_MIRROR="https://npmmirror.com/mirrors/better-sqlite3/"
-export SHARP_BINARY_HOST="https://npmmirror.com/mirrors/sharp/"
-export SHARP_LIBVIPS_BINARY_HOST="https://npmmirror.com/mirrors/sharp-libvips/"
-export NODE_SQLITE3_BINARY_HOST_MIRROR="https://npmmirror.com/mirrors/sqlite3/"
+# CYP-memo 镜像配置 (华为云 - 速度最快)
+export ELECTRON_MIRROR="https://repo.huaweicloud.com/electron/"
+export ELECTRON_BUILDER_BINARIES_MIRROR="https://repo.huaweicloud.com/electron-builder-binaries/"
+export BETTER_SQLITE3_BINARY_HOST_MIRROR="https://repo.huaweicloud.com/better-sqlite3/"
+export SHARP_BINARY_HOST="https://repo.huaweicloud.com/sharp/"
+export SHARP_LIBVIPS_BINARY_HOST="https://repo.huaweicloud.com/sharp-libvips/"
+export NODE_SQLITE3_BINARY_HOST_MIRROR="https://repo.huaweicloud.com/node-sqlite3/"
 EOF
 echo ""
 echo -e "${GREEN}✓ 环境变量配置说明已显示${NC}"
