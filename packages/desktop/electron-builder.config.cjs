@@ -232,7 +232,7 @@ const config = {
     {
       provider: 'github',
       owner: 'ADdss-hub',
-      repo: 'cyp-memo',
+      repo: 'CYP-memo',
       releaseType: 'release',
       // 私有仓库需要设置 GH_TOKEN 环境变量
     },
