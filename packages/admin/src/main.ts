@@ -26,8 +26,9 @@ app.use(ElementPlus)
 async function initializeStorage() {
   try {
     // 在生产模式下使用相对路径，开发模式下使用完整 URL
+    // 注意：管理端在生产环境下部署在 /admin 路径，但 API 仍在根路径
     const apiUrl = import.meta.env.PROD 
-      ? '/api'  // 生产模式：相对路径，由同一服务器托管
+      ? '/api'  // 生产模式：相对于根路径的 API
       : 'http://localhost:5170/api'  // 开发模式：Vite 代理或直接访问
     
     await storageManager.initialize({
@@ -36,6 +37,7 @@ async function initializeStorage() {
     })
     console.log('✅ 存储管理器初始化成功 - 使用服务器端存储')
     console.log('📍 API 地址:', apiUrl)
+    console.log('📍 运行模式:', import.meta.env.PROD ? '生产' : '开发')
     return true
   } catch (error) {
     console.error('❌ 无法连接到服务器，应用无法正常工作:', error)

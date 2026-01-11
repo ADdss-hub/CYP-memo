@@ -7,20 +7,71 @@
 
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js'
 import path from 'path'
-import { fileURLToPath } from 'url'
 import { v4 as uuidv4 } from 'uuid'
 import bcrypt from 'bcryptjs'
 import fs from 'fs'
+import { logger } from './logger.js'
+import { getConfig } from './config.js'
+import type {
+  Admin,
+  User,
+  CreateUserParams,
+  Memo,
+  CreateMemoParams,
+  FileRecord,
+  CreateFileParams,
+  Share,
+  CreateShareParams,
+  LogEntry,
+  CreateLogParams,
+  DatabaseStatistics,
+  DeleteUserResult,
+  ExportData
+} from './types.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+/**
+ * 获取数据目录和数据库文件路径
+ * 使用配置模块中的数据目录，确保跨平台和跨环境兼容
+ */
+function getDataPaths(): { dataDir: string; dbFile: string } {
+  // 优先使用环境变量，否则使用配置模块的默认值
+  let dataDir: string
+  
+  if (process.env.DATA_DIR) {
+    dataDir = process.env.DATA_DIR
+  } else {
+    try {
+      // 尝试从配置模块获取数据目录
+      const config = getConfig()
+      dataDir = config.dataDir
+    } catch {
+      // 配置模块未初始化时的回退方案
+      // 这种情况通常不会发生，因为数据库初始化在配置加载之后
+      dataDir = process.env.NODE_ENV === 'production' 
+        ? '/app/data' 
+        : path.join(process.cwd(), 'packages', 'server', 'data')
+    }
+  }
+  
+  return {
+    dataDir,
+    dbFile: path.join(dataDir, 'database.sqlite')
+  }
+}
 
-// 默认数据目录（可通过环境变量覆盖）
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
-const DB_FILE = path.join(DATA_DIR, 'database.sqlite')
+// 延迟初始化数据路径（在首次使用时初始化）
+let _dataPaths: { dataDir: string; dbFile: string } | null = null
 
-// 确保数据目录存在
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true })
+function ensureDataPaths(): { dataDir: string; dbFile: string } {
+  if (!_dataPaths) {
+    _dataPaths = getDataPaths()
+    
+    // 确保数据目录存在
+    if (!fs.existsSync(_dataPaths.dataDir)) {
+      fs.mkdirSync(_dataPaths.dataDir, { recursive: true })
+    }
+  }
+  return _dataPaths
 }
 
 export class SqliteDatabase {
@@ -29,8 +80,9 @@ export class SqliteDatabase {
   private initialized = false
   private saveTimer: NodeJS.Timeout | null = null
 
-  constructor(dbPath: string = DB_FILE) {
-    this.dbPath = dbPath
+  constructor(dbPath?: string) {
+    // 延迟获取默认路径，确保配置已加载
+    this.dbPath = dbPath || ''
   }
 
   /**
@@ -39,15 +91,22 @@ export class SqliteDatabase {
   async init(): Promise<void> {
     if (this.initialized) return
 
+    // 如果没有指定路径，使用默认路径
+    if (!this.dbPath) {
+      const paths = ensureDataPaths()
+      this.dbPath = paths.dbFile
+    }
+
     const SQL = await initSqlJs()
     
     // 尝试加载现有数据库
     if (fs.existsSync(this.dbPath)) {
       const buffer = fs.readFileSync(this.dbPath)
       this.db = new SQL.Database(buffer)
+      logger.debug('已加载现有 SQLite 数据库', { path: this.dbPath })
     } else {
       this.db = new SQL.Database()
-      console.log('📦 已创建新的 SQLite 数据库')
+      logger.info('已创建新的 SQLite 数据库', { path: this.dbPath })
     }
 
     this.initTables()
@@ -237,38 +296,34 @@ export class SqliteDatabase {
 
       this.saveToFile()
 
-      console.log('========================================')
-      console.log('✅ 已创建默认管理员账号：')
-      console.log('用户名: admin')
-      console.log('密码: admin123')
-      console.log('⚠️  请登录后立即修改密码！')
-      console.log('========================================')
+      logger.info('已创建默认管理员账号', { username: 'admin', role: 'super_admin' })
+      logger.sensitive('默认管理员密码: admin123 - 请立即修改！')
     }
   }
 
   // ========== 管理员操作 ==========
 
-  getAdmins(): any[] {
+  getAdmins(): Admin[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM admins')
-    return this.rowsToObjects(result)
+    return this.rowsToObjects(result) as unknown as Admin[]
   }
 
-  getAdminById(id: string): any {
+  getAdminById(id: string): Admin | undefined {
     if (!this.db) return undefined
     const result = this.db.exec('SELECT * FROM admins WHERE id = ?', [id])
-    const rows = this.rowsToObjects(result)
+    const rows = this.rowsToObjects(result) as unknown as Admin[]
     return rows[0]
   }
 
-  getAdminByUsername(username: string): any {
+  getAdminByUsername(username: string): Admin | undefined {
     if (!this.db) return undefined
     const result = this.db.exec('SELECT * FROM admins WHERE username = ?', [username])
-    const rows = this.rowsToObjects(result)
+    const rows = this.rowsToObjects(result) as unknown as Admin[]
     return rows[0]
   }
 
-  updateAdmin(id: string, updates: any): void {
+  updateAdmin(id: string, updates: Partial<Admin>): void {
     if (!this.db) return
     const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ')
     const values = [...Object.values(updates), id]
@@ -278,46 +333,60 @@ export class SqliteDatabase {
 
   // ========== 用户操作 ==========
 
-  getUsers(): any[] {
+  getUsers(): User[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM users')
-    return this.rowsToObjects(result).map(this.parseUser)
+    return this.rowsToObjects(result).map(row => this.parseUser(row))
   }
 
-  getUserById(id: string): any {
+  getUserById(id: string): User | undefined {
     if (!this.db) return undefined
     const result = this.db.exec('SELECT * FROM users WHERE id = ?', [id])
     const rows = this.rowsToObjects(result)
     return rows[0] ? this.parseUser(rows[0]) : undefined
   }
 
-  getUserByUsername(username: string): any {
+  getUserByUsername(username: string): User | undefined {
     if (!this.db) return undefined
     const result = this.db.exec('SELECT * FROM users WHERE username = ?', [username])
     const rows = this.rowsToObjects(result)
     return rows[0] ? this.parseUser(rows[0]) : undefined
   }
 
-  getUserByToken(token: string): any {
+  getUserByToken(token: string): User | undefined {
     if (!this.db) return undefined
     const result = this.db.exec('SELECT * FROM users WHERE token = ?', [token])
     const rows = this.rowsToObjects(result)
     return rows[0] ? this.parseUser(rows[0]) : undefined
   }
 
-  private parseUser(user: any): any {
-    if (!user) return user
+  private parseUser(user: Record<string, unknown>): User {
     return {
-      ...user,
-      permissions: JSON.parse(user.permissions || '[]'),
-      securityQuestion: user.securityQuestion ? JSON.parse(user.securityQuestion) : null,
+      id: user.id as string,
+      username: user.username as string,
+      passwordHash: user.passwordHash as string | null,
+      token: user.token as string | null,
+      securityQuestion: user.securityQuestion ? JSON.parse(user.securityQuestion as string) : null,
+      gender: user.gender as string | null,
+      email: user.email as string | null,
+      birthDate: user.birthDate as string | null,
+      phone: user.phone as string | null,
+      address: user.address as string | null,
+      position: user.position as string | null,
+      company: user.company as string | null,
+      bio: user.bio as string | null,
       rememberPassword: Boolean(user.rememberPassword),
-      isMainAccount: Boolean(user.isMainAccount)
+      isMainAccount: Boolean(user.isMainAccount),
+      parentUserId: user.parentUserId as string | null,
+      permissions: JSON.parse((user.permissions as string) || '[]'),
+      createdAt: user.createdAt as string,
+      lastLoginAt: user.lastLoginAt as string | null
     }
   }
 
-  createUser(user: any): string {
+  createUser(user: CreateUserParams): string {
     if (!this.db) return ''
+    const id = user.id || uuidv4()
     this.db.run(
       `INSERT INTO users (
         id, username, passwordHash, token, securityQuestion, gender, email,
@@ -325,35 +394,35 @@ export class SqliteDatabase {
         isMainAccount, parentUserId, permissions, createdAt, lastLoginAt
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        user.id,
+        id,
         user.username,
-        user.passwordHash,
-        user.token,
+        user.passwordHash ?? null,
+        user.token ?? null,
         user.securityQuestion ? JSON.stringify(user.securityQuestion) : null,
-        user.gender,
-        user.email,
-        user.birthDate,
-        user.phone,
-        user.address,
-        user.position,
-        user.company,
-        user.bio,
+        user.gender ?? null,
+        user.email ?? null,
+        user.birthDate ?? null,
+        user.phone ?? null,
+        user.address ?? null,
+        user.position ?? null,
+        user.company ?? null,
+        user.bio ?? null,
         user.rememberPassword ? 1 : 0,
         user.isMainAccount ? 1 : 0,
-        user.parentUserId,
+        user.parentUserId ?? null,
         JSON.stringify(user.permissions || []),
-        user.createdAt,
-        user.lastLoginAt
+        user.createdAt || new Date().toISOString(),
+        user.lastLoginAt ?? null
       ]
     )
     this.saveToFile()
-    return user.id
+    return id
   }
 
-  updateUser(id: string, updates: any): void {
+  updateUser(id: string, updates: Partial<User>): void {
     if (!this.db) return
     const fields: string[] = []
-    const values: any[] = []
+    const values: unknown[] = []
 
     for (const [key, value] of Object.entries(updates)) {
       if (key === 'permissions') {
@@ -398,70 +467,77 @@ export class SqliteDatabase {
     return count > 0
   }
 
-  getSubAccounts(parentUserId: string): any[] {
+  getSubAccounts(parentUserId: string): User[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM users WHERE parentUserId = ?', [parentUserId])
-    return this.rowsToObjects(result).map(this.parseUser)
+    return this.rowsToObjects(result).map(row => this.parseUser(row))
   }
 
   // ========== 备忘录操作 ==========
 
-  getMemos(): any[] {
+  getMemos(): Memo[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM memos')
-    return this.rowsToObjects(result).map(this.parseMemo)
+    return this.rowsToObjects(result).map(row => this.parseMemo(row))
   }
 
-  getMemoById(id: string): any {
+  getMemoById(id: string): Memo | undefined {
     if (!this.db) return undefined
     const result = this.db.exec('SELECT * FROM memos WHERE id = ?', [id])
     const rows = this.rowsToObjects(result)
     return rows[0] ? this.parseMemo(rows[0]) : undefined
   }
 
-  getMemosByUserId(userId: string): any[] {
+  getMemosByUserId(userId: string): Memo[] {
     if (!this.db) return []
     const result = this.db.exec(
       'SELECT * FROM memos WHERE userId = ? AND deletedAt IS NULL ORDER BY updatedAt DESC',
       [userId]
     )
-    return this.rowsToObjects(result).map(this.parseMemo)
+    return this.rowsToObjects(result).map(row => this.parseMemo(row))
   }
 
-  private parseMemo(memo: any): any {
-    if (!memo) return memo
+  private parseMemo(memo: Record<string, unknown>): Memo {
     return {
-      ...memo,
-      tags: JSON.parse(memo.tags || '[]'),
-      attachments: JSON.parse(memo.attachments || '[]')
+      id: memo.id as string,
+      userId: memo.userId as string,
+      title: memo.title as string | null,
+      content: (memo.content as string) || '',
+      tags: JSON.parse((memo.tags as string) || '[]'),
+      priority: memo.priority as string | null,
+      attachments: JSON.parse((memo.attachments as string) || '[]'),
+      deletedAt: memo.deletedAt as string | null,
+      createdAt: memo.createdAt as string,
+      updatedAt: memo.updatedAt as string
     }
   }
 
-  createMemo(memo: any): string {
+  createMemo(memo: CreateMemoParams): string {
     if (!this.db) return ''
+    const id = memo.id || uuidv4()
     this.db.run(
       `INSERT INTO memos (id, userId, title, content, tags, priority, attachments, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        memo.id,
+        id,
         memo.userId,
         memo.title ?? null,
-        memo.content,
+        memo.content || '',
         JSON.stringify(memo.tags || []),
         memo.priority ?? null,
         JSON.stringify(memo.attachments || []),
-        memo.createdAt,
-        memo.updatedAt
+        memo.createdAt || new Date().toISOString(),
+        memo.updatedAt || new Date().toISOString()
       ]
     )
     this.saveToFile()
-    return memo.id
+    return id
   }
 
-  updateMemo(id: string, updates: any): void {
+  updateMemo(id: string, updates: Partial<Memo>): void {
     if (!this.db) return
     const fields: string[] = []
-    const values: any[] = []
+    const values: unknown[] = []
 
     for (const [key, value] of Object.entries(updates)) {
       if (key === 'tags' || key === 'attachments') {
@@ -488,27 +564,28 @@ export class SqliteDatabase {
 
   // ========== 文件操作 ==========
 
-  getFiles(): any[] {
+  getFiles(): FileRecord[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM files')
-    return this.rowsToObjects(result)
+    return this.rowsToObjects(result) as unknown as FileRecord[]
   }
 
-  getFilesByUserId(userId: string): any[] {
+  getFilesByUserId(userId: string): FileRecord[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM files WHERE userId = ?', [userId])
-    return this.rowsToObjects(result)
+    return this.rowsToObjects(result) as unknown as FileRecord[]
   }
 
-  createFile(file: any): string {
+  createFile(file: CreateFileParams): string {
     if (!this.db) return ''
+    const id = file.id || uuidv4()
     this.db.run(
       `INSERT INTO files (id, userId, memoId, filename, mimeType, size, path, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [file.id, file.userId, file.memoId ?? null, file.filename, file.mimeType, file.size, file.path, file.createdAt]
+      [id, file.userId, file.memoId ?? null, file.filename, file.mimeType, file.size, file.path, file.createdAt || new Date().toISOString()]
     )
     this.saveToFile()
-    return file.id
+    return id
   }
 
   deleteFile(id: string): void {
@@ -519,27 +596,28 @@ export class SqliteDatabase {
 
   // ========== 分享操作 ==========
 
-  getShares(): any[] {
+  getShares(): Share[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM shares')
-    return this.rowsToObjects(result)
+    return this.rowsToObjects(result) as unknown as Share[]
   }
 
-  getSharesByUserId(userId: string): any[] {
+  getSharesByUserId(userId: string): Share[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM shares WHERE userId = ?', [userId])
-    return this.rowsToObjects(result)
+    return this.rowsToObjects(result) as unknown as Share[]
   }
 
-  createShare(share: any): string {
+  createShare(share: CreateShareParams): string {
     if (!this.db) return ''
+    const id = share.id || uuidv4()
     this.db.run(
       `INSERT INTO shares (id, userId, memoId, shareCode, expiresAt, viewCount, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [share.id, share.userId, share.memoId, share.shareCode, share.expiresAt ?? null, share.viewCount || 0, share.createdAt]
+      [id, share.userId, share.memoId, share.shareCode || uuidv4().replace(/-/g, '').substring(0, 8), share.expiresAt ?? null, share.viewCount || 0, share.createdAt || new Date().toISOString()]
     )
     this.saveToFile()
-    return share.id
+    return id
   }
 
   deleteShare(id: string): void {
@@ -550,25 +628,25 @@ export class SqliteDatabase {
 
   // ========== 日志操作 ==========
 
-  getLogs(): any[] {
+  getLogs(): LogEntry[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM logs ORDER BY createdAt DESC LIMIT 1000')
-    return this.rowsToObjects(result)
+    return this.rowsToObjects(result) as unknown as LogEntry[]
   }
 
   /**
    * 按级别获取日志
    */
-  getLogsByLevel(level: string): any[] {
+  getLogsByLevel(level: string): LogEntry[] {
     if (!this.db) return []
     const result = this.db.exec(
       'SELECT * FROM logs WHERE level = ? ORDER BY createdAt DESC LIMIT 1000',
       [level]
     )
-    return this.rowsToObjects(result)
+    return this.rowsToObjects(result) as unknown as LogEntry[]
   }
 
-  createLog(log: any): string {
+  createLog(log: CreateLogParams): string {
     if (!this.db) return ''
     const id = log.id || uuidv4()
     this.db.run(
@@ -684,12 +762,12 @@ export class SqliteDatabase {
   /**
    * 删除用户的所有相关数据（包括子账号及其数据）
    */
-  deleteUserWithData(userId: string): { memos: number; files: number; shares: number; subAccounts: number } {
+  deleteUserWithData(userId: string): DeleteUserResult {
     if (!this.db) return { memos: 0, files: 0, shares: 0, subAccounts: 0 }
     
     // 先获取该用户的所有子账号
     const subAccountsResult = this.db.exec('SELECT id FROM users WHERE parentUserId = ?', [userId])
-    const subAccountIds: string[] = subAccountsResult[0]?.values?.map((row: any[]) => row[0] as string) || []
+    const subAccountIds: string[] = subAccountsResult[0]?.values?.map((row: unknown[]) => row[0] as string) || []
     
     let totalMemos = 0
     let totalFiles = 0
@@ -732,7 +810,7 @@ export class SqliteDatabase {
 
   // ========== 统计 ==========
 
-  getStatistics(): { userCount: number; memoCount: number; fileCount: number; shareCount: number; logCount: number } {
+  getStatistics(): DatabaseStatistics {
     if (!this.db) return { userCount: 0, memoCount: 0, fileCount: 0, shareCount: 0, logCount: 0 }
 
     const userCount = (this.db.exec('SELECT COUNT(*) FROM users')[0]?.values[0]?.[0] as number) || 0
@@ -763,7 +841,7 @@ export class SqliteDatabase {
 
   // ========== 导出所有数据 ==========
 
-  exportAll(): any {
+  exportAll(): ExportData {
     return {
       users: this.getUsers(),
       memos: this.getMemos(),
@@ -800,11 +878,11 @@ export class SqliteDatabase {
 
   // ========== 辅助方法 ==========
 
-  private rowsToObjects(result: any[]): any[] {
+  private rowsToObjects(result: { columns: string[]; values: unknown[][] }[]): Record<string, unknown>[] {
     if (!result || result.length === 0) return []
     const { columns, values } = result[0]
-    return values.map((row: any[]) => {
-      const obj: any = {}
+    return values.map((row: unknown[]) => {
+      const obj: Record<string, unknown> = {}
       columns.forEach((col: string, i: number) => {
         obj[col] = row[i]
       })

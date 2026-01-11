@@ -2,6 +2,116 @@
 
 本文档记录 CYP-memo 容器备忘录系统的所有重要变更。
 
+## [1.8.5] - 2026-01-11
+
+### 更新
+
+- 版本更新
+
+---
+
+## [1.8.5] - 2026-01-12
+
+### 新增 ✨
+
+- **跨平台开发环境指南**: 新增 `docs/CROSS_PLATFORM_DEV.md` 文档
+  - 详细说明 Windows/macOS/Linux/WSL2/Docker 环境下的开发配置
+  - 包含各平台的常见问题和解决方案
+- **Linux/macOS 开发启动脚本**: 新增 `dev.sh` 脚本
+  - 与 Windows 的 `dev.bat` 对应，提供一致的开发体验
+
+### 修复 🐛
+
+- **磁盘空间检测跨平台兼容**: 修复不同操作系统下磁盘空间检测失败的问题
+  - macOS 不支持 `df -B1` 参数，改用 `df -k` 并转换单位
+  - Windows 优先使用 PowerShell 替代已弃用的 `wmic` 命令（Windows 11 兼容）
+- **管理端生产环境部署**: 修复管理端在生产环境下静态资源和路由路径问题
+  - 修复 Vite 配置中 `base` 路径判断逻辑
+  - 使用 `command === 'build'` 替代 `process.env.NODE_ENV` 确保生产构建时正确设置 `/admin/` 路径
+- **SPA 路由回退完善**: 修复生产环境下路由问题
+  - 添加 `/admin` 精确路径重定向到 `/admin/`
+  - 正确排除管理端路由避免被用户端捕获
+- **数据库初始化时序**: 修复配置未加载时数据路径错误的问题
+  - 重构 `sqlite-database.ts` 数据路径初始化为延迟加载
+  - 使用 `ensureDataPaths()` 函数在 `init()` 时调用
+- **版本号读取跨环境兼容**: 修复不同环境下版本号读取失败的问题
+  - 支持开发环境、生产环境、Docker 容器等多种路径查找 `package.json`
+
+### 优化 ⚡
+
+- **开发脚本跨平台优化**: 改进 `scripts/dev.js` 跨平台兼容性
+  - 支持跨平台进程终止（Windows 使用 `taskkill`，Unix 使用 `SIGTERM`）
+  - 正确处理 Windows 的 `pnpm.cmd` 命令
+  - 添加错误处理和平台信息输出
+- **数据目录智能检测**: 根据平台自动选择合适的默认数据目录
+  - Windows: `%LOCALAPPDATA%/cyp-memo/data`
+  - macOS: `~/Library/Application Support/cyp-memo/data`
+  - Linux: `~/.local/share/cyp-memo/data`
+- **Vite 开发服务器配置增强**: 添加 WSL2/Docker 环境的 HMR 和文件监听配置说明
+
+---
+
+## [1.8.4] - 2026-01-12
+
+### 新增 ✨
+
+- **服务器端统一日志模块**: 新增 `logger.ts` 日志工具
+  - 支持日志级别控制（debug/info/warn/error）
+  - 根据 `LOG_LEVEL` 环境变量自动过滤日志输出
+  - 提供 `startup()` 方法用于启动信息始终输出
+  - 提供 `sensitive()` 方法仅在开发模式输出敏感信息
+- **服务器端 TypeScript 类型定义**: 新增 `types.ts` 类型定义文件
+  - 为 Admin、User、Memo、FileRecord、Share、LogEntry 等实体提供完整的接口定义
+  - 包含创建参数类型（CreateUserParams、CreateMemoParams 等）
+  - 包含统计和导出数据类型定义
+
+### 修复 🐛
+
+- **生产模式敏感信息泄露**: 修复默认管理员密码在生产环境控制台明文输出的安全问题
+  - 改用 `logger.sensitive()` 仅在开发模式输出
+  - 生产环境只记录管理员创建成功的日志，不显示密码
+- **TypeScript 严格模式 any 类型**: 消除 `sqlite-database.ts` 中所有 `any` 类型
+  - 使用具体的接口类型替代，符合 TypeScript 严格模式要求
+  - 修复类型转换警告，使用 `as unknown as Type` 双重断言
+
+### 优化 ⚡
+
+- **服务器端日志规范化**: 将所有 `console.log/error` 调用替换为统一的 `logger` 模块
+  - 支持结构化日志输出和上下文信息
+  - 日志格式：`[时间戳] [图标] [级别] 消息 {上下文}`
+- **数据库操作类型安全**: 为所有数据库 CRUD 方法添加明确的参数和返回值类型定义
+  - 提升代码可维护性和 IDE 智能提示
+  - 消除隐式 any 类型警告
+- **迁移脚本日志优化**: `migrate-to-sqlite.ts` 使用封装的 `log()` 函数统一输出
+  - 改进错误信息格式，显示具体错误原因
+
+### 其他 🔧
+
+- **代码规范符合开发文档**: 服务器端代码现在完全符合 `docs/DEVELOPMENT.md` 中定义的开发规范
+  - 使用 TypeScript 严格模式
+  - 统一日志输出方式
+  - 所有源文件包含版权声明
+
+---
+
+## [1.8.3] - 2026-01-12
+
+### 修复 🐛
+
+- **注册时 btoa Unicode 编码错误**: 修复注册输入中文用户名/密码/安全问题答案时出现 `Failed to execute 'btoa' on 'Window': The string to be encoded contains characters outside of the Latin1 range` 错误
+- **Web Crypto API 类型兼容性**: 修复 TypeScript 严格模式下 `Uint8Array` 与 `BufferSource` 类型不兼容的问题，使用新建 `ArrayBuffer` 方式避免 `SharedArrayBuffer` 类型冲突
+
+### 优化 ⚡
+
+- **加密工具全面兼容性增强**: 
+  - 新增 `stringToUtf8Bytes()` 函数手动实现 UTF-8 编码，兼容不支持 `TextEncoder` 的旧环境
+  - 新增 `base64ToUint8Array()` 函数，支持 `btoa/atob`、Node.js `Buffer` 和手动实现三种方式
+  - 改进 `isWebCryptoAvailable` 检测逻辑，使用 try-catch 包装避免在某些环境下抛出异常
+- **飞牛 NAS (J1900) 兼容性**: 针对低端 NAS 设备优化加密函数，确保在 HTTP 环境和旧版浏览器中正常运行
+- **Docker 镜像版本更新**: Dockerfile 中的默认版本号更新为 1.8.3
+
+---
+
 ## [1.8.2] - 2026-01-11
 
 ### 新增 ✨

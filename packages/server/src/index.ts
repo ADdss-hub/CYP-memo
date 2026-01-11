@@ -14,6 +14,7 @@ import { initDatabase, database } from './sqlite-database.js'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
 import { getConfig, formatConfigInfo, type ContainerConfig } from './config.js'
+import { logger, initLogger } from './logger.js'
 
 // 获取当前文件的目录路径（兼容 ESM 和各种平台）
 const __filename = fileURLToPath(import.meta.url)
@@ -37,32 +38,65 @@ interface DiskSpaceInfo {
 /**
  * 获取磁盘空间信息
  * Requirements: 4.4
+ * 支持 Windows、Linux、macOS 三大平台
  */
 function getDiskSpace(dirPath: string): DiskSpaceInfo | null {
   try {
-    // Windows 使用 wmic 命令
     if (process.platform === 'win32') {
-      // 获取驱动器盘符
+      // Windows: 优先使用 PowerShell (兼容 Windows 10/11)
+      // wmic 在 Windows 11 较新版本中已被弃用
       const drive = path.parse(path.resolve(dirPath)).root.replace('\\', '')
-      const output = execSync(`wmic logicaldisk where "DeviceID='${drive}'" get FreeSpace,Size /format:csv`, {
-        encoding: 'utf-8',
-        timeout: 5000
-      })
-      const lines = output.trim().split('\n').filter(line => line.trim())
-      if (lines.length >= 2) {
-        const values = lines[1].split(',')
-        if (values.length >= 3) {
-          const available = parseInt(values[1], 10) || 0
-          const total = parseInt(values[2], 10) || 0
-          return {
-            available,
-            total,
-            used: total - available
+      try {
+        // 尝试使用 PowerShell (更现代、更可靠)
+        const psCommand = `(Get-PSDrive -Name '${drive.replace(':', '')}' | Select-Object Used,Free | ConvertTo-Json)`
+        const output = execSync(`powershell -NoProfile -Command "${psCommand}"`, {
+          encoding: 'utf-8',
+          timeout: 5000
+        })
+        const data = JSON.parse(output.trim())
+        const used = data.Used || 0
+        const available = data.Free || 0
+        return {
+          used,
+          available,
+          total: used + available
+        }
+      } catch {
+        // 回退到 wmic (兼容旧版 Windows)
+        const output = execSync(`wmic logicaldisk where "DeviceID='${drive}'" get FreeSpace,Size /format:csv`, {
+          encoding: 'utf-8',
+          timeout: 5000
+        })
+        const lines = output.trim().split('\n').filter(line => line.trim())
+        if (lines.length >= 2) {
+          const values = lines[1].split(',')
+          if (values.length >= 3) {
+            const available = parseInt(values[1], 10) || 0
+            const total = parseInt(values[2], 10) || 0
+            return {
+              available,
+              total,
+              used: total - available
+            }
           }
         }
       }
+    } else if (process.platform === 'darwin') {
+      // macOS: 使用 df 命令 (不支持 -B1 参数)
+      const output = execSync(`df -k "${dirPath}" | tail -1`, {
+        encoding: 'utf-8',
+        timeout: 5000
+      })
+      const parts = output.trim().split(/\s+/)
+      if (parts.length >= 4) {
+        // macOS df -k 输出单位是 1K 块
+        const total = (parseInt(parts[1], 10) || 0) * 1024
+        const used = (parseInt(parts[2], 10) || 0) * 1024
+        const available = (parseInt(parts[3], 10) || 0) * 1024
+        return { used, available, total }
+      }
     } else {
-      // Unix/Linux 使用 df 命令
+      // Linux: 使用 df -B1 命令
       const output = execSync(`df -B1 "${dirPath}" | tail -1`, {
         encoding: 'utf-8',
         timeout: 5000
@@ -92,6 +126,8 @@ const app = express()
 let config: ContainerConfig
 try {
   config = getConfig()
+  // 初始化日志系统
+  initLogger(config.logLevel, config.nodeEnv === 'production')
 } catch (err) {
   console.error('❌ 配置加载失败:', err instanceof Error ? err.message : String(err))
   process.exit(1)
@@ -143,13 +179,17 @@ if (process.env.NODE_ENV === 'production') {
     // 用户端路由
     app.use(express.static(appDistPath))
     
-    console.log('📁 静态文件服务已启用 (生产模式)')
-    console.log(`   用户端: ${appDistPath} (${appDistExists ? '存在' : '不存在'})`)
-    console.log(`   管理端: ${adminDistPath} (${adminDistExists ? '存在' : '不存在'})`)
+    logger.info('静态文件服务已启用 (生产模式)', {
+      appPath: appDistPath,
+      appExists: appDistExists,
+      adminPath: adminDistPath,
+      adminExists: adminDistExists
+    })
   } else {
-    console.warn('⚠️ 静态文件目录不存在，跳过静态文件服务')
-    console.warn(`   用户端: ${appDistPath}`)
-    console.warn(`   管理端: ${adminDistPath}`)
+    logger.warn('静态文件目录不存在，跳过静态文件服务', {
+      appPath: appDistPath,
+      adminPath: adminDistPath
+    })
   }
 }
 
@@ -417,7 +457,7 @@ app.post('/api/users', (req, res) => {
     
     res.json({ success: true, data: { id } })
   } catch (err) {
-    console.error('创建用户失败:', err)
+    logger.error('创建用户失败', err)
     res.status(500).json({ success: false, error: { message: err instanceof Error ? err.message : '创建用户失败' } })
   }
 })
@@ -458,7 +498,7 @@ app.delete('/api/users/:id', (req, res) => {
       } 
     })
   } catch (err) {
-    console.error('删除用户失败:', err)
+    logger.error('删除用户失败', err)
     res.status(500).json({ success: false, error: { message: '删除用户失败' } })
   }
 })
@@ -560,7 +600,7 @@ app.post('/api/files', upload.single('file'), (req, res) => {
 
     res.json({ success: true, data: { id } })
   } catch (err) {
-    console.error('上传文件失败:', err)
+    logger.error('上传文件失败', err)
     res.status(500).json({ success: false, error: { message: '上传文件失败' } })
   }
 })
@@ -657,7 +697,7 @@ app.patch('/api/files/:id', (req, res) => {
     // 这里简化处理，只返回成功
     res.json({ success: true, data: null })
   } catch (err) {
-    console.error('更新文件失败:', err)
+    logger.error('更新文件失败', err)
     res.status(500).json({ success: false, error: { message: '更新文件失败' } })
   }
 })
@@ -675,7 +715,7 @@ app.delete('/api/files/:id', (req, res) => {
     database.deleteFile(req.params.id)
     res.json({ success: true, data: null })
   } catch (err) {
-    console.error('删除文件失败:', err)
+    logger.error('删除文件失败', err)
     res.status(500).json({ success: false, error: { message: '删除文件失败' } })
   }
 })
@@ -707,7 +747,7 @@ app.post('/api/shares', (req, res) => {
     
     res.json({ success: true, data: { id } })
   } catch (err) {
-    console.error('创建分享链接失败:', err)
+    logger.error('创建分享链接失败', err)
     res.status(500).json({ success: false, error: { message: '创建分享链接失败' } })
   }
 })
@@ -785,7 +825,7 @@ app.patch('/api/shares/:id', (req, res) => {
     // 目前数据库没有updateShare方法，简化处理
     res.json({ success: true, data: null })
   } catch (err) {
-    console.error('更新分享链接失败:', err)
+    logger.error('更新分享链接失败', err)
     res.status(500).json({ success: false, error: { message: '更新分享链接失败' } })
   }
 })
@@ -796,7 +836,7 @@ app.delete('/api/shares/:id', (req, res) => {
     database.deleteShare(req.params.id)
     res.json({ success: true, data: null })
   } catch (err) {
-    console.error('删除分享链接失败:', err)
+    logger.error('删除分享链接失败', err)
     res.status(500).json({ success: false, error: { message: '删除分享链接失败' } })
   }
 })
@@ -894,7 +934,7 @@ app.post('/api/logs', (req, res) => {
     })
     res.json({ success: true, data: { id } })
   } catch (err) {
-    console.error('创建日志失败:', err)
+    logger.error('创建日志失败', err)
     res.status(500).json({ success: false, error: { message: '创建日志失败' } })
   }
 })
@@ -919,7 +959,7 @@ app.get('/api/logs', (req, res) => {
     }))
     res.json({ success: true, data: logs })
   } catch (err) {
-    console.error('获取日志失败:', err)
+    logger.error('获取日志失败', err)
     res.status(500).json({ success: false, error: { message: '获取日志失败' } })
   }
 })
@@ -945,7 +985,7 @@ app.get('/api/logs/by-level/:level', (req, res) => {
     }))
     res.json({ success: true, data: logs })
   } catch (err) {
-    console.error('按级别获取日志失败:', err)
+    logger.error('按级别获取日志失败', err)
     res.status(500).json({ success: false, error: { message: '获取日志失败' } })
   }
 })
@@ -979,7 +1019,7 @@ app.delete('/api/cleanup/deleted-memos', (req, res) => {
     const deleted = database.cleanDeletedMemos(days)
     res.json({ success: true, data: { deleted } })
   } catch (err) {
-    console.error('清理已删除备忘录失败:', err)
+    logger.error('清理已删除备忘录失败', err)
     res.status(500).json({ success: false, error: { message: '清理失败' } })
   }
 })
@@ -990,7 +1030,7 @@ app.delete('/api/cleanup/orphaned-files', (_req, res) => {
     const deleted = database.cleanOrphanedFiles()
     res.json({ success: true, data: { deleted } })
   } catch (err) {
-    console.error('清理孤立文件失败:', err)
+    logger.error('清理孤立文件失败', err)
     res.status(500).json({ success: false, error: { message: '清理失败' } })
   }
 })
@@ -1001,7 +1041,7 @@ app.delete('/api/cleanup/expired-shares', (_req, res) => {
     const deleted = database.cleanExpiredShares()
     res.json({ success: true, data: { deleted } })
   } catch (err) {
-    console.error('清理过期分享失败:', err)
+    logger.error('清理过期分享失败', err)
     res.status(500).json({ success: false, error: { message: '清理失败' } })
   }
 })
@@ -1025,7 +1065,7 @@ app.post('/api/cleanup/perform', (req, res) => {
     
     res.json({ success: true, data: result })
   } catch (err) {
-    console.error('执行清理失败:', err)
+    logger.error('执行清理失败', err)
     res.status(500).json({ success: false, error: { message: '清理失败' } })
   }
 })
@@ -1041,8 +1081,14 @@ if (process.env.NODE_ENV === 'production') {
   const adminDistExists = fs.existsSync(adminDistPath)
   
   if (appDistExists) {
-    // 管理端 SPA 回退
+    // 管理端 SPA 回退 - 处理 /admin 和 /admin/* 路由
     if (adminDistExists) {
+      // 精确匹配 /admin（重定向到 /admin/）
+      app.get('/admin', (_req, res) => {
+        res.redirect('/admin/')
+      })
+      
+      // 匹配 /admin/ 和 /admin/* 的所有路由
       app.get('/admin/*', (_req, res) => {
         const indexPath = path.join(adminDistPath, 'index.html')
         if (fs.existsSync(indexPath)) {
@@ -1053,9 +1099,9 @@ if (process.env.NODE_ENV === 'production') {
       })
     }
     
-    // 用户端 SPA 回退 (排除 API 路由)
+    // 用户端 SPA 回退 (排除 API 路由和管理端路由)
     app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api')) {
+      if (!req.path.startsWith('/api') && !req.path.startsWith('/admin')) {
         const indexPath = path.join(appDistPath, 'index.html')
         if (fs.existsSync(indexPath)) {
           res.sendFile(indexPath)
@@ -1071,8 +1117,8 @@ if (process.env.NODE_ENV === 'production') {
 async function start() {
   try {
     // 输出配置信息 (Requirements: 2.5)
-    console.log('🔄 正在启动 CYP-memo API 服务器...')
-    console.log(formatConfigInfo(config))
+    logger.startup('🔄 正在启动 CYP-memo API 服务器...')
+    logger.startup(formatConfigInfo(config))
     
     // 初始化数据库
     await initDatabase()
@@ -1087,9 +1133,9 @@ async function start() {
     
     // 启动 HTTP 服务器 - 绑定到所有网络接口 (0.0.0.0)
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 CYP-memo API 服务器运行在 http://0.0.0.0:${PORT}`)
-      console.log(`📊 健康检查: http://localhost:${PORT}/api/health`)
-      console.log(`🌐 外部访问: http://<your-ip>:${PORT}`)
+      logger.startup(`🚀 CYP-memo API 服务器运行在 http://0.0.0.0:${PORT}`)
+      logger.startup(`📊 健康检查: http://localhost:${PORT}/api/health`)
+      logger.startup(`🌐 外部访问: http://<your-ip>:${PORT}`)
       
       // 记录服务器启动日志（包含完整配置信息）
       database.createLog({
@@ -1112,7 +1158,7 @@ async function start() {
     
     // 优雅关闭
     process.on('SIGINT', () => {
-      console.log('\n🛑 正在关闭服务器...')
+      logger.startup('\n🛑 正在关闭服务器...')
       // 记录服务器关闭日志
       database.createLog({
         level: 'info',
@@ -1125,7 +1171,7 @@ async function start() {
     })
     
     process.on('SIGTERM', () => {
-      console.log('\n🛑 正在关闭服务器...')
+      logger.startup('\n🛑 正在关闭服务器...')
       // 记录服务器关闭日志
       database.createLog({
         level: 'info',
@@ -1138,7 +1184,7 @@ async function start() {
     })
     
   } catch (err) {
-    console.error('❌ 服务器启动失败:', err)
+    logger.error('服务器启动失败', err)
     // 记录启动失败日志
     try {
       database.createLog({

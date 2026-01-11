@@ -7,6 +7,8 @@
 
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
+import { fileURLToPath } from 'url'
 
 /**
  * 日志级别类型
@@ -42,11 +44,55 @@ export class ConfigValidationError extends Error {
 }
 
 /**
+ * 获取默认数据目录（跨平台）
+ * - Docker/生产环境: /app/data
+ * - Windows 开发环境: %LOCALAPPDATA%/cyp-memo/data 或 ./packages/server/data
+ * - macOS 开发环境: ~/Library/Application Support/cyp-memo/data 或 ./packages/server/data
+ * - Linux 开发环境: ~/.local/share/cyp-memo/data 或 ./packages/server/data
+ */
+function getDefaultDataDir(): string {
+  // 生产环境或 Docker 容器中使用 /app/data
+  if (process.env.NODE_ENV === 'production') {
+    return '/app/data'
+  }
+  
+  // 开发环境：优先使用项目内的 data 目录
+  const projectDataDir = path.join(process.cwd(), 'packages', 'server', 'data')
+  
+  // 如果项目目录存在或可以创建，使用项目目录
+  try {
+    if (!fs.existsSync(projectDataDir)) {
+      fs.mkdirSync(projectDataDir, { recursive: true })
+    }
+    return projectDataDir
+  } catch {
+    // 无法使用项目目录，回退到系统目录
+  }
+  
+  // 回退到系统特定的应用数据目录
+  const platform = process.platform
+  const homeDir = os.homedir()
+  
+  if (platform === 'win32') {
+    // Windows: 使用 LOCALAPPDATA 或回退到用户目录
+    const localAppData = process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local')
+    return path.join(localAppData, 'cyp-memo', 'data')
+  } else if (platform === 'darwin') {
+    // macOS: 使用 Application Support
+    return path.join(homeDir, 'Library', 'Application Support', 'cyp-memo', 'data')
+  } else {
+    // Linux 和其他 Unix: 使用 XDG_DATA_HOME 或 ~/.local/share
+    const xdgDataHome = process.env.XDG_DATA_HOME || path.join(homeDir, '.local', 'share')
+    return path.join(xdgDataHome, 'cyp-memo', 'data')
+  }
+}
+
+/**
  * 默认配置值
  */
 const DEFAULT_CONFIG = {
   port: 5170,
-  dataDir: '/app/data',
+  get dataDir() { return getDefaultDataDir() },
   logLevel: 'info' as LogLevel,
   nodeEnv: 'production' as const,
   timezone: 'Asia/Shanghai'
@@ -125,20 +171,41 @@ function validateDataDir(dataDir: string): void {
 
 /**
  * 读取版本号
+ * 支持多种运行环境：开发环境、生产环境、Docker 容器
  */
 function readVersion(): string {
   try {
-    // 尝试从 package.json 读取版本
-    const packageJsonPath = path.join(process.cwd(), 'package.json')
-    if (fs.existsSync(packageJsonPath)) {
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
-      return packageJson.version || '0.0.0'
+    // 获取可能的 package.json 路径
+    const possiblePaths = [
+      // 1. 当前工作目录（开发环境）
+      path.join(process.cwd(), 'package.json'),
+      // 2. 服务器包目录（生产环境，从 dist 目录向上两级）
+      path.join(__dirname, '..', 'package.json'),
+      // 3. 项目根目录（Docker 容器中）
+      path.join(__dirname, '..', '..', '..', 'package.json'),
+      // 4. 服务器包目录（直接运行编译后的代码）
+      path.join(__dirname, '..', '..', 'package.json'),
+    ]
+    
+    for (const packageJsonPath of possiblePaths) {
+      if (fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+        if (packageJson.version) {
+          return packageJson.version
+        }
+      }
     }
     
     // 尝试从 VERSION 文件读取
-    const versionFilePath = path.join(process.cwd(), 'VERSION')
-    if (fs.existsSync(versionFilePath)) {
-      return fs.readFileSync(versionFilePath, 'utf-8').trim()
+    const versionPaths = [
+      path.join(process.cwd(), 'VERSION'),
+      path.join(__dirname, '..', '..', '..', 'VERSION'),
+    ]
+    
+    for (const versionFilePath of versionPaths) {
+      if (fs.existsSync(versionFilePath)) {
+        return fs.readFileSync(versionFilePath, 'utf-8').trim()
+      }
     }
     
     return '0.0.0'
@@ -146,6 +213,10 @@ function readVersion(): string {
     return '0.0.0'
   }
 }
+
+// 获取 __dirname（ESM 兼容）
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * 从环境变量加载配置

@@ -1,5 +1,6 @@
 ﻿/**
  * CYP-memo 加密工具
+ * 支持多种环境：浏览器、Node.js、NAS 系统（飞牛、群晖等）
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
@@ -9,10 +10,25 @@ let bcrypt: any = null
 // 检查是否在浏览器环境中
 const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined'
 
-// 检查 Web Crypto API 是否可用
-const isWebCryptoAvailable = typeof crypto !== 'undefined' && 
-  typeof crypto.subtle !== 'undefined' && 
-  typeof crypto.subtle.importKey === 'function'
+// 检查 TextEncoder 是否可用（某些旧环境可能不支持）
+const isTextEncoderAvailable = typeof TextEncoder !== 'undefined'
+
+// 检查 Web Crypto API 是否完全可用
+// 注意：在 HTTP 环境下（非 HTTPS），crypto.subtle 可能不可用
+const checkWebCryptoAvailable = (): boolean => {
+  try {
+    if (typeof crypto === 'undefined') return false
+    if (typeof crypto.subtle === 'undefined') return false
+    if (typeof crypto.subtle.importKey !== 'function') return false
+    if (typeof crypto.subtle.digest !== 'function') return false
+    if (typeof crypto.getRandomValues !== 'function') return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+const isWebCryptoAvailable = checkWebCryptoAvailable()
 
 // 如果不在浏览器环境中，导入 bcryptjs
 if (!isBrowser) {
@@ -25,34 +41,154 @@ if (!isBrowser) {
 }
 
 /**
+ * 将字符串转换为 UTF-8 字节数组
+ * 兼容不支持 TextEncoder 的环境
+ * @param str 要转换的字符串
+ * @returns UTF-8 字节数组
+ */
+function stringToUtf8Bytes(str: string): Uint8Array {
+  if (isTextEncoderAvailable) {
+    return new TextEncoder().encode(str)
+  }
+  
+  // 手动实现 UTF-8 编码（兼容旧环境）
+  const utf8: number[] = []
+  for (let i = 0; i < str.length; i++) {
+    let charCode = str.charCodeAt(i)
+    
+    // 处理代理对（surrogate pairs）
+    if (charCode >= 0xD800 && charCode <= 0xDBFF && i + 1 < str.length) {
+      const nextCharCode = str.charCodeAt(i + 1)
+      if (nextCharCode >= 0xDC00 && nextCharCode <= 0xDFFF) {
+        charCode = ((charCode - 0xD800) << 10) + (nextCharCode - 0xDC00) + 0x10000
+        i++
+      }
+    }
+    
+    if (charCode < 0x80) {
+      utf8.push(charCode)
+    } else if (charCode < 0x800) {
+      utf8.push(0xC0 | (charCode >> 6))
+      utf8.push(0x80 | (charCode & 0x3F))
+    } else if (charCode < 0x10000) {
+      utf8.push(0xE0 | (charCode >> 12))
+      utf8.push(0x80 | ((charCode >> 6) & 0x3F))
+      utf8.push(0x80 | (charCode & 0x3F))
+    } else {
+      utf8.push(0xF0 | (charCode >> 18))
+      utf8.push(0x80 | ((charCode >> 12) & 0x3F))
+      utf8.push(0x80 | ((charCode >> 6) & 0x3F))
+      utf8.push(0x80 | (charCode & 0x3F))
+    }
+  }
+  return new Uint8Array(utf8)
+}
+
+/**
  * 将字符串编码为 Base64（支持 Unicode 字符）
  * 解决 btoa() 无法处理非 Latin1 字符的问题
  * @param str 要编码的字符串
  * @returns Base64 编码的字符串
  */
 function encodeBase64(str: string): string {
-  // 使用 TextEncoder 将字符串转换为 UTF-8 字节数组
-  const encoder = new TextEncoder()
-  const bytes = encoder.encode(str)
+  // 将字符串转换为 UTF-8 字节数组
+  const bytes = stringToUtf8Bytes(str)
   // 将字节数组转换为二进制字符串，然后使用 btoa 编码
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
+  return uint8ArrayToBase64(bytes)
 }
 
 /**
  * 将 Uint8Array 编码为 Base64
+ * 兼容各种环境
  * @param bytes 字节数组
  * @returns Base64 编码的字符串
  */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
+  // 检查 btoa 是否可用
+  if (typeof btoa === 'function') {
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
   }
-  return btoa(binary)
+  
+  // Node.js 环境使用 Buffer
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes).toString('base64')
+  }
+  
+  // 手动实现 Base64 编码（最后的备用方案）
+  const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  let result = ''
+  const len = bytes.length
+  
+  for (let i = 0; i < len; i += 3) {
+    const b1 = bytes[i]
+    const b2 = i + 1 < len ? bytes[i + 1] : 0
+    const b3 = i + 2 < len ? bytes[i + 2] : 0
+    
+    result += base64Chars[b1 >> 2]
+    result += base64Chars[((b1 & 0x03) << 4) | (b2 >> 4)]
+    result += i + 1 < len ? base64Chars[((b2 & 0x0F) << 2) | (b3 >> 6)] : '='
+    result += i + 2 < len ? base64Chars[b3 & 0x3F] : '='
+  }
+  
+  return result
+}
+
+/**
+ * 将 Base64 解码为 Uint8Array
+ * 兼容各种环境
+ * @param base64 Base64 编码的字符串
+ * @returns 字节数组
+ */
+function base64ToUint8Array(base64: string): Uint8Array {
+  // 检查 atob 是否可用
+  if (typeof atob === 'function') {
+    try {
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      return bytes
+    } catch {
+      // atob 失败，使用备用方案
+    }
+  }
+  
+  // Node.js 环境使用 Buffer
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(base64, 'base64'))
+  }
+  
+  // 手动实现 Base64 解码
+  const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  const lookup = new Map<string, number>()
+  for (let i = 0; i < base64Chars.length; i++) {
+    lookup.set(base64Chars[i], i)
+  }
+  
+  // 移除填充
+  const cleanBase64 = base64.replace(/=/g, '')
+  const len = cleanBase64.length
+  const byteLen = Math.floor(len * 3 / 4)
+  const bytes = new Uint8Array(byteLen)
+  
+  let byteIndex = 0
+  for (let i = 0; i < len; i += 4) {
+    const b1 = lookup.get(cleanBase64[i]) || 0
+    const b2 = lookup.get(cleanBase64[i + 1]) || 0
+    const b3 = i + 2 < len ? (lookup.get(cleanBase64[i + 2]) || 0) : 0
+    const b4 = i + 3 < len ? (lookup.get(cleanBase64[i + 3]) || 0) : 0
+    
+    bytes[byteIndex++] = (b1 << 2) | (b2 >> 4)
+    if (byteIndex < byteLen) bytes[byteIndex++] = ((b2 & 0x0F) << 4) | (b3 >> 2)
+    if (byteIndex < byteLen) bytes[byteIndex++] = ((b3 & 0x03) << 6) | b4
+  }
+  
+  return bytes
 }
 
 /**
@@ -62,15 +198,17 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
  */
 async function hashPasswordFallback(password: string): Promise<string> {
   // 使用简单的 SHA-256 哈希（如果可用）
-  if (typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined') {
+  if (isWebCryptoAvailable) {
     try {
-      const encoder = new TextEncoder()
-      const data = encoder.encode(password)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const data = stringToUtf8Bytes(password)
+      // 创建新的 ArrayBuffer 以避免类型问题
+      const buffer = new ArrayBuffer(data.length)
+      new Uint8Array(buffer).set(data)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
       const hashArray = new Uint8Array(hashBuffer)
       return 'sha256:' + Array.from(hashArray, byte => byte.toString(16).padStart(2, '0')).join('')
     } catch (e) {
-      // SHA-256 也不可用
+      console.warn('SHA-256 哈希失败:', e)
     }
   }
   
@@ -143,10 +281,12 @@ async function hashPasswordBrowser(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16))
 
   // 使用 PBKDF2 进行密码哈希
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
+  const data = stringToUtf8Bytes(password)
+  // 创建新的 ArrayBuffer 以避免类型问题
+  const dataBuffer = new ArrayBuffer(data.length)
+  new Uint8Array(dataBuffer).set(data)
 
-  const key = await crypto.subtle.importKey('raw', data, 'PBKDF2', false, ['deriveBits'])
+  const key = await crypto.subtle.importKey('raw', dataBuffer, 'PBKDF2', false, ['deriveBits'])
 
   const derivedBits = await crypto.subtle.deriveBits(
     {
@@ -225,18 +365,20 @@ async function verifyPasswordBrowser(password: string, hash: string): Promise<bo
   }
 
   try {
-    // 解码 Base64 哈希
-    const combined = new Uint8Array(atob(hash).split('').map((c) => c.charCodeAt(0)))
+    // 解码 Base64 哈希（使用兼容函数）
+    const combined = base64ToUint8Array(hash)
 
     // 提取盐（前 16 字节）
     const salt = combined.slice(0, 16)
     const storedHash = combined.slice(16)
 
     // 使用相同的盐重新哈希密码
-    const encoder = new TextEncoder()
-    const data = encoder.encode(password)
+    const data = stringToUtf8Bytes(password)
+    // 创建新的 ArrayBuffer 以避免类型问题
+    const dataBuffer = new ArrayBuffer(data.length)
+    new Uint8Array(dataBuffer).set(data)
 
-    const key = await crypto.subtle.importKey('raw', data, 'PBKDF2', false, ['deriveBits'])
+    const key = await crypto.subtle.importKey('raw', dataBuffer, 'PBKDF2', false, ['deriveBits'])
 
     const derivedBits = await crypto.subtle.deriveBits(
       {
