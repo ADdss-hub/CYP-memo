@@ -13,7 +13,9 @@ import bcrypt from 'bcryptjs'
 import fs from 'fs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = path.join(__dirname, '..', 'data')
+
+// 默认数据目录（可通过环境变量覆盖）
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
 const DB_FILE = path.join(DATA_DIR, 'database.sqlite')
 
 // 确保数据目录存在
@@ -687,7 +689,7 @@ export class SqliteDatabase {
     
     // 先获取该用户的所有子账号
     const subAccountsResult = this.db.exec('SELECT id FROM users WHERE parentUserId = ?', [userId])
-    const subAccountIds: string[] = subAccountsResult[0]?.values?.map(row => row[0] as string) || []
+    const subAccountIds: string[] = subAccountsResult[0]?.values?.map((row: any[]) => row[0] as string) || []
     
     let totalMemos = 0
     let totalFiles = 0
@@ -740,6 +742,23 @@ export class SqliteDatabase {
     const logCount = (this.db.exec('SELECT COUNT(*) FROM logs')[0]?.values[0]?.[0] as number) || 0
 
     return { userCount, memoCount, fileCount, shareCount, logCount }
+  }
+
+  // ========== 健康检查 ==========
+
+  /**
+   * 检查数据库连接状态
+   * Requirements: 4.1, 4.5
+   */
+  isHealthy(): boolean {
+    if (!this.db || !this.initialized) return false
+    try {
+      // 执行简单查询验证数据库可用
+      this.db.exec('SELECT 1')
+      return true
+    } catch {
+      return false
+    }
   }
 
   // ========== 导出所有数据 ==========

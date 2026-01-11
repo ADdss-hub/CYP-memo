@@ -176,15 +176,75 @@ cyp-memo/
 
 ### Docker 部署（推荐）
 
-```bash
-# 构建并启动
-docker-compose up -d
+#### 一键部署
 
+```bash
+# 使用部署脚本（推荐）
+./scripts/deploy.sh -d
+
+# 或手动部署
+docker compose up -d
+```
+
+#### 部署脚本选项
+
+| 选项 | 说明 |
+|------|------|
+| `-d, --detach` | 后台运行容器 |
+| `--build-only` | 仅构建镜像，不启动容器 |
+| `--no-build` | 跳过构建，直接启动容器 |
+| `-h, --help` | 显示帮助信息 |
+
+#### 常用命令
+
+```bash
 # 查看日志
-docker-compose logs -f
+docker logs -f cyp-memo
+
+# 重启服务
+docker compose restart
 
 # 停止服务
-docker-compose down
+docker compose down
+
+# 清理所有资源
+./scripts/cleanup.sh -a
+```
+
+#### 数据备份与恢复
+
+```bash
+# 备份数据
+./scripts/backup.sh
+
+# 恢复数据
+./scripts/restore.sh backups/cyp-memo-backup-YYYYMMDD_HHMMSS.tar.gz
+```
+
+### 环境变量配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `NODE_ENV` | production | 运行环境 |
+| `PORT` | 5170 | 服务端口 |
+| `DATA_DIR` | /app/data | 数据目录路径 |
+| `LOG_LEVEL` | info | 日志级别 (debug/info/warn/error) |
+| `TZ` | Asia/Shanghai | 时区设置 |
+
+自定义配置示例：
+
+```bash
+# 创建 .env 文件
+cat > .env << EOF
+NODE_ENV=production
+PORT=5170
+DATA_DIR=/app/data
+LOG_LEVEL=info
+TZ=Asia/Shanghai
+EOF
+
+# 使用自定义配置启动
+docker compose --env-file .env up -d
 ```
 
 ### 传统部署
@@ -205,6 +265,84 @@ pm2 start packages/server/dist/index.js --name cyp-memo
 pm2 startup
 pm2 save
 ```
+
+---
+
+## 故障排除
+
+### 常见问题
+
+#### 1. 容器启动失败
+
+```bash
+# 查看容器日志
+docker logs cyp-memo
+
+# 检查容器状态
+docker ps -a | grep cyp-memo
+
+# 检查健康状态
+docker inspect --format='{{.State.Health.Status}}' cyp-memo
+```
+
+#### 2. 端口被占用
+
+```bash
+# 检查端口占用
+netstat -tlnp | grep 5170
+
+# 修改端口（在 docker-compose.yml 或 .env 中）
+# ports:
+#   - "8080:5170"  # 改为其他端口
+```
+
+#### 3. 数据卷权限问题
+
+```bash
+# 检查数据卷
+docker volume inspect cyp-memo_cyp-memo-data
+
+# 修复权限（进入容器）
+docker exec -u root cyp-memo chown -R nodejs:nodejs /app/data
+```
+
+#### 4. 健康检查失败
+
+```bash
+# 手动测试健康检查
+curl http://localhost:5170/api/health
+
+# 查看详细健康信息
+docker inspect --format='{{json .State.Health}}' cyp-memo | jq
+```
+
+#### 5. 数据库初始化失败
+
+```bash
+# 检查数据目录
+docker exec cyp-memo ls -la /app/data
+
+# 重新初始化（会清空数据！）
+docker compose down -v
+docker compose up -d
+```
+
+### 日志级别说明
+
+| 级别 | 说明 |
+|------|------|
+| debug | 详细调试信息 |
+| info | 一般运行信息（默认） |
+| warn | 警告信息 |
+| error | 错误信息 |
+
+### 获取帮助
+
+如果问题仍未解决：
+
+1. 查看完整日志：`docker logs --tail 100 cyp-memo`
+2. 检查系统资源：`docker stats cyp-memo`
+3. 提交 Issue 并附上日志信息
 
 ---
 

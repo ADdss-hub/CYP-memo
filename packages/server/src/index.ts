@@ -8,15 +8,94 @@ import cors from 'cors'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import { execSync } from 'child_process'
 import { initDatabase, database } from './sqlite-database.js'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
+import { getConfig, formatConfigInfo, type ContainerConfig } from './config.js'
+
+/**
+ * 健康状态类型
+ * Requirements: 4.1, 4.4, 4.5
+ */
+type HealthStatus = 'ok' | 'degraded' | 'unhealthy'
+
+/**
+ * 磁盘空间信息接口
+ */
+interface DiskSpaceInfo {
+  used: number      // 已用空间 (bytes)
+  available: number // 可用空间 (bytes)
+  total: number     // 总空间 (bytes)
+}
+
+/**
+ * 获取磁盘空间信息
+ * Requirements: 4.4
+ */
+function getDiskSpace(dirPath: string): DiskSpaceInfo | null {
+  try {
+    // Windows 使用 wmic 命令
+    if (process.platform === 'win32') {
+      // 获取驱动器盘符
+      const drive = path.parse(path.resolve(dirPath)).root.replace('\\', '')
+      const output = execSync(`wmic logicaldisk where "DeviceID='${drive}'" get FreeSpace,Size /format:csv`, {
+        encoding: 'utf-8',
+        timeout: 5000
+      })
+      const lines = output.trim().split('\n').filter(line => line.trim())
+      if (lines.length >= 2) {
+        const values = lines[1].split(',')
+        if (values.length >= 3) {
+          const available = parseInt(values[1], 10) || 0
+          const total = parseInt(values[2], 10) || 0
+          return {
+            available,
+            total,
+            used: total - available
+          }
+        }
+      }
+    } else {
+      // Unix/Linux 使用 df 命令
+      const output = execSync(`df -B1 "${dirPath}" | tail -1`, {
+        encoding: 'utf-8',
+        timeout: 5000
+      })
+      const parts = output.trim().split(/\s+/)
+      if (parts.length >= 4) {
+        const total = parseInt(parts[1], 10) || 0
+        const used = parseInt(parts[2], 10) || 0
+        const available = parseInt(parts[3], 10) || 0
+        return { used, available, total }
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 最小可用磁盘空间阈值 (100MB)
+ */
+const MIN_DISK_SPACE_BYTES = 100 * 1024 * 1024
 
 const app = express()
-const PORT = process.env.PORT || 5170
 
-// 配置文件上传目录
-const uploadDir = path.join(process.cwd(), 'data', 'uploads')
+// 加载配置
+let config: ContainerConfig
+try {
+  config = getConfig()
+} catch (err) {
+  console.error('❌ 配置加载失败:', err instanceof Error ? err.message : String(err))
+  process.exit(1)
+}
+
+const PORT = config.port
+
+// 配置文件上传目录（使用配置的数据目录）
+const uploadDir = path.join(config.dataDir, 'uploads')
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true })
 }
@@ -59,9 +138,55 @@ if (process.env.NODE_ENV === 'production') {
   console.log(`   管理端: ${adminDistPath}`)
 }
 
-// 健康检查
+// 健康检查（包含版本、运行时间、数据库状态和磁盘空间信息）
+// Requirements: 4.1, 4.4, 4.5
 app.get('/api/health', (_req, res) => {
-  res.json({ success: true, data: { status: 'ok' } })
+  const uptime = Math.floor((Date.now() - config.startTime.getTime()) / 1000)
+  
+  // 检查数据库状态 (Requirements: 4.1)
+  const databaseHealthy = database.isHealthy()
+  
+  // 检查磁盘空间 (Requirements: 4.4)
+  const diskSpace = getDiskSpace(config.dataDir)
+  const diskSpaceLow = diskSpace ? diskSpace.available < MIN_DISK_SPACE_BYTES : false
+  
+  // 确定整体健康状态
+  let status: HealthStatus = 'ok'
+  if (!databaseHealthy) {
+    status = 'unhealthy'
+  } else if (diskSpaceLow) {
+    status = 'degraded'
+  }
+  
+  res.json({ 
+    success: true, 
+    data: { 
+      status,
+      version: config.version,
+      uptime,
+      database: databaseHealthy,
+      diskSpace: diskSpace ? {
+        used: diskSpace.used,
+        available: diskSpace.available,
+        total: diskSpace.total
+      } : null
+    } 
+  })
+})
+
+// 配置信息接口（用于验证环境变量配置一致性）
+app.get('/api/config', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      port: config.port,
+      dataDir: config.dataDir,
+      logLevel: config.logLevel,
+      nodeEnv: config.nodeEnv,
+      version: config.version,
+      timezone: config.timezone
+    }
+  })
 })
 
 // ========== 管理员 API ==========
@@ -835,8 +960,9 @@ if (process.env.NODE_ENV === 'production') {
 // 启动服务器
 async function start() {
   try {
-    // 记录服务器启动开始
+    // 输出配置信息 (Requirements: 2.5)
     console.log('🔄 正在启动 CYP-memo API 服务器...')
+    console.log(formatConfigInfo(config))
     
     // 初始化数据库
     await initDatabase()
@@ -854,13 +980,18 @@ async function start() {
       console.log(`🚀 CYP-memo API 服务器运行在 http://localhost:${PORT}`)
       console.log(`📊 健康检查: http://localhost:${PORT}/api/health`)
       
-      // 记录服务器启动日志
+      // 记录服务器启动日志（包含完整配置信息）
       database.createLog({
         level: 'info',
         message: `服务器启动成功，监听端口 ${PORT}`,
         action: 'server_start',
         details: JSON.stringify({ 
-          port: PORT, 
+          port: config.port,
+          dataDir: config.dataDir,
+          logLevel: config.logLevel,
+          nodeEnv: config.nodeEnv,
+          version: config.version,
+          timezone: config.timezone,
           timestamp: new Date().toISOString(),
           nodeVersion: process.version,
           platform: process.platform

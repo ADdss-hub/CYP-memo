@@ -38,3 +38,7 @@ coverage
 
 # OS files
 Thumbs.db
+
+# Backup files
+backups/
+*.tar.gz

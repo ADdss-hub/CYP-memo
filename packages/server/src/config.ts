@@ -1,0 +1,195 @@
+/**
+ * CYP-memo 服务器配置模块
+ * 实现环境变量读取、默认值定义和配置验证
+ * 
+ * Requirements: 2.1, 2.2, 2.3, 2.4
+ */
+
+import path from 'path'
+import fs from 'fs'
+
+/**
+ * 日志级别类型
+ */
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+/**
+ * 容器配置接口
+ */
+export interface ContainerConfig {
+  // 基础配置
+  port: number
+  dataDir: string
+  logLevel: LogLevel
+  
+  // 运行时信息
+  nodeEnv: 'development' | 'production'
+  version: string
+  startTime: Date
+  
+  // 时区配置
+  timezone: string
+}
+
+/**
+ * 配置验证错误
+ */
+export class ConfigValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ConfigValidationError'
+  }
+}
+
+/**
+ * 默认配置值
+ */
+const DEFAULT_CONFIG = {
+  port: 5170,
+  dataDir: '/app/data',
+  logLevel: 'info' as LogLevel,
+  nodeEnv: 'production' as const,
+  timezone: 'Asia/Shanghai'
+}
+
+/**
+ * 验证端口号是否有效
+ */
+function validatePort(port: number): void {
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new ConfigValidationError(`无效的端口号: ${port}，端口必须在 1-65535 之间`)
+  }
+}
+
+/**
+ * 验证日志级别是否有效
+ */
+function validateLogLevel(level: string): LogLevel {
+  const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error']
+  if (!validLevels.includes(level as LogLevel)) {
+    throw new ConfigValidationError(
+      `无效的日志级别: ${level}，有效值为: ${validLevels.join(', ')}`
+    )
+  }
+  return level as LogLevel
+}
+
+/**
+ * 验证数据目录是否可访问
+ */
+function validateDataDir(dataDir: string): void {
+  // 尝试创建目录（如果不存在）
+  if (!fs.existsSync(dataDir)) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true })
+    } catch (err) {
+      throw new ConfigValidationError(
+        `无法创建数据目录: ${dataDir}，错误: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+  }
+  
+  // 检查目录是否可写
+  try {
+    const testFile = path.join(dataDir, '.write-test')
+    fs.writeFileSync(testFile, '')
+    fs.unlinkSync(testFile)
+  } catch (err) {
+    throw new ConfigValidationError(
+      `数据目录不可写: ${dataDir}，错误: ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+}
+
+/**
+ * 读取版本号
+ */
+function readVersion(): string {
+  try {
+    // 尝试从 package.json 读取版本
+    const packageJsonPath = path.join(process.cwd(), 'package.json')
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+      return packageJson.version || '0.0.0'
+    }
+    
+    // 尝试从 VERSION 文件读取
+    const versionFilePath = path.join(process.cwd(), 'VERSION')
+    if (fs.existsSync(versionFilePath)) {
+      return fs.readFileSync(versionFilePath, 'utf-8').trim()
+    }
+    
+    return '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+/**
+ * 从环境变量加载配置
+ */
+export function loadConfig(): ContainerConfig {
+  // 读取环境变量
+  const portStr = process.env.PORT
+  const dataDir = process.env.DATA_DIR || DEFAULT_CONFIG.dataDir
+  const logLevelStr = process.env.LOG_LEVEL || DEFAULT_CONFIG.logLevel
+  const nodeEnv = process.env.NODE_ENV === 'development' ? 'development' : 'production'
+  const timezone = process.env.TZ || DEFAULT_CONFIG.timezone
+  
+  // 解析端口号
+  const port = portStr ? parseInt(portStr, 10) : DEFAULT_CONFIG.port
+  
+  // 验证配置
+  validatePort(port)
+  const logLevel = validateLogLevel(logLevelStr)
+  validateDataDir(dataDir)
+  
+  return {
+    port,
+    dataDir,
+    logLevel,
+    nodeEnv,
+    version: readVersion(),
+    startTime: new Date(),
+    timezone
+  }
+}
+
+/**
+ * 格式化配置信息用于日志输出
+ */
+export function formatConfigInfo(config: ContainerConfig): string {
+  const lines = [
+    '========== 服务器配置 ==========',
+    `  端口: ${config.port}`,
+    `  数据目录: ${config.dataDir}`,
+    `  日志级别: ${config.logLevel}`,
+    `  运行环境: ${config.nodeEnv}`,
+    `  版本: ${config.version}`,
+    `  时区: ${config.timezone}`,
+    '================================'
+  ]
+  return lines.join('\n')
+}
+
+/**
+ * 全局配置实例（延迟初始化）
+ */
+let _config: ContainerConfig | null = null
+
+/**
+ * 获取配置实例（单例模式）
+ */
+export function getConfig(): ContainerConfig {
+  if (!_config) {
+    _config = loadConfig()
+  }
+  return _config
+}
+
+/**
+ * 重置配置（仅用于测试）
+ */
+export function resetConfig(): void {
+  _config = null
+}
