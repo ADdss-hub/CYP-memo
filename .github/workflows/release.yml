@@ -75,6 +75,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Generate placeholder icons
+        run: node scripts/create-placeholder-icons.mjs
+        working-directory: packages/desktop
+
       - name: Build desktop app
         run: pnpm --filter @cyp-memo/desktop build:win
         env:
@@ -114,6 +118,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Generate placeholder icons
+        run: node scripts/create-placeholder-icons.mjs
+        working-directory: packages/desktop
 
       - name: Build desktop app
         run: pnpm --filter @cyp-memo/desktop build:mac
@@ -158,6 +166,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Generate placeholder icons
+        run: node scripts/create-placeholder-icons.mjs
+        working-directory: packages/desktop
 
       - name: Build desktop app
         run: pnpm --filter @cyp-memo/desktop build:linux
