@@ -306,6 +306,26 @@ pnpm build:linux
 
 详细说明见 [桌面端构建指南](packages/desktop/BUILD.md)。
 
+#### Windows 构建产物说明
+
+构建完成后，`packages/desktop/release/<版本号>/` 目录包含以下文件：
+
+| 文件/文件夹 | 说明 |
+|------------|------|
+| `win-unpacked/` | 64位 Windows 解压版，可直接运行 |
+| `win-ia32-unpacked/` | 32位 Windows 解压版，适用于老旧系统 |
+| `CYP-memo Setup x.x.x.exe` | 64位安装包，推荐普通用户使用 |
+| `CYP-memo-x.x.x-portable.exe` | 便携版，无需安装，可放U盘随身携带 |
+| `*.exe.blockmap` | 增量更新块映射文件，用于自动更新 |
+| `latest.yml` | 自动更新元数据（版本号、下载地址、SHA512校验和） |
+| `builder-debug.yml` | 构建调试日志，排查问题时使用 |
+| `builder-effective-config.yaml` | 实际生效的 electron-builder 配置 |
+
+分发建议：
+- 普通用户：提供 `Setup.exe` 安装包
+- 便携使用：提供 `portable.exe`
+- 自动更新服务器：需要 `latest.yml` + `Setup.exe` + `.blockmap` 文件
+
 ### PM2 部署
 
 ```bash
