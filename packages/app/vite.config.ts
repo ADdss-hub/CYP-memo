@@ -15,6 +15,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: process.env.VITE_HOST || 'localhost',
     open: false,
   },
   build: {

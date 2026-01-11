@@ -11,8 +11,12 @@ services:
     image: cyp-memo:dev
     container_name: cyp-memo-dev
     ports:
-      # 应用端口
+      # 后端 API 端口
       - "5170:5170"
+      # 用户端前端端口
+      - "5173:5173"
+      # 管理端前端端口
+      - "5174:5174"
       # Node.js 调试端口
       - "9229:9229"
     volumes:
@@ -21,6 +25,7 @@ services:
       - ../package.json:/app/package.json
       - ../pnpm-workspace.yaml:/app/pnpm-workspace.yaml
       - ../pnpm-lock.yaml:/app/pnpm-lock.yaml
+      - ../scripts:/app/scripts
       # 数据持久化
       - cyp-memo-dev-data:/app/data
       # 排除 node_modules（使用容器内的依赖）
@@ -35,11 +40,11 @@ services:
       - DATA_DIR=/app/data
       - LOG_LEVEL=debug
       - TZ=Asia/Shanghai
-      # 启用 Node.js 调试
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      # Vite 需要监听所有接口才能从容器外访问
+      - VITE_HOST=0.0.0.0
     restart: unless-stopped
-    # 开发模式使用 tsx watch 实现热重载
-    command: pnpm dev:server
+    # 同时运行后端和前端
+    command: pnpm dev:all
     networks:
       - cyp-memo-dev-network
     # 开发模式下的健康检查（更宽松的配置）
@@ -48,7 +53,7 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
 networks:
   cyp-memo-dev-network:

@@ -176,14 +176,27 @@ cyp-memo/
 
 ### Docker 部署（推荐）
 
-#### 一键部署
+#### 使用 Docker Hub 镜像（最简单）
+
+```bash
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -v cyp-memo-data:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+镜像地址：[cyp97/cyp-memo](https://hub.docker.com/r/cyp97/cyp-memo)
+
+#### 使用 Docker Compose
 
 ```bash
 # 使用部署脚本（推荐）
 ./scripts/deploy.sh -d
 
 # 或手动部署
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 #### 部署脚本选项
