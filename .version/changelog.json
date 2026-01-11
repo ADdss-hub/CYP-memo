@@ -19,12 +19,24 @@
           "description": "静态文件服务：添加静态文件目录存在性检查，避免目录不存在时服务器崩溃"
         },
         {
+          "type": "fix",
+          "description": "生产模式 API 路径：前端使用相对路径 /api 而非硬编码 localhost:5170，修复 Docker 容器外部访问问题"
+        },
+        {
+          "type": "fix",
+          "description": "服务器网络绑定：绑定到 0.0.0.0 而非 localhost，允许外部网络访问"
+        },
+        {
+          "type": "perf",
+          "description": "Docker 镜像优化：添加 bash 和 curl 工具，改进健康检查和终端连接支持"
+        },
+        {
           "type": "perf",
           "description": "加密工具增强：为 hashPassword、verifyPassword、generateToken、generateUUID 添加完整的错误处理和备用方案"
         },
         {
           "type": "perf",
-          "description": "SPA 路由回退优化：添加 index.html 文件存在性检查，提供更友好的错误提示"
+          "description": "容器启动日志：添加详细的启动信息输出，便于调试"
         }
       ],
       "type": "patch",

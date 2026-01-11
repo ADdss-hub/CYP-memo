@@ -72,9 +72,12 @@ LABEL org.opencontainers.image.title="CYP-memo" \
 # 配置 Alpine 镜像源（国内加速）
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
-# 安装必要工具：su-exec 用于权限切换
+# 安装必要工具：
+# - su-exec: 用于权限切换
+# - bash: 提供完整的 bash shell（用于终端连接）
+# - curl: 用于健康检查和调试
 # 配置 npm 镜像源并安装 pnpm
-RUN apk add --no-cache su-exec && \
+RUN apk add --no-cache su-exec bash curl && \
     npm config set registry https://registry.npmmirror.com && \
     npm install -g pnpm && \
     pnpm config set registry https://registry.npmmirror.com
@@ -127,9 +130,9 @@ EXPOSE 5170
 # 数据卷
 VOLUME ["/app/data"]
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5170/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+# 健康检查 - 使用 curl 更可靠
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:5170/api/health || exit 1
 
 # 使用入口脚本处理权限问题
 ENTRYPOINT ["/entrypoint.sh"]

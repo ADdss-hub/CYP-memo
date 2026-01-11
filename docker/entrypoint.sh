@@ -9,6 +9,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log_info() {
@@ -23,11 +24,25 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+log_debug() {
+    echo -e "${BLUE}[DEBUG]${NC} $1"
+}
+
 # 数据目录
 DATA_DIR="${DATA_DIR:-/app/data}"
 
-log_info "CYP-memo 容器启动中..."
+echo ""
+echo "============================================"
+echo "  CYP-memo 容器启动"
+echo "============================================"
+echo ""
+
+log_info "版本: ${VERSION:-unknown}"
+log_info "Node.js: $(node --version 2>/dev/null || echo 'not found')"
+log_info "工作目录: $(pwd)"
 log_info "数据目录: ${DATA_DIR}"
+log_info "运行用户: $(id)"
+log_debug "PUID=${PUID:-not set}, PGID=${PGID:-not set}"
 
 # 确保数据目录存在
 if [ ! -d "${DATA_DIR}" ]; then

@@ -1085,10 +1085,11 @@ async function start() {
       details: JSON.stringify({ component: 'database', status: 'initialized' })
     })
     
-    // 启动 HTTP 服务器
-    app.listen(PORT, () => {
-      console.log(`🚀 CYP-memo API 服务器运行在 http://localhost:${PORT}`)
+    // 启动 HTTP 服务器 - 绑定到所有网络接口 (0.0.0.0)
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 CYP-memo API 服务器运行在 http://0.0.0.0:${PORT}`)
       console.log(`📊 健康检查: http://localhost:${PORT}/api/health`)
+      console.log(`🌐 外部访问: http://<your-ip>:${PORT}`)
       
       // 记录服务器启动日志（包含完整配置信息）
       database.createLog({
