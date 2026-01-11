@@ -21,7 +21,7 @@
     "pack": "pnpm build && electron-builder --config electron-builder.config.cjs --dir",
     "release": "pnpm build && electron-builder --config electron-builder.config.cjs --publish always",
     "release:draft": "pnpm build && electron-builder --config electron-builder.config.cjs --publish onTagOrDraft",
-    "generate-icons": "node scripts/generate-icons.js",
+    "generate-icons": "node scripts/generate-icons.cjs",
     "check-signing": "node scripts/check-signing.js",
     "test": "vitest --run",
     "test:watch": "vitest",

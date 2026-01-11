@@ -61,7 +61,7 @@ const config = {
         arch: ['x64'],
       },
     ],
-    icon: 'resources/icon.ico',
+    // icon: 'resources/icon.ico',  // TODO: 添加 Windows 图标
     // 代码签名配置（需求 7.6）
     // 需要设置环境变量: CSC_LINK, CSC_KEY_PASSWORD
     // 或者使用 Windows 证书存储
@@ -113,7 +113,7 @@ const config = {
         arch: ['x64', 'arm64'],
       },
     ],
-    icon: 'resources/icon.icns',
+    // icon: 'resources/icon.icns',  // TODO: 添加 macOS 图标
     category: 'public.app-category.productivity',
     // 代码签名配置（需求 7.6）
     // 需要设置环境变量: CSC_LINK, CSC_KEY_PASSWORD

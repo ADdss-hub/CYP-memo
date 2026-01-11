@@ -6,7 +6,7 @@
  * 使用方法:
  * 1. 准备一个 1024x1024 的 PNG 源图片
  * 2. 将其放置在 resources/icon-source.png
- * 3. 运行: node scripts/generate-icons.js
+ * 3. 运行: node scripts/generate-icons.cjs
  * 
  * 依赖:
  * - sharp: npm install sharp --save-dev
