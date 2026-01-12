@@ -577,13 +577,28 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
+      - name: Extract changelog for current version
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # 提取当前版本的更新日志（从 ## [版本号] 到下一个 ## 或 --- 之间的内容）
+          CHANGELOG=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[|^---/{flag=0} flag" CHANGELOG.md | head -50)
+          # 处理多行内容
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: final-release/*
-          generate_release_notes: true
+          generate_release_notes: false
           body: |
             ## CYP-memo v${{ steps.version.outputs.VERSION }}
+            
+            ${{ steps.changelog.outputs.CHANGELOG }}
+            
+            ---
             
             ### 下载
             
@@ -605,16 +620,12 @@ jobs:
             # GitHub Container Registry
             docker pull ghcr.io/addss-hub/cyp-memo:${{ steps.version.outputs.VERSION }}
             
-            # Docker Hub（如果配置了）
+            # Docker Hub
             docker pull cyp97/cyp-memo:${{ steps.version.outputs.VERSION }}
             ```
             
             ### 自动更新
             
             桌面客户端支持自动更新。如果您已安装旧版本，应用会自动检测并提示更新。
-            
-            ### 更新日志
-            
-            请查看下方自动生成的更新日志。
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
