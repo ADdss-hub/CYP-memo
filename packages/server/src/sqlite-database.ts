@@ -256,6 +256,19 @@ export class SqliteDatabase {
       )
     `)
 
+    this.db.run(`
+      -- 备忘录历史表
+      CREATE TABLE IF NOT EXISTS memo_history (
+        id TEXT PRIMARY KEY,
+        memoId TEXT NOT NULL,
+        title TEXT,
+        content TEXT DEFAULT '',
+        tags TEXT DEFAULT '[]',
+        priority TEXT,
+        createdAt TEXT NOT NULL
+      )
+    `)
+
     // 创建索引
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`)
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_users_token ON users(token)`)
@@ -264,6 +277,7 @@ export class SqliteDatabase {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_files_userId ON files(userId)`)
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_shares_userId ON shares(userId)`)
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level)`)
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_memo_history_memoId ON memo_history(memoId)`)
 
     this.saveToFile()
   }
@@ -594,6 +608,60 @@ export class SqliteDatabase {
     this.saveToFile()
   }
 
+  // ========== 备忘录历史操作 ==========
+
+  /**
+   * 创建备忘录历史记录
+   */
+  createMemoHistory(history: { id?: string; memoId: string; title: string; content: string; tags: string[]; priority: string | null; createdAt?: string }): string {
+    if (!this.db) return ''
+    const id = history.id || uuidv4()
+    this.db.run(
+      `INSERT INTO memo_history (id, memoId, title, content, tags, priority, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        history.memoId,
+        history.title,
+        history.content,
+        JSON.stringify(history.tags || []),
+        history.priority ?? null,
+        history.createdAt || new Date().toISOString()
+      ]
+    )
+    this.saveToFile()
+    return id
+  }
+
+  /**
+   * 获取备忘录的历史记录
+   */
+  getMemoHistory(memoId: string): Array<{ id: string; memoId: string; title: string; content: string; tags: string[]; priority: string | null; createdAt: string }> {
+    if (!this.db) return []
+    const result = this.db.exec(
+      'SELECT * FROM memo_history WHERE memoId = ? ORDER BY createdAt DESC',
+      [memoId]
+    )
+    return this.rowsToObjects(result).map(row => ({
+      id: row.id as string,
+      memoId: row.memoId as string,
+      title: row.title as string,
+      content: row.content as string,
+      tags: JSON.parse((row.tags as string) || '[]'),
+      priority: row.priority as string | null,
+      createdAt: row.createdAt as string
+    }))
+  }
+
+  /**
+   * 删除备忘录的历史记录
+   */
+  deleteMemoHistory(memoId: string): void {
+    if (!this.db) return
+    this.db.run('DELETE FROM memo_history WHERE memoId = ?', [memoId])
+    this.saveToFile()
+  }
+
   // ========== 分享操作 ==========
 
   getShares(): Share[] {
@@ -624,6 +692,46 @@ export class SqliteDatabase {
     if (!this.db) return
     this.db.run('DELETE FROM shares WHERE id = ?', [id])
     this.saveToFile()
+  }
+
+  /**
+   * 更新分享链接
+   */
+  updateShare(id: string, updates: Partial<Share>): void {
+    if (!this.db) return
+    const fields: string[] = []
+    const values: unknown[] = []
+
+    for (const [key, value] of Object.entries(updates)) {
+      fields.push(`${key} = ?`)
+      values.push(value)
+    }
+
+    if (fields.length > 0) {
+      values.push(id)
+      this.db.run(`UPDATE shares SET ${fields.join(', ')} WHERE id = ?`, values)
+      this.saveToFile()
+    }
+  }
+
+  /**
+   * 根据ID获取分享链接
+   */
+  getShareById(id: string): Share | undefined {
+    if (!this.db) return undefined
+    const result = this.db.exec('SELECT * FROM shares WHERE id = ?', [id])
+    const rows = this.rowsToObjects(result) as unknown as Share[]
+    return rows[0]
+  }
+
+  /**
+   * 根据分享码获取分享链接
+   */
+  getShareByCode(shareCode: string): Share | undefined {
+    if (!this.db) return undefined
+    const result = this.db.exec('SELECT * FROM shares WHERE shareCode = ?', [shareCode])
+    const rows = this.rowsToObjects(result) as unknown as Share[]
+    return rows[0]
   }
 
   // ========== 日志操作 ==========

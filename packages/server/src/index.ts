@@ -570,6 +570,50 @@ app.delete('/api/memos/:id', (req, res) => {
   res.json({ success: true, data: null })
 })
 
+// ========== 备忘录历史 API ==========
+
+// 创建备忘录历史记录
+app.post('/api/memo-history', (req, res) => {
+  try {
+    const history = req.body
+    const id = database.createMemoHistory({
+      id: history.id,
+      memoId: history.memoId,
+      title: history.title || '',
+      content: history.content || '',
+      tags: history.tags || [],
+      priority: history.priority || null,
+      createdAt: history.createdAt || new Date().toISOString()
+    })
+    res.json({ success: true, data: { id } })
+  } catch (err) {
+    logger.error('创建备忘录历史失败', err)
+    res.status(500).json({ success: false, error: { message: '创建备忘录历史失败' } })
+  }
+})
+
+// 获取备忘录的历史记录
+app.get('/api/memos/:memoId/history', (req, res) => {
+  try {
+    const history = database.getMemoHistory(req.params.memoId)
+    res.json({ success: true, data: history })
+  } catch (err) {
+    logger.error('获取备忘录历史失败', err)
+    res.status(500).json({ success: false, error: { message: '获取备忘录历史失败' } })
+  }
+})
+
+// 删除备忘录的历史记录
+app.delete('/api/memos/:memoId/history', (req, res) => {
+  try {
+    database.deleteMemoHistory(req.params.memoId)
+    res.json({ success: true, data: null })
+  } catch (err) {
+    logger.error('删除备忘录历史失败', err)
+    res.status(500).json({ success: false, error: { message: '删除备忘录历史失败' } })
+  }
+})
+
 // ========== 文件 API ==========
 
 // 上传文件
@@ -815,14 +859,25 @@ app.get('/api/memos/:memoId/shares', (req, res) => {
 // 更新分享链接
 app.patch('/api/shares/:id', (req, res) => {
   try {
-    const shares = database.getShares()
-    const share = shares.find(s => s.id === req.params.id)
+    const share = database.getShareById(req.params.id)
     
     if (!share) {
       return res.status(404).json({ success: false, error: { message: '分享链接不存在' } })
     }
 
-    // 目前数据库没有updateShare方法，简化处理
+    // 处理更新数据，将 accessCount 映射为 viewCount
+    const updates: Record<string, unknown> = {}
+    if (req.body.accessCount !== undefined) {
+      updates.viewCount = req.body.accessCount
+    }
+    if (req.body.viewCount !== undefined) {
+      updates.viewCount = req.body.viewCount
+    }
+    if (req.body.expiresAt !== undefined) {
+      updates.expiresAt = req.body.expiresAt
+    }
+
+    database.updateShare(req.params.id, updates)
     res.json({ success: true, data: null })
   } catch (err) {
     logger.error('更新分享链接失败', err)

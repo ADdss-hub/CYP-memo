@@ -568,6 +568,7 @@ watch(
   height: 184px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .memo-card:hover {
@@ -591,6 +592,7 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: calc(100% - 80px);
 }
 
 .memo-actions {
@@ -634,6 +636,8 @@ watch(
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   margin-bottom: 12px;
+  word-break: break-word;
+  min-height: 0;
 }
 
 .memo-footer {
@@ -649,6 +653,8 @@ watch(
   gap: 6px;
   flex-wrap: wrap;
   flex: 1;
+  overflow: hidden;
+  max-width: 60%;
 }
 
 .tag {

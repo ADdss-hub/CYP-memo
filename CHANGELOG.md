@@ -2,6 +2,24 @@
 
 本文档记录 CYP-memo 容器备忘录系统的所有重要变更。
 
+## [1.8.7] - 2026-01-12
+
+### 修复 🐛
+
+- 备忘录修改失败(404错误)：服务器端添加 /api/memo-history POST 路由和 memo_history 数据库表
+- 分享链接复制失败：ShareManager 添加 execCommand 回退方案，兼容非安全上下文(HTTP)环境
+- 分享访问次数显示为0：服务器端实现 updateShare、getShareById、getShareByCode 方法
+- 数据导入后不刷新：导入成功后调用 memoStore.loadMemos() 触发UI刷新
+- 备忘录列表显示遮挡：优化 memo-title、memo-content、memo-card、memo-tags 的CSS样式
+- PDF导出乱码：重写 exportToPDF 函数，使用英文表头，清理HTML标签，优化表格布局
+- Excel导出包含HTML标签：添加 stripHtmlTags 函数清理导出内容中的HTML标签
+
+### 优化 ⚡
+
+- 剪贴板复制兼容性：支持 navigator.clipboard API 和 document.execCommand 两种方式
+
+---
+
 ## [1.8.6] - 2026-01-12
 
 ### 修复 🐛

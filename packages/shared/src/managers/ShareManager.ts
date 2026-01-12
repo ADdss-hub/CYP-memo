@@ -327,12 +327,51 @@ export class ShareManager {
 
   /**
    * 复制分享链接到剪贴板
+   * 使用多种方式确保兼容性：
+   * 1. 优先使用 navigator.clipboard API（需要安全上下文）
+   * 2. 回退到 document.execCommand（兼容旧浏览器和非安全上下文）
    */
   async copyShareLinkToClipboard(shareId: string): Promise<boolean> {
     try {
       const url = this.generateShareUrl(shareId)
-      await navigator.clipboard.writeText(url)
-      return true
+      
+      // 方式1：尝试使用现代 Clipboard API
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try {
+          await navigator.clipboard.writeText(url)
+          return true
+        } catch (clipboardError) {
+          console.warn('Clipboard API 失败，尝试回退方案:', clipboardError)
+        }
+      }
+      
+      // 方式2：回退到 execCommand（兼容非安全上下文和旧浏览器）
+      if (typeof document !== 'undefined') {
+        const textArea = document.createElement('textarea')
+        textArea.value = url
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-9999px'
+        textArea.style.top = '-9999px'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        
+        try {
+          const successful = document.execCommand('copy')
+          document.body.removeChild(textArea)
+          if (successful) {
+            return true
+          }
+        } catch (execError) {
+          document.body.removeChild(textArea)
+          console.warn('execCommand 复制失败:', execError)
+        }
+      }
+      
+      // 所有方式都失败
+      console.error('复制到剪贴板失败: 所有复制方式都不可用')
+      return false
     } catch (error) {
       console.error('复制到剪贴板失败:', error)
       return false

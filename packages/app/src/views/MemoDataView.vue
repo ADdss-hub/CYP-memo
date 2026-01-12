@@ -340,7 +340,14 @@ async function confirmImport() {
 
     ElMessage.success(`成功导入 ${successCount} 条备忘录`)
     pendingImportMemos.value = []
+    
+    // 刷新备忘录列表和统计信息
     await loadMemoStats()
+    
+    // 触发全局备忘录列表刷新
+    const { useMemoStore } = await import('../stores/memo')
+    const memoStore = useMemoStore()
+    await memoStore.loadMemos(authStore.currentUser.id)
   } catch (error) {
     console.error('导入失败:', error)
     ElMessage.error('导入失败')
@@ -493,12 +500,28 @@ async function exportToJSON(memos: Memo[]) {
 }
 
 /**
+ * 清除HTML标签，提取纯文本内容
+ */
+function stripHtmlTags(html: string): string {
+  if (!html) return ''
+  // 移除所有HTML标签
+  let text = html.replace(/<[^>]*>/g, '')
+  // 解码HTML实体
+  const textarea = document.createElement('textarea')
+  textarea.innerHTML = text
+  text = textarea.value
+  // 清理多余空白
+  text = text.replace(/\s+/g, ' ').trim()
+  return text
+}
+
+/**
  * 导出为Excel
  */
 async function exportToExcel(memos: Memo[]) {
   const exportData = memos.map((memo) => ({
     '标题': memo.title,
-    '内容': memo.content,
+    '内容': stripHtmlTags(memo.content),
     '标签': memo.tags.join(','),
     '优先级': memo.priority || 'medium',
     '创建时间': formatDate(memo.createdAt),
@@ -524,52 +547,69 @@ async function exportToExcel(memos: Memo[]) {
 
 /**
  * 导出为PDF
- * 注意：由于 jsPDF 对中文支持有限，PDF 导出使用英文标题以确保兼容性
- * 表格内容（标题、内容等）仍然保持原始中文
+ * 使用纯文本内容，避免中文乱码问题
+ * 由于 jsPDF 默认字体不支持中文，将中文内容转换为拼音或保留原样（可能显示为方块）
  */
 async function exportToPDF(memos: Memo[]) {
   const doc = new jsPDF()
 
-  // 添加中文字体支持（使用内置字体）
+  // 使用内置字体
   doc.setFont('helvetica')
 
-  // 添加标题（由于字体限制使用英文）
+  // 添加标题
   doc.setFontSize(18)
-  doc.text('CYP-memo', 14, 20)
+  doc.text('CYP-memo Export', 14, 20)
 
   // 添加导出信息
   doc.setFontSize(10)
-  doc.text(`${new Date().toLocaleString('zh-CN')}`, 14, 30)
-  doc.text(`${memos.length}`, 14, 36)
+  doc.text(`Export Date: ${new Date().toISOString().split('T')[0]}`, 14, 30)
+  doc.text(`Total Memos: ${memos.length}`, 14, 36)
 
-  // 准备表格数据
-  const tableData = memos.map((memo) => [
-    memo.title,
-    memo.content.replace(/<[^>]*>/g, '').substring(0, 50) + (memo.content.length > 50 ? '...' : ''),
-    memo.tags.join(', '),
-    getPriorityLabel(memo.priority || 'medium'),
-    formatDate(memo.createdAt),
-  ])
+  // 准备表格数据 - 清理HTML标签
+  const tableData = memos.map((memo, index) => {
+    const cleanContent = stripHtmlTags(memo.content)
+    const truncatedContent = cleanContent.length > 80 ? cleanContent.substring(0, 80) + '...' : cleanContent
+    const priorityMap: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' }
+    
+    return [
+      String(index + 1),
+      memo.title || 'Untitled',
+      truncatedContent || '-',
+      memo.tags.length > 0 ? memo.tags.join(', ') : '-',
+      priorityMap[memo.priority || 'medium'] || 'Medium',
+      formatDate(memo.createdAt),
+    ]
+  })
 
-  // 添加表格（表头使用简短标识以兼容字体）
+  // 添加表格
   autoTable(doc, {
-    head: [['#1', '#2', '#3', '#4', '#5']],
+    head: [['No.', 'Title', 'Content', 'Tags', 'Priority', 'Created']],
     body: tableData,
     startY: 42,
     styles: {
       font: 'helvetica',
       fontSize: 8,
+      cellPadding: 2,
+      overflow: 'linebreak',
     },
     headStyles: {
       fillColor: [64, 158, 255],
       textColor: [255, 255, 255],
+      fontStyle: 'bold',
     },
     columnStyles: {
-      0: { cellWidth: 40 }, // 标题
-      1: { cellWidth: 60 }, // 内容
-      2: { cellWidth: 30 }, // 标签
-      3: { cellWidth: 20 }, // 优先级
-      4: { cellWidth: 30 }, // 创建时间
+      0: { cellWidth: 12 },  // No.
+      1: { cellWidth: 35 },  // Title
+      2: { cellWidth: 55 },  // Content
+      3: { cellWidth: 25 },  // Tags
+      4: { cellWidth: 18 },  // Priority
+      5: { cellWidth: 25 },  // Created
+    },
+    didParseCell: (data) => {
+      // 确保所有文本都是字符串
+      if (data.cell.raw !== null && data.cell.raw !== undefined) {
+        data.cell.text = [String(data.cell.raw)]
+      }
     },
   })
 
