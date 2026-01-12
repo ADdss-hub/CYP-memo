@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/shared",
-  "version": "1.8.7",
+  "version": "1.8.8",
   "type": "module",
   "description": "CYP-memo 共享库（数据库、管理器、工具）",
   "author": {

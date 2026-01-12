@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/app",
-  "version": "1.8.7",
+  "version": "1.8.8",
   "type": "module",
   "description": "CYP-memo 用户端应用",
   "author": {
@@ -30,6 +30,7 @@
     "chart.js": "^4.5.1",
     "dexie": "^3.2.4",
     "element-plus": "^2.5.1",
+    "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lowlight": "^3.1.0",

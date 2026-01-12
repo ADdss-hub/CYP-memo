@@ -159,7 +159,6 @@ import Button from '../components/Button.vue'
 import type { Memo, Priority } from '@cyp-memo/shared'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -262,13 +261,28 @@ async function handleImportExcel(file: File) {
       const worksheet = workbook.Sheets[sheetName]
       const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
+      // 优先级映射：支持中文和英文
+      const priorityMap: Record<string, Priority> = {
+        '低': 'low',
+        '中': 'medium',
+        '高': 'high',
+        'low': 'low',
+        'medium': 'medium',
+        'high': 'high',
+      }
+
       // 转换为备忘录格式
-      const memos: Partial<Memo>[] = jsonData.map((row: any) => ({
-        title: row['标题'] || row['title'] || '未命名',
-        content: row['内容'] || row['content'] || '',
-        tags: row['标签'] || row['tags'] ? String(row['标签'] || row['tags']).split(',').map(t => t.trim()) : [],
-        priority: (row['优先级'] || row['priority'] || 'medium') as Priority,
-      }))
+      const memos: Partial<Memo>[] = jsonData.map((row: any) => {
+        const rawPriority = String(row['优先级'] || row['priority'] || '中').toLowerCase().trim()
+        const priority = priorityMap[rawPriority] || priorityMap[row['优先级']] || 'medium'
+        
+        return {
+          title: row['标题'] || row['title'] || '未命名',
+          content: row['内容'] || row['content'] || '',
+          tags: row['标签'] || row['tags'] ? String(row['标签'] || row['tags']).split(',').map(t => t.trim()) : [],
+          priority: priority,
+        }
+      })
 
       // 显示待确认的数据
       pendingImportMemos.value = memos
@@ -414,13 +428,13 @@ function downloadExcelTemplate() {
       '标题': '示例备忘录1',
       '内容': '这是一个示例备忘录内容',
       '标签': '示例,模板',
-      '优先级': 'medium',
+      '优先级': '中',
     },
     {
       '标题': '示例备忘录2',
       '内容': '这是另一个示例备忘录内容',
       '标签': '工作,重要',
-      '优先级': 'high',
+      '优先级': '高',
     },
   ]
 
@@ -547,73 +561,114 @@ async function exportToExcel(memos: Memo[]) {
 
 /**
  * 导出为PDF
- * 使用纯文本内容，避免中文乱码问题
- * 由于 jsPDF 默认字体不支持中文，将中文内容转换为拼音或保留原样（可能显示为方块）
+ * 使用 html2canvas 将中文内容渲染为图片，避免字体乱码问题
  */
 async function exportToPDF(memos: Memo[]) {
-  const doc = new jsPDF()
-
-  // 使用内置字体
-  doc.setFont('helvetica')
-
-  // 添加标题
-  doc.setFontSize(18)
-  doc.text('CYP-memo Export', 14, 20)
-
-  // 添加导出信息
-  doc.setFontSize(10)
-  doc.text(`Export Date: ${new Date().toISOString().split('T')[0]}`, 14, 30)
-  doc.text(`Total Memos: ${memos.length}`, 14, 36)
-
-  // 准备表格数据 - 清理HTML标签
-  const tableData = memos.map((memo, index) => {
+  // 动态导入 html2canvas
+  const html2canvas = (await import('html2canvas')).default
+  
+  const doc = new jsPDF('p', 'mm', 'a4')
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 15
+  const contentWidth = pageWidth - margin * 2
+  
+  // 创建临时容器用于渲染
+  const container = document.createElement('div')
+  container.style.cssText = `
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    width: 800px;
+    background: white;
+    font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+    padding: 20px;
+    color: #333;
+  `
+  
+  // 构建HTML内容
+  const priorityLabels: Record<string, string> = { low: '低', medium: '中', high: '高' }
+  const priorityColors: Record<string, string> = { low: '#67c23a', medium: '#e6a23c', high: '#f56c6c' }
+  
+  let htmlContent = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <h1 style="font-size: 28px; color: #409eff; margin: 0 0 10px 0;">CYP-memo 备忘录导出</h1>
+      <p style="font-size: 14px; color: #909399; margin: 0;">
+        导出日期：${new Date().toLocaleDateString('zh-CN')} | 
+        备忘录总数：${memos.length} 条
+      </p>
+    </div>
+  `
+  
+  memos.forEach((memo, index) => {
     const cleanContent = stripHtmlTags(memo.content)
-    const truncatedContent = cleanContent.length > 80 ? cleanContent.substring(0, 80) + '...' : cleanContent
-    const priorityMap: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' }
+    const displayContent = cleanContent.length > 200 ? cleanContent.substring(0, 200) + '...' : cleanContent
+    const priority = memo.priority || 'medium'
     
-    return [
-      String(index + 1),
-      memo.title || 'Untitled',
-      truncatedContent || '-',
-      memo.tags.length > 0 ? memo.tags.join(', ') : '-',
-      priorityMap[memo.priority || 'medium'] || 'Medium',
-      formatDate(memo.createdAt),
-    ]
+    htmlContent += `
+      <div style="border: 1px solid #e4e7ed; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fafafa;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="background: #409eff; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">#${index + 1}</span>
+            <h3 style="font-size: 16px; margin: 0; color: #303133;">${memo.title || '无标题'}</h3>
+          </div>
+          <span style="background: ${priorityColors[priority]}; color: white; padding: 2px 10px; border-radius: 12px; font-size: 12px;">
+            ${priorityLabels[priority]}
+          </span>
+        </div>
+        <p style="font-size: 14px; color: #606266; line-height: 1.6; margin: 0 0 12px 0; white-space: pre-wrap; word-break: break-word;">
+          ${displayContent || '无内容'}
+        </p>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #909399; border-top: 1px solid #e4e7ed; padding-top: 10px;">
+          <div>
+            ${memo.tags.length > 0 
+              ? memo.tags.map(tag => `<span style="background: #ecf5ff; color: #409eff; padding: 2px 8px; border-radius: 4px; margin-right: 6px;">${tag}</span>`).join('')
+              : '<span style="color: #c0c4cc;">无标签</span>'
+            }
+          </div>
+          <span>创建时间：${formatDate(memo.createdAt)}</span>
+        </div>
+      </div>
+    `
   })
-
-  // 添加表格
-  autoTable(doc, {
-    head: [['No.', 'Title', 'Content', 'Tags', 'Priority', 'Created']],
-    body: tableData,
-    startY: 42,
-    styles: {
-      font: 'helvetica',
-      fontSize: 8,
-      cellPadding: 2,
-      overflow: 'linebreak',
-    },
-    headStyles: {
-      fillColor: [64, 158, 255],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-    },
-    columnStyles: {
-      0: { cellWidth: 12 },  // No.
-      1: { cellWidth: 35 },  // Title
-      2: { cellWidth: 55 },  // Content
-      3: { cellWidth: 25 },  // Tags
-      4: { cellWidth: 18 },  // Priority
-      5: { cellWidth: 25 },  // Created
-    },
-    didParseCell: (data) => {
-      // 确保所有文本都是字符串
-      if (data.cell.raw !== null && data.cell.raw !== undefined) {
-        data.cell.text = [String(data.cell.raw)]
-      }
-    },
-  })
-
-  doc.save(`cyp-memo-${new Date().toISOString().split('T')[0]}.pdf`)
+  
+  container.innerHTML = htmlContent
+  document.body.appendChild(container)
+  
+  try {
+    // 使用 html2canvas 渲染
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+    })
+    
+    const imgData = canvas.toDataURL('image/jpeg', 0.95)
+    const imgWidth = contentWidth
+    const imgHeight = (canvas.height * imgWidth) / canvas.width
+    
+    // 计算需要多少页
+    let heightLeft = imgHeight
+    let position = margin
+    
+    // 添加第一页
+    doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
+    heightLeft -= (pageHeight - margin * 2)
+    
+    // 如果内容超过一页，添加更多页
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + margin
+      doc.addPage()
+      doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
+      heightLeft -= (pageHeight - margin * 2)
+    }
+    
+    doc.save(`CYP-memo-备忘录导出-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`)
+  } finally {
+    // 清理临时容器
+    document.body.removeChild(container)
+  }
 }
 
 /**

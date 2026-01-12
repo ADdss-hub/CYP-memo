@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/server",
-  "version": "1.8.7",
+  "version": "1.8.8",
   "description": "CYP-memo 后端 API 服务器",
   "type": "module",
   "main": "dist/index.js",

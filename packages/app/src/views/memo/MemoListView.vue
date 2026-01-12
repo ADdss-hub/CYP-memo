@@ -161,7 +161,7 @@ const sortBy = ref<'updatedAt' | 'createdAt' | 'title'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
 // 虚拟滚动相关
-const CARD_HEIGHT = 200 // 每个卡片的高度（包括间距）
+const CARD_HEIGHT = 216 // 每个卡片的高度（包括间距）
 const BUFFER_SIZE = 3 // 缓冲区大小（上下各显示几个额外的项）
 const scrollTop = ref(0)
 
@@ -262,8 +262,21 @@ const getTagCount = (tag: string) => {
 }
 
 const getExcerpt = (content: string): string => {
-  // 移除 HTML 标签
-  const text = content.replace(/<[^>]*>/g, '')
+  // 移除 HTML 标签，但保留换行
+  let text = content
+    .replace(/<br\s*\/?>/gi, '\n')  // 将 <br> 转换为换行
+    .replace(/<\/p>/gi, '\n')        // 将 </p> 转换为换行
+    .replace(/<\/div>/gi, '\n')      // 将 </div> 转换为换行
+    .replace(/<[^>]*>/g, '')         // 移除其他 HTML 标签
+  
+  // 解码 HTML 实体
+  const textarea = document.createElement('textarea')
+  textarea.innerHTML = text
+  text = textarea.value
+  
+  // 清理多余的连续换行，但保留单个换行
+  text = text.replace(/\n{3,}/g, '\n\n').trim()
+  
   // 限制长度
   return text.length > 150 ? text.substring(0, 150) + '...' : text
 }
@@ -345,6 +358,18 @@ watch(
       await loadData()
     }
   }
+)
+
+// 监听用户登录状态变化，登录后立即加载数据
+watch(
+  () => authStore.currentUser,
+  async (newUser, oldUser) => {
+    // 用户从未登录变为已登录时，立即加载备忘录
+    if (newUser && !oldUser) {
+      await loadData()
+    }
+  },
+  { immediate: false }
 )
 </script>
 
@@ -565,7 +590,7 @@ watch(
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   cursor: pointer;
   transition: all 0.3s;
-  height: 184px;
+  height: 200px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -637,7 +662,9 @@ watch(
   -webkit-box-orient: vertical;
   margin-bottom: 12px;
   word-break: break-word;
+  white-space: pre-wrap;
   min-height: 0;
+  max-height: 72px;
 }
 
 .memo-footer {
@@ -651,10 +678,10 @@ watch(
 .memo-tags {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   flex: 1;
   overflow: hidden;
-  max-width: 60%;
+  max-width: 55%;
 }
 
 .tag {

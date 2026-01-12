@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/admin",
-  "version": "1.8.7",
+  "version": "1.8.8",
   "type": "module",
   "description": "CYP-memo 管理员端应用",
   "author": {
