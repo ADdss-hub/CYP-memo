@@ -5,6 +5,7 @@
  * 基于 web app 路由，但适配 Electron 环境
  */
 
+/// <reference path="./shims.d.ts" />
 /// <reference path="../types/global.d.ts" />
 /// <reference path="../types/app-modules.d.ts" />
 
