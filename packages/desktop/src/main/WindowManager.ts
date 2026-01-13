@@ -62,6 +62,7 @@ export class WindowManager {
       height: this.windowState.height,
       minWidth: MIN_WINDOW_WIDTH,
       minHeight: MIN_WINDOW_HEIGHT,
+      title: 'CYP-memo',
       webPreferences: {
         preload: preloadPath,
         contextIsolation: true,
