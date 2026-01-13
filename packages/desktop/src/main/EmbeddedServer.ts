@@ -70,6 +70,9 @@ export class EmbeddedServer {
         console.log('[EmbeddedServer] Starting server from:', serverPath)
         console.log('[EmbeddedServer] Data directory:', this.dataDir)
 
+        // 获取服务器目录（用于设置工作目录，以便找到 node_modules）
+        const serverDir = path.dirname(serverPath)
+
         // 设置环境变量
         const env = {
           ...process.env,
@@ -80,8 +83,10 @@ export class EmbeddedServer {
         }
 
         // 启动服务器进程
+        // 设置 cwd 为服务器目录，以便正确解析 node_modules
         this.serverProcess = spawn('node', [serverPath], {
           env,
+          cwd: serverDir,
           stdio: ['ignore', 'pipe', 'pipe'],
           detached: false,
         })
@@ -222,17 +227,23 @@ export class EmbeddedServer {
    * 获取服务器脚本路径
    */
   private getServerPath(): string | null {
+    const isDev = !app.isPackaged
+    
     // 可能的服务器脚本位置
-    const possiblePaths = [
+    const possiblePaths = isDev ? [
       // 开发模式：从 packages/server/dist 加载
       path.join(process.cwd(), 'packages', 'server', 'dist', 'index.js'),
+      // 相对于当前模块 (dist/main/main/)
+      path.join(__dirname, '../../../../server/dist/index.js'),
+    ] : [
       // 打包后：从 resources 目录加载
       path.join(process.resourcesPath || '', 'server', 'index.js'),
-      // 相对于当前模块
-      path.join(__dirname, '..', '..', '..', 'server', 'dist', 'index.js'),
+      // 备用：app.asar.unpacked 中的服务器
+      path.join(app.getAppPath(), '..', 'app.asar.unpacked', 'server', 'index.js'),
     ]
 
     for (const serverPath of possiblePaths) {
+      console.log('[EmbeddedServer] Checking path:', serverPath)
       if (fs.existsSync(serverPath)) {
         return serverPath
       }

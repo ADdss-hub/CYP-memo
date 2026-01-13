@@ -11,7 +11,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getElectronAPI } from '../composables'
 import { markSetupCompleted } from '../router'
-import { initializeStorage } from '../main'
+import { storageManager } from '@cyp-memo/shared'
 import type { ConnectionMode, ServerValidationResult, ServerConnectionTestResult } from '../../shared/types'
 
 const router = useRouter()
@@ -141,9 +141,26 @@ async function completeSetup() {
     await api.server.completeSetup()
     
     // 初始化存储管理器
-    const storageReady = await initializeStorage()
-    
-    if (!storageReady) {
+    try {
+      const config = await api.server.getConfig()
+      let apiUrl: string
+      
+      if (config.connectionMode === 'embedded') {
+        const status = await api.server.getStatus()
+        apiUrl = `http://localhost:${status.port}/api`
+      } else if (config.serverUrl) {
+        apiUrl = `${config.serverUrl}/api`
+      } else {
+        throw new Error('无效的服务器配置')
+      }
+      
+      await storageManager.initialize({
+        mode: 'remote',
+        apiUrl
+      })
+      console.log('✅ 存储管理器初始化成功')
+    } catch (err) {
+      console.error('存储初始化失败:', err)
       error.value = '无法连接到服务器，请检查配置'
       return
     }

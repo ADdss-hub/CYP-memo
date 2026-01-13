@@ -90,8 +90,8 @@ export class MenuManager {
         submenu: [
           { label: '重新加载', role: 'reload' },
           { label: '强制重新加载', role: 'forceReload' },
-          // 开发者工具仅在开发模式下显示
-          ...(isDev ? [{ label: '开发者工具', role: 'toggleDevTools' as const }] : []),
+          // 开发者工具 - 始终显示以便调试
+          { label: '开发者工具', role: 'toggleDevTools' as const },
           { type: 'separator' as const },
           { label: '实际大小', role: 'resetZoom' },
           { label: '放大', role: 'zoomIn' },

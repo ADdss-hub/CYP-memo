@@ -92,7 +92,8 @@ export class WindowManager {
       this.mainWindow.loadURL(devServerUrl)
       this.mainWindow.webContents.openDevTools()
     } else {
-      this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+      // 生产环境：从 dist/main/main/ 到 dist/renderer/index.html
+      this.mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'))
     }
 
     return this.mainWindow

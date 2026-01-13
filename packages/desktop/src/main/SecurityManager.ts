@@ -187,8 +187,9 @@ export class SecurityManager {
       // 开发模式允许 unsafe-eval 用于热重载
       directives.push("script-src 'self' 'unsafe-inline' 'unsafe-eval'")
     } else {
-      // 生产模式更严格
-      directives.push("script-src 'self'")
+      // 生产模式：Vue 打包后仍需要 unsafe-inline 用于某些动态样式
+      // 注意：这是 Vue/Vite 构建的限制，理想情况下应使用 nonce 或 hash
+      directives.push("script-src 'self' 'unsafe-inline'")
     }
 
     // style-src: 样式来源

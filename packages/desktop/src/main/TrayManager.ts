@@ -67,13 +67,16 @@ export class TrayManager {
    */
   private getTrayIconPath(): string {
     // 根据平台选择不同的图标
-    const iconName = process.platform === 'win32' ? 'tray-icon.ico' : 'tray-icon.png'
+    // Windows 使用 ico，其他平台使用 png
+    const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
     
     // 开发模式和生产模式的路径不同
-    const isDev = process.env.NODE_ENV === 'development'
+    const isDev = !app.isPackaged
     if (isDev) {
-      return path.join(__dirname, '../../resources', iconName)
+      // 开发模式：从 dist/main/main/ 到 resources/
+      return path.join(__dirname, '../../../resources', iconName)
     }
+    // 生产模式：从 resources/resources/ 目录加载
     return path.join(process.resourcesPath || '', 'resources', iconName)
   }
 

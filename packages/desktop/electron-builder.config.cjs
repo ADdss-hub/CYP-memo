@@ -39,6 +39,24 @@ const config = {
       to: 'resources/',
       filter: ['**/*', '!.gitkeep'],
     },
+    // 内置服务器（用于离线模式）
+    // 包含编译后的代码
+    {
+      from: '../server/dist/',
+      to: 'server/',
+      filter: ['**/*'],
+    },
+    // 包含服务器的 node_modules 依赖
+    {
+      from: '../server/node_modules/',
+      to: 'server/node_modules/',
+      filter: ['**/*'],
+    },
+    // 包含服务器的 package.json（用于模块解析）
+    {
+      from: '../server/package.json',
+      to: 'server/package.json',
+    },
   ],
 
   // asar 打包配置
