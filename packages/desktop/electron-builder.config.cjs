@@ -84,10 +84,6 @@ const config = {
     installerIcon: 'resources/icon.ico',
     uninstallerIcon: 'resources/icon.ico',
     installerHeaderIcon: 'resources/icon.ico',
-    // 安装程序语言 - 简体中文
-    language: 2052,
-    // 多语言支持 - 仅使用简体中文
-    installerLanguages: ['SimpChinese'],
     // 安装完成后运行
     runAfterFinish: true,
     // 删除应用数据选项
