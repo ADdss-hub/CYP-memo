@@ -7,6 +7,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { windowManager } from './WindowManager.js'
+import { menuManager } from './MenuManager.js'
 import { trayManager } from './TrayManager.js'
 import { shortcutManager } from './ShortcutManager.js'
 import { credentialManager } from './CredentialManager.js'
@@ -520,7 +521,11 @@ async function initialize(): Promise<void> {
 
   // 创建主窗口
   const preloadPath = path.join(__dirname, '../preload/index.js')
-  windowManager.createMainWindow(preloadPath, isDev, VITE_DEV_SERVER_URL)
+  const mainWindow = windowManager.createMainWindow(preloadPath, isDev, VITE_DEV_SERVER_URL)
+
+  // 创建中文菜单
+  menuManager.setMainWindow(mainWindow)
+  menuManager.createMenu()
 
   // 创建系统托盘
   createTray()
