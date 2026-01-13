@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:* https://*;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://unpkg.com; font-src 'self' data: https://unpkg.com; img-src 'self' data: blob: http://localhost:* https://*; connect-src 'self' http://localhost:* https://*;" />
     <title>CYP-memo</title>
     <style>
       * {
@@ -12,12 +12,51 @@
         box-sizing: border-box;
       }
       body {
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background-color: #f5f7fa;
+      }
+      body[data-theme='dark'] {
+        background-color: #1d1e1f;
+      }
+      /* 初始加载动画 */
+      .app-initial-loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      .app-initial-loading__logo {
+        font-size: 64px;
+        margin-bottom: 24px;
+        animation: bounce 2s ease-in-out infinite;
+      }
+      .app-initial-loading__text {
+        font-size: 18px;
+        opacity: 0.9;
+      }
+      @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
       }
     </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- 初始加载状态 -->
+      <div class="app-initial-loading">
+        <div class="app-initial-loading__logo">📝</div>
+        <div class="app-initial-loading__text">正在加载 CYP-memo...</div>
+      </div>
+    </div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

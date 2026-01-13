@@ -4,5 +4,6 @@
  */
 
 export { default as TitleBar } from './TitleBar.vue'
-export { default as ServerSetupWizard } from './ServerSetupWizard.vue'
 export { default as UpdateNotification } from './UpdateNotification.vue'
+export { default as DesktopSidebar } from './DesktopSidebar.vue'
+export { default as DesktopLayout } from './DesktopLayout.vue'

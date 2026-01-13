@@ -13,6 +13,12 @@ export default defineConfig({
   server: {
     port: 5174,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5170',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     outDir: path.join(__dirname, 'dist/renderer'),
@@ -29,10 +35,25 @@ export default defineConfig({
       '@renderer': path.join(__dirname, 'src/renderer'),
       '@shared': path.join(__dirname, '../shared/src'),
       '@app': path.join(__dirname, '../app/src'),
+      // 复用 web app 的组件和模块
+      '@app-components': path.join(__dirname, '../app/src/components'),
+      '@app-views': path.join(__dirname, '../app/src/views'),
+      '@app-stores': path.join(__dirname, '../app/src/stores'),
+      '@app-router': path.join(__dirname, '../app/src/router'),
+      '@app-composables': path.join(__dirname, '../app/src/composables'),
     },
   },
   define: {
     // 定义环境变量
     __IS_ELECTRON__: true,
+  },
+  optimizeDeps: {
+    include: [
+      'vue',
+      'vue-router',
+      'pinia',
+      'element-plus',
+      '@element-plus/icons-vue',
+    ],
   },
 })

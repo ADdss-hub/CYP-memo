@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/desktop",
-  "version": "1.8.10",
+  "version": "1.9.0",
   "type": "module",
   "description": "CYP-memo 桌面客户端",
   "homepage": "https://github.com/ADdss-hub/CYP-memo",
@@ -31,9 +31,13 @@
   },
   "dependencies": {
     "@cyp-memo/shared": "workspace:*",
+    "@element-plus/icons-vue": "^2.3.1",
     "better-sqlite3": "^9.2.2",
+    "element-plus": "^2.5.1",
     "electron-updater": "^6.1.7",
-    "keytar": "^7.9.0"
+    "keytar": "^7.9.0",
+    "pinia": "^2.1.7",
+    "vue-router": "^4.2.5"
   },
   "devDependencies": {
     "@electron/notarize": "^2.2.0",

@@ -17,15 +17,23 @@
       "@/*": ["./src/*"],
       "@renderer/*": ["./src/renderer/*"],
       "@shared/*": ["../shared/src/*"],
-      "@app/*": ["../app/src/*"]
+      "@app/*": ["../app/src/*"],
+      "@app-components/*": ["../app/src/components/*"],
+      "@app-views/*": ["../app/src/views/*"],
+      "@app-stores/*": ["../app/src/stores/*"],
+      "@app-router/*": ["../app/src/router/*"],
+      "@app-composables/*": ["../app/src/composables/*"]
     },
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    "typeRoots": ["./src/renderer/types", "./node_modules/@types"]
   },
   "include": [
     "src/renderer/**/*.ts", 
     "src/renderer/**/*.vue", 
     "src/renderer/**/*.d.ts",
-    "src/shared/**/*.ts"
+    "src/shared/**/*.ts",
+    "../app/src/**/*.ts",
+    "../app/src/**/*.vue"
   ],
   "exclude": ["node_modules", "dist"]
 }

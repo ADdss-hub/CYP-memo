@@ -4,91 +4,181 @@
  * Main application component for desktop client
  * 
  * 需求 10.1: 桌面客户端应在每个平台上提供原生外观和体验
- * 需求 8.1: 首次启动时提示用户选择连接模式
+ * 需求 7: 桌面应用与网页应用功能一致
  */
 
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useElectron, useNavigation, useNetworkStatus } from './composables'
-import { TitleBar, ServerSetupWizard, UpdateNotification } from './components'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { VERSION } from '@cyp-memo/shared'
+import { useSettingsStore } from '@app-stores/settings'
+import { useAuthStore } from '@app-stores/auth'
+import { useElectron, useNavigation } from './composables'
+import { TitleBar, UpdateNotification } from './components'
+import TermsDialog from '@app-components/TermsDialog.vue'
+import SessionExpiredDialog from '@app-components/SessionExpiredDialog.vue'
+
+const router = useRouter()
+const settingsStore = useSettingsStore()
+const authStore = useAuthStore()
 
 // Electron 环境检测
-const { api, isElectronEnv, platform, features, versions, isMac } = useElectron()
-
-// 网络状态
-const { isOnline, checkStatus } = useNetworkStatus()
-
-// 应用状态
-const isFirstLaunch = ref(false)
-const isLoading = ref(true)
-const currentPath = ref('/')
-const serverStatus = ref<{ running: boolean; port: number } | null>(null)
+const { isElectronEnv, isMac } = useElectron()
 
 // 计算属性
 const showTitleBar = computed(() => isElectronEnv.value && !isMac.value)
-const appVersion = computed(() => versions.value?.electron || 'unknown')
 
-// 导航处理
+// 会话失效状态
+const showSessionExpired = ref(false)
+const sessionExpiredMessage = ref('')
+const sessionExpiredType = ref<'expired' | 'restricted' | 'warning'>('restricted')
+const sessionExpiredTitle = ref('使用受限')
+const sessionExpiredHint = ref('请重新登录本系统才能继续使用，如有问题请联系系统管理员')
+let sessionCheckTimer: number | null = null
+
+console.log(`CYP-memo Desktop v${VERSION.full}`)
+
+// 导航处理 - 响应主进程的导航请求
 useNavigation((path: string) => {
   console.log('[App] Navigate to:', path)
-  currentPath.value = path
-  // TODO: 集成 Vue Router 后，这里应该调用 router.push(path)
+  router.push(path)
 })
 
-// 初始化应用
-async function initializeApp() {
-  if (!api) {
-    isLoading.value = false
+// 应用主题到 body
+function applyTheme() {
+  const theme = settingsStore.settings.theme
+  const fontSize = settingsStore.settings.fontSize
+  
+  // 设置 data-theme 属性
+  document.body.setAttribute('data-theme', theme)
+  document.body.setAttribute('data-font-size', fontSize)
+  document.documentElement.setAttribute('data-theme', theme)
+  document.documentElement.setAttribute('data-font-size', fontSize)
+  
+  // Element Plus 深色主题需要在 html 元素上添加 dark 类
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+}
+
+// 监听主题变化
+watch(
+  () => settingsStore.settings.theme,
+  () => {
+    applyTheme()
+  }
+)
+
+// 监听字体大小变化
+watch(
+  () => settingsStore.settings.fontSize,
+  () => {
+    applyTheme()
+  }
+)
+
+/**
+ * 验证会话有效性
+ */
+async function checkSession() {
+  // 只在已登录状态下检查
+  if (!authStore.isAuthenticated) {
     return
   }
 
-  try {
-    // 检查是否首次启动
-    isFirstLaunch.value = await api.server.isFirstLaunch()
-
-    if (!isFirstLaunch.value) {
-      // 获取服务器状态
-      serverStatus.value = await api.server.getStatus()
-      
-      // 检查网络状态
-      await checkStatus()
-    }
-  } catch (error) {
-    console.error('[App] Initialization error:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 设置完成处理
-async function handleSetupComplete() {
-  isFirstLaunch.value = false
+  const result = await authStore.validateSession()
   
-  // 重新获取服务器状态
-  if (api) {
-    serverStatus.value = await api.server.getStatus()
+  if (!result.valid) {
+    // 会话失效，显示提示
+    if (result.reason?.includes('已被删除') || result.reason?.includes('不存在')) {
+      sessionExpiredType.value = 'restricted'
+      sessionExpiredTitle.value = '账号受限'
+      sessionExpiredMessage.value = result.reason || '您的账号已被删除或不存在'
+      sessionExpiredHint.value = '您的账号可能已被管理员删除，如有疑问请联系系统管理员'
+    } else if (result.reason?.includes('数据库') || result.reason?.includes('重置')) {
+      sessionExpiredType.value = 'warning'
+      sessionExpiredTitle.value = '数据异常'
+      sessionExpiredMessage.value = result.reason || '系统数据可能已被重置'
+      sessionExpiredHint.value = '系统数据可能已被重置，请重新登录。如有问题请联系系统管理员'
+    } else {
+      sessionExpiredType.value = 'expired'
+      sessionExpiredTitle.value = '会话过期'
+      sessionExpiredMessage.value = result.reason || '您的登录会话已过期'
+      sessionExpiredHint.value = '为了您的账号安全，请重新登录'
+    }
+    showSessionExpired.value = true
+    
+    // 停止定时检查
+    stopSessionCheck()
   }
 }
 
-// 生命周期
+/**
+ * 启动会话检查定时器
+ */
+function startSessionCheck() {
+  // 每30秒检查一次会话
+  sessionCheckTimer = window.setInterval(checkSession, 30000)
+}
+
+/**
+ * 停止会话检查定时器
+ */
+function stopSessionCheck() {
+  if (sessionCheckTimer) {
+    clearInterval(sessionCheckTimer)
+    sessionCheckTimer = null
+  }
+}
+
+/**
+ * 处理会话失效确认
+ */
+function handleSessionExpiredConfirm() {
+  showSessionExpired.value = false
+  authStore.forceLogout()
+  router.push('/login')
+}
+
+// 监听登录状态变化
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (isAuthenticated) {
+      // 登录后启动会话检查
+      startSessionCheck()
+    } else {
+      // 退出后停止会话检查
+      stopSessionCheck()
+    }
+  }
+)
+
+// 初始化时应用主题
 onMounted(() => {
-  initializeApp()
+  applyTheme()
+  
+  // 如果已登录，启动会话检查
+  if (authStore.isAuthenticated) {
+    startSessionCheck()
+  }
 })
 
+// 组件卸载时清理定时器
 onUnmounted(() => {
-  // 清理资源
-  if (api) {
-    api.removeNavigateListener()
-    api.startup.removeListeners()
-  }
+  stopSessionCheck()
 })
 </script>
 
 <template>
   <div 
-    class="app-container"
+    id="app" 
+    :data-theme="settingsStore.settings.theme" 
+    :data-font-size="settingsStore.settings.fontSize"
     :class="{
-      'app-container--electron': isElectronEnv,
-      'app-container--with-titlebar': showTitleBar
+      'app--electron': isElectronEnv,
+      'app--with-titlebar': showTitleBar
     }"
   >
     <!-- 自定义标题栏 (Windows/Linux) -->
@@ -97,263 +187,277 @@ onUnmounted(() => {
     <!-- 更新通知 -->
     <UpdateNotification />
 
-    <!-- 加载状态 -->
-    <div v-if="isLoading" class="app-loading">
-      <div class="app-loading__spinner"></div>
-      <p>正在加载...</p>
-    </div>
+    <!-- 路由视图 -->
+    <router-view />
 
-    <!-- 首次启动设置向导 -->
-    <ServerSetupWizard 
-      v-else-if="isFirstLaunch" 
-      @complete="handleSetupComplete"
+    <!-- 条款对话框 -->
+    <TermsDialog />
+
+    <!-- 会话失效对话框 -->
+    <SessionExpiredDialog 
+      :visible="showSessionExpired" 
+      :message="sessionExpiredMessage"
+      :type="sessionExpiredType"
+      :title="sessionExpiredTitle"
+      :hint="sessionExpiredHint"
+      @confirm="handleSessionExpiredConfirm"
     />
-
-    <!-- 主应用内容 -->
-    <main v-else class="app-main">
-      <header class="app-header">
-        <div class="header-logo">💻</div>
-        <h1>CYP-memo</h1>
-        <p class="subtitle">容器备忘录系统 - 桌面客户端</p>
-      </header>
-
-      <div class="app-content">
-        <!-- 系统状态卡片 -->
-        <div class="status-card">
-          <h2>🖥️ 系统状态</h2>
-          <div class="status-item">
-            <span class="label">运行环境:</span>
-            <span class="value" :class="{ electron: isElectronEnv }">
-              {{ isElectronEnv ? 'Electron' : 'Web Browser' }}
-            </span>
-          </div>
-          <div class="status-item">
-            <span class="label">操作系统:</span>
-            <span class="value">{{ platform }}</span>
-          </div>
-          <div v-if="versions" class="status-item">
-            <span class="label">Electron 版本:</span>
-            <span class="value">{{ versions.electron }}</span>
-          </div>
-          <div class="status-item">
-            <span class="label">网络状态:</span>
-            <span class="value" :class="{ online: isOnline, offline: !isOnline }">
-              {{ isOnline ? '在线' : '离线' }}
-            </span>
-          </div>
-          <div v-if="serverStatus" class="status-item">
-            <span class="label">服务器状态:</span>
-            <span class="value" :class="{ running: serverStatus.running }">
-              {{ serverStatus.running ? `运行中 (端口 ${serverStatus.port})` : '未运行' }}
-            </span>
-          </div>
-        </div>
-
-        <!-- 平台功能卡片 -->
-        <div v-if="features" class="status-card">
-          <h2>⚡ 平台功能</h2>
-          <div class="status-item">
-            <span class="label">任务栏进度:</span>
-            <span class="value">{{ features.supportsTaskbarProgress ? '✓ 支持' : '✗ 不支持' }}</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Dock 徽章:</span>
-            <span class="value">{{ features.supportsDockBadge ? '✓ 支持' : '✗ 不支持' }}</span>
-          </div>
-          <div class="status-item">
-            <span class="label">桌面集成:</span>
-            <span class="value">{{ features.supportsDesktopIntegration ? '✓ 支持' : '✗ 不支持' }}</span>
-          </div>
-          <div class="status-item">
-            <span class="label">原生通知:</span>
-            <span class="value">{{ features.supportsNativeNotifications ? '✓ 支持' : '✗ 不支持' }}</span>
-          </div>
-        </div>
-
-        <!-- 功能特性卡片 -->
-        <div class="info-card">
-          <h2>🚀 功能特性</h2>
-          <div class="feature-grid">
-            <div class="feature-item">📝 富文本编辑</div>
-            <div class="feature-item">🏷️ 标签管理</div>
-            <div class="feature-item">📎 文件附件</div>
-            <div class="feature-item">🔍 全文搜索</div>
-            <div class="feature-item">📊 数据统计</div>
-            <div class="feature-item">🔄 离线同步</div>
-          </div>
-          <p v-if="currentPath !== '/'">当前导航路径: {{ currentPath }}</p>
-        </div>
-      </div>
-
-      <footer class="app-footer">
-        <p>CYP-memo v1.8.9 | Electron {{ appVersion }} | 作者: CYP</p>
-      </footer>
-    </main>
   </div>
 </template>
 
-<style scoped>
-.app-container {
+<style>
+/* 全局样式 */
+#app {
+  font-family:
+    'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑',
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
 }
 
-.app-container--with-titlebar {
+/* Electron 环境下的特殊样式 */
+#app.app--electron {
+  /* 禁用文本选择（可选） */
+  user-select: none;
+}
+
+#app.app--with-titlebar {
   /* 为自定义标题栏留出空间 */
+  padding-top: 32px;
 }
 
-.app-loading {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+/* 全局主题变量 */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f7fa;
+  --text-primary: #303133;
+  --text-secondary: #606266;
+  --text-tertiary: #909399;
+  --border-color: #dcdfe6;
+  --primary-color: #409eff;
 }
 
-.app-loading__spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+[data-theme='dark'],
+html.dark {
+  --bg-primary: #1d1e1f;
+  --bg-secondary: #262727;
+  --text-primary: #e5eaf3;
+  --text-secondary: #cfd3dc;
+  --text-tertiary: #8a8f99;
+  --border-color: #414243;
+  --primary-color: #409eff;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* 全局字体大小 */
+[data-font-size='small'] {
+  font-size: 12px;
 }
 
-.app-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-header {
-  text-align: center;
-  padding: 2rem;
-}
-
-.header-logo {
-  font-size: 64px;
-  margin-bottom: 16px;
-  animation: bounce 2s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 2.5rem;
-  font-weight: 700;
-}
-
-.subtitle {
-  margin: 0.5rem 0 0;
-  opacity: 0.8;
-  font-size: 1.1rem;
-}
-
-.app-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 2rem;
-}
-
-.status-card,
-.info-card {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  padding: 1.5rem 2rem;
-  width: 100%;
-  max-width: 400px;
-}
-
-.status-card h2,
-.info-card h2 {
-  margin: 0 0 1rem;
-  font-size: 1.2rem;
-  font-weight: 500;
-}
-
-.status-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.status-item:last-child {
-  border-bottom: none;
-}
-
-.label {
-  opacity: 0.8;
-}
-
-.value {
-  font-weight: 500;
-}
-
-.value.electron {
-  color: #4ade80;
-}
-
-.value.online {
-  color: #4ade80;
-}
-
-.value.offline {
-  color: #f87171;
-}
-
-.value.running {
-  color: #4ade80;
-}
-
-.info-card p {
-  margin: 0.5rem 0;
-  opacity: 0.9;
-  line-height: 1.6;
-}
-
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.feature-item {
-  padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+[data-font-size='medium'] {
   font-size: 14px;
-  text-align: center;
 }
 
-.app-footer {
-  text-align: center;
-  padding: 1rem;
-  opacity: 0.7;
-  font-size: 0.9rem;
+[data-font-size='large'] {
+  font-size: 16px;
 }
 
-.app-footer p {
-  margin: 0;
+/* 应用主题到 body */
+body[data-theme='dark'],
+html.dark body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Element Plus 深色主题全局覆盖 */
+html.dark .el-card {
+  --el-card-bg-color: var(--bg-secondary);
+  --el-card-border-color: var(--border-color);
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+html.dark .el-card__header {
+  border-bottom-color: var(--border-color);
+}
+
+html.dark .el-dialog {
+  --el-dialog-bg-color: var(--bg-secondary);
+  --el-dialog-title-font-size: 18px;
+  background-color: var(--bg-secondary);
+}
+
+html.dark .el-dialog__header {
+  border-bottom-color: var(--border-color);
+}
+
+html.dark .el-dialog__title {
+  color: var(--text-primary);
+}
+
+html.dark .el-dialog__body {
+  color: var(--text-secondary);
+}
+
+html.dark .el-form-item__label {
+  color: var(--text-secondary);
+}
+
+html.dark .el-input__wrapper {
+  background-color: var(--bg-primary);
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+}
+
+html.dark .el-input__inner {
+  color: var(--text-primary);
+}
+
+html.dark .el-input__inner::placeholder {
+  color: var(--text-tertiary);
+}
+
+html.dark .el-select .el-input__wrapper {
+  background-color: var(--bg-primary);
+}
+
+html.dark .el-select-dropdown {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+html.dark .el-select-dropdown__item {
+  color: var(--text-primary);
+}
+
+html.dark .el-select-dropdown__item.hover,
+html.dark .el-select-dropdown__item:hover {
+  background-color: var(--bg-primary);
+}
+
+html.dark .el-table {
+  --el-table-bg-color: var(--bg-secondary);
+  --el-table-tr-bg-color: var(--bg-secondary);
+  --el-table-header-bg-color: var(--bg-primary);
+  --el-table-row-hover-bg-color: var(--bg-primary);
+  --el-table-border-color: var(--border-color);
+  --el-table-text-color: var(--text-primary);
+  --el-table-header-text-color: var(--text-primary);
+}
+
+html.dark .el-table th.el-table__cell {
+  background-color: var(--bg-primary);
+}
+
+html.dark .el-menu {
+  --el-menu-bg-color: var(--bg-secondary);
+  --el-menu-text-color: var(--text-primary);
+  --el-menu-hover-bg-color: var(--bg-primary);
+  --el-menu-active-color: var(--primary-color);
+  background-color: var(--bg-secondary);
+  border-right-color: var(--border-color);
+}
+
+html.dark .el-menu-item {
+  color: var(--text-primary);
+}
+
+html.dark .el-menu-item:hover {
+  background-color: var(--bg-primary);
+}
+
+html.dark .el-menu-item.is-active {
+  color: var(--primary-color);
+  background-color: var(--bg-primary);
+}
+
+html.dark .el-empty__description {
+  color: var(--text-tertiary);
+}
+
+html.dark .el-alert {
+  --el-alert-bg-color: var(--bg-primary);
+}
+
+html.dark .el-checkbox__label {
+  color: var(--text-primary);
+}
+
+html.dark .el-date-picker {
+  --el-datepicker-bg-color: var(--bg-secondary);
+  --el-datepicker-border-color: var(--border-color);
+  --el-datepicker-text-color: var(--text-primary);
+}
+
+html.dark .el-picker-panel {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+html.dark .el-date-picker__header-label {
+  color: var(--text-primary);
+}
+
+html.dark .el-picker-panel__content {
+  color: var(--text-primary);
+}
+
+html.dark .el-date-table td.available:hover {
+  background-color: var(--bg-primary);
+}
+
+html.dark .el-textarea__inner {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+html.dark .el-textarea__inner::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* 深色主题滚动条 */
+html.dark ::-webkit-scrollbar-thumb {
+  background: #555;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Firefox 滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent;
+}
+
+*:hover {
+  scrollbar-color: #999 transparent;
+}
+
+html.dark * {
+  scrollbar-color: #555 transparent;
+}
+
+html.dark *:hover {
+  scrollbar-color: #777 transparent;
 }
 </style>

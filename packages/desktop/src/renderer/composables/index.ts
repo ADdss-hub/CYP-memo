@@ -13,3 +13,6 @@ export {
   useNotifications,
   usePlatformFeatures,
 } from './useElectron'
+
+// 重新导出以便于使用
+export type { ElectronAPI } from '../shared/types'

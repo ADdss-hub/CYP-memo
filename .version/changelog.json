@@ -2,14 +2,88 @@
   "schema": "2.1.0",
   "history": [
     {
-      "version": "1.8.10",
-      "timestamp": "2026-01-13T05:25:10.609Z",
+      "version": "1.9.0",
+      "timestamp": "2026-01-13T18:00:00.000Z",
       "author": "CYP",
-      "changes": [],
-      "type": "release",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "桌面应用重新设计：桌面客户端现在与网页应用功能完全一致，需要先连接服务器登录后才能使用"
+        },
+        {
+          "type": "feat",
+          "description": "服务器连接设置向导：首次启动时引导用户选择连接模式（远程服务器或内置服务器）"
+        },
+        {
+          "type": "feat",
+          "description": "桌面客户端设置页面：新增专门的桌面客户端设置页面，支持切换服务器、通知设置、检查更新等功能"
+        },
+        {
+          "type": "feat",
+          "description": "桌面专用侧边栏：在系统菜单中添加桌面客户端设置入口"
+        },
+        {
+          "type": "feat",
+          "description": "桌面专用布局组件：创建 DesktopLayout 组件，显示桌面版标识"
+        },
+        {
+          "type": "perf",
+          "description": "路由系统：桌面应用使用 Hash 模式路由以兼容 Electron file:// 协议"
+        },
+        {
+          "type": "perf",
+          "description": "存储初始化：根据服务器连接配置动态获取 API 地址"
+        },
+        {
+          "type": "perf",
+          "description": "会话管理：集成完整的会话验证和过期处理机制"
+        },
+        {
+          "type": "perf",
+          "description": "主题支持：完整支持深色/浅色主题切换"
+        },
+        {
+          "type": "chore",
+          "description": "技术改进：集成 Pinia、Vue Router、Element Plus，复用 web app 组件"
+        }
+      ],
+      "type": "minor",
+      "previousVersion": "1.8.10",
+      "metadata": {
+        "autoRelease": false,
+        "majorUpdate": true
+      }
+    },
+    {
+      "version": "1.8.10",
+      "timestamp": "2026-01-13T16:00:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "桌面端帮助关于功能错误：修复 MenuManager.ts 中使用 require 导入 dialog 模块在 ESM 环境下报错 'require is not defined' 的问题，改为在文件顶部使用 import 语句导入"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端生产环境显示开发者工具：修复打包后的应用仍然显示开发者工具菜单的问题，使用 app.isPackaged 判断是否为生产环境，生产环境下隐藏开发者工具菜单项"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端应用图标缺失：将项目图标源文件（图片/桌面CYP-MEMO.png）复制到 resources/icon-source.png，并运行图标生成脚本生成 icon.ico、icon.icns 和各尺寸 PNG 图标"
+        },
+        {
+          "type": "fix",
+          "description": "PDF导出内容被截断：移除 PDF 导出中备忘录内容的 max-height: 300px 和 overflow: hidden 限制，确保长文本完整显示"
+        },
+        {
+          "type": "docs",
+          "description": "Docker 文档新增登录后备忘录不显示问题的说明和解决方案：详细描述问题原因、已修复版本、临时解决方法和升级方法"
+        }
+      ],
+      "type": "patch",
       "previousVersion": "1.8.9",
       "metadata": {
-        "autoRelease": true
+        "autoRelease": false
       }
     },
     {
