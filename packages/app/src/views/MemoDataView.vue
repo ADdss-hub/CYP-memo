@@ -703,7 +703,7 @@ async function exportToPDF(memos: Memo[]) {
               ${priorityLabels[priority]}
             </span>
           </div>
-          <div style="font-size: 14px; color: #606266; line-height: 1.8; margin: 0 0 12px 0; word-break: break-word; max-height: 300px; overflow: hidden;">
+          <div style="font-size: 14px; color: #606266; line-height: 1.8; margin: 0 0 12px 0; word-break: break-word; white-space: pre-wrap;">
             ${displayContent}
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #909399; border-top: 1px solid #e4e7ed; padding-top: 10px; flex-wrap: wrap; gap: 8px;">

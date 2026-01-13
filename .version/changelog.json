@@ -2,6 +2,17 @@
   "schema": "2.1.0",
   "history": [
     {
+      "version": "1.8.10",
+      "timestamp": "2026-01-13T05:25:10.609Z",
+      "author": "CYP",
+      "changes": [],
+      "type": "release",
+      "previousVersion": "1.8.9",
+      "metadata": {
+        "autoRelease": true
+      }
+    },
+    {
       "version": "1.8.9",
       "timestamp": "2026-01-13T14:00:00.000Z",
       "author": "CYP",
@@ -980,7 +991,7 @@
     }
   ],
   "metadata": {
-    "updated": "2026-01-13T12:00:00.000Z",
+    "updated": "2026-01-13T05:25:10.611Z",
     "project": "CYP-memo"
   }
 }

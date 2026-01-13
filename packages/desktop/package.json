@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/desktop",
-  "version": "1.8.9",
+  "version": "1.8.10",
   "type": "module",
   "description": "CYP-memo 桌面客户端",
   "homepage": "https://github.com/ADdss-hub/CYP-memo",

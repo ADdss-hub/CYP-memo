@@ -1,9 +1,14 @@
 /**
  * 菜单管理器
  * 创建中文应用菜单
+ * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
-import { Menu, app, shell, BrowserWindow } from 'electron'
+import { Menu, app, shell, BrowserWindow, dialog } from 'electron'
+
+// 开发模式标志 - 使用 app.isPackaged 判断是否为打包后的应用
+// 打包后的应用 app.isPackaged 为 true，此时不是开发模式
+const isDev = !app.isPackaged
 
 export class MenuManager {
   private mainWindow: BrowserWindow | null = null
@@ -85,12 +90,13 @@ export class MenuManager {
         submenu: [
           { label: '重新加载', role: 'reload' },
           { label: '强制重新加载', role: 'forceReload' },
-          { label: '开发者工具', role: 'toggleDevTools' },
-          { type: 'separator' },
+          // 开发者工具仅在开发模式下显示
+          ...(isDev ? [{ label: '开发者工具', role: 'toggleDevTools' as const }] : []),
+          { type: 'separator' as const },
           { label: '实际大小', role: 'resetZoom' },
           { label: '放大', role: 'zoomIn' },
           { label: '缩小', role: 'zoomOut' },
-          { type: 'separator' },
+          { type: 'separator' as const },
           { label: '全屏', role: 'togglefullscreen' }
         ]
       },
@@ -152,7 +158,6 @@ export class MenuManager {
    * 显示关于对话框
    */
   private showAbout(): void {
-    const { dialog } = require('electron')
     dialog.showMessageBox({
       type: 'info',
       title: '关于 CYP-memo',

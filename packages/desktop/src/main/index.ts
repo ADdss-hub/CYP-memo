@@ -28,9 +28,17 @@ import type { ShortcutConfig, CachedMemo, SyncOperation, NotificationOptions, No
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// 开发模式标志
-const isDev = process.env.NODE_ENV === 'development'
+// 开发模式标志 - 通过多种方式检测
+// 1. 检查 NODE_ENV 环境变量
+// 2. 检查是否有 VITE_DEV_SERVER_URL（开发服务器）
+// 3. 检查 app.isPackaged（打包后为 true）
+const isDev = process.env.NODE_ENV === 'development' || 
+              !!process.env.VITE_DEV_SERVER_URL || 
+              !app.isPackaged
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174'
+
+// 是否为生产环境（打包后的应用）
+const isProduction = app.isPackaged
 
 /**
  * 设置 IPC 处理器
