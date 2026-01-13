@@ -46,11 +46,17 @@ const config = {
       to: 'server/',
       filter: ['**/*'],
     },
-    // 包含服务器的 node_modules 依赖
+    // 包含服务器的 node_modules 依赖（排除 devDependencies）
     {
       from: '../server/node_modules/',
       to: 'server/node_modules/',
-      filter: ['**/*'],
+      filter: [
+        '**/*',
+        '!**/@types/**',
+        '!**/typescript/**',
+        '!**/tsx/**',
+        '!**/.bin/**',
+      ],
     },
     // 包含服务器的 package.json（用于模块解析）
     {
