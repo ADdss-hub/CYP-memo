@@ -5,10 +5,45 @@
       "version": "1.9.1",
       "timestamp": "2026-01-13T10:43:30.294Z",
       "author": "CYP",
-      "changes": [],
+      "changes": [
+        {
+          "type": "fix",
+          "description": "桌面端生产环境白屏：修复 WindowManager.ts 中 index.html 路径计算错误，从 dist/main/main/ 到 dist/renderer/ 需要使用 ../../renderer/index.html"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端生产环境托盘图标不显示：修复 TrayManager.ts 中图标路径计算，生产环境从 process.resourcesPath/resources/ 加载图标"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端生产环境通知图标不显示：修复 NotificationManager.ts 中图标路径计算，与 TrayManager 保持一致"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端生产环境 CSP 策略阻止脚本执行：修复 SecurityManager.ts 中 CSP 配置，生产模式允许 unsafe-inline 以支持 Vue 打包后的脚本"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端内置服务器无法启动：修复 EmbeddedServer.ts 中服务器脚本路径查找逻辑，生产环境从 process.resourcesPath/server/ 加载"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端内置服务器依赖缺失：修复 electron-builder.config.cjs 中 extraResources 配置，添加服务器 node_modules 和 package.json 打包"
+        },
+        {
+          "type": "perf",
+          "description": "桌面端开发模式检测统一：所有主进程模块使用 !app.isPackaged 替代 process.env.NODE_ENV 检测开发模式"
+        },
+        {
+          "type": "perf",
+          "description": "桌面端内置服务器工作目录：EmbeddedServer 启动时设置 cwd 为服务器目录，确保 node_modules 正确解析"
+        }
+      ],
       "type": "patch",
       "previousVersion": "1.9.0",
-      "metadata": {}
+      "metadata": {
+        "autoRelease": false
+      }
     },
     {
       "version": "1.9.0",
