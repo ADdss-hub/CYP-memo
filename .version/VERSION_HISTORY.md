@@ -25,7 +25,8 @@
 - 桌面端生产环境通知图标不显示：修复 NotificationManager.ts 中图标路径计算，与 TrayManager 保持一致
 - 桌面端生产环境 CSP 策略阻止脚本执行：修复 SecurityManager.ts 中 CSP 配置，生产模式允许 unsafe-inline 以支持 Vue 打包后的脚本
 - 桌面端内置服务器无法启动：修复 EmbeddedServer.ts 中服务器脚本路径查找逻辑，生产环境从 process.resourcesPath/server/ 加载
-- 桌面端内置服务器依赖缺失：修复 electron-builder.config.cjs 中 extraResources 配置，添加服务器 node_modules 和 package.json 打包
+- 桌面端内置服务器依赖缺失：修复 electron-builder.config.cjs 中 extraResources 配置，添加服务器 node_modules 和 package.json 打包，排除 @types 等 devDependencies
+- 桌面端构建流程缺少服务器构建：修复 desktop package.json 中 build:win/mac/linux 等命令，添加 pnpm build:server 步骤确保服务器 dist 目录存在
 
 #### ⚡ 优化
 

@@ -28,7 +28,11 @@
         },
         {
           "type": "fix",
-          "description": "桌面端内置服务器依赖缺失：修复 electron-builder.config.cjs 中 extraResources 配置，添加服务器 node_modules 和 package.json 打包"
+          "description": "桌面端内置服务器依赖缺失：修复 electron-builder.config.cjs 中 extraResources 配置，添加服务器 node_modules 和 package.json 打包，排除 @types 等 devDependencies"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端构建流程缺少服务器构建：修复 desktop package.json 中 build:win/mac/linux 等命令，添加 pnpm build:server 步骤确保服务器 dist 目录存在"
         },
         {
           "type": "perf",
