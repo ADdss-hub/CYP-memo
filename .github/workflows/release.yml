@@ -159,16 +159,32 @@ jobs:
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
 
+      - name: Build server package
+        run: pnpm --filter @cyp-memo/server build
+
+      - name: Install server production dependencies
+        shell: pwsh
+        run: |
+          cd packages/server
+          # 删除现有的 node_modules（可能是符号链接）
+          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
+          # 只安装生产依赖
+          npm install --omit=dev --ignore-scripts
+          Get-ChildItem node_modules | Select-Object Name
+
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
         working-directory: packages/desktop
+
+      - name: Build desktop frontend and main process
+        run: pnpm --filter @cyp-memo/desktop build
 
       - name: Build desktop app
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
           npm_config_force: true
-        run: pnpm --filter @cyp-memo/desktop build:win -- --publish never
+        run: pnpm --filter @cyp-memo/desktop build:electron -- --win
         shell: pwsh
 
       - name: List build output
@@ -258,12 +274,27 @@ jobs:
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
 
+      - name: Build server package
+        run: pnpm --filter @cyp-memo/server build
+
+      - name: Install server production dependencies
+        run: |
+          cd packages/server
+          # 删除现有的 node_modules（可能是符号链接）
+          rm -rf node_modules
+          # 只安装生产依赖
+          npm install --omit=dev --ignore-scripts
+          ls -la node_modules/
+
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
         working-directory: packages/desktop
 
+      - name: Build desktop frontend and main process
+        run: pnpm --filter @cyp-memo/desktop build
+
       - name: Build desktop app
-        run: pnpm --filter @cyp-memo/desktop build:mac -- --publish never
+        run: pnpm --filter @cyp-memo/desktop build:electron -- --mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -354,12 +385,27 @@ jobs:
       - name: Build shared package
         run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
 
+      - name: Build server package
+        run: pnpm --filter @cyp-memo/server build
+
+      - name: Install server production dependencies
+        run: |
+          cd packages/server
+          # 删除现有的 node_modules（可能是符号链接）
+          rm -rf node_modules
+          # 只安装生产依赖
+          npm install --omit=dev --ignore-scripts
+          ls -la node_modules/
+
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
         working-directory: packages/desktop
 
+      - name: Build desktop frontend and main process
+        run: pnpm --filter @cyp-memo/desktop build
+
       - name: Build desktop app
-        run: pnpm --filter @cyp-memo/desktop build:linux -- --publish never
+        run: pnpm --filter @cyp-memo/desktop build:electron -- --linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
