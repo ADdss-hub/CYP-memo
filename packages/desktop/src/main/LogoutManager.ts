@@ -8,8 +8,8 @@
  * 需求: 5.5 - 当用户登出时，桌面客户端应清除所有缓存的用户数据
  */
 
-import { getCacheManager, resetCacheManager } from './CacheManager'
-import { credentialManager } from './CredentialManager'
+import { getCacheManager, resetCacheManager } from './CacheManager.js'
+import { credentialManager } from './CredentialManager.js'
 
 /**
  * 登出清理选项

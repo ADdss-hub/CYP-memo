@@ -13,8 +13,8 @@ import type {
   ServerValidationResult,
   ServerConnectionTestResult,
   ConnectionMode,
-} from '../shared/types'
-import { getEmbeddedServer } from './EmbeddedServer'
+} from '../shared/types.js'
+import { getEmbeddedServer } from './EmbeddedServer.js'
 
 // 默认配置
 const DEFAULT_CONFIG: ServerConnectionConfig = {

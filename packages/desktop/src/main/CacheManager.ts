@@ -19,8 +19,8 @@ import {
   keyToString,
   stringToKey,
   type EncryptedData
-} from './CryptoUtils'
-import type { CachedMemo, CacheStats } from '../shared/types'
+} from './CryptoUtils.js'
+import type { CachedMemo, CacheStats } from '../shared/types.js'
 
 /**
  * 缓存管理器配置

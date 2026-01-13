@@ -353,11 +353,17 @@ onMounted(async () => {
 // 监听路由变化，重新加载数据
 watch(
   () => router.currentRoute.value.query.refresh,
-  async (newVal) => {
-    if (newVal) {
+  async (newVal, oldVal) => {
+    // 当 refresh 参数变化时（包括从无到有），重新加载数据
+    if (newVal && newVal !== oldVal) {
       await loadData()
+      // 清除 URL 中的 refresh 参数，避免刷新页面时重复加载
+      if (router.currentRoute.value.query.refresh) {
+        router.replace({ path: router.currentRoute.value.path })
+      }
     }
-  }
+  },
+  { immediate: true }
 )
 
 // 监听用户登录状态变化，登录后立即加载数据
@@ -366,10 +372,12 @@ watch(
   async (newUser, oldUser) => {
     // 用户从未登录变为已登录时，立即加载备忘录
     if (newUser && !oldUser) {
+      // 使用 nextTick 确保 DOM 更新后再加载数据
+      await nextTick()
       await loadData()
     }
   },
-  { immediate: false }
+  { immediate: true }
 )
 </script>
 

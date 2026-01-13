@@ -2,6 +2,23 @@
 
 本文档记录 CYP-memo 容器备忘录系统的所有重要变更。
 
+## [1.8.9] - 2026-01-13
+
+### 修复 🐛
+
+- 生产环境容器登录后备忘录不刷新：登录成功后使用 router.replace 并添加 refresh 时间戳参数强制刷新数据，同时优化 MemoListView 的 watch 监听逻辑，使用 immediate: true 和 nextTick 确保数据立即加载
+- Windows 安装包界面英文问题：在 electron-builder NSIS 配置中添加 installerLanguages: ['SimpChinese'] 确保安装程序仅使用简体中文界面
+- PDF导出长文字显示不完整：重写 exportToPDF 函数，移除 200 字符限制，实现分页导出（每页3条备忘录），支持长文本完整显示和自动换行
+- Excel导出优先级显示英文：在 exportToExcel 函数中添加优先级中文映射（low->低, medium->中, high->高），确保导出的 Excel 文件中优先级显示为中文
+- 导入导出格式保持一致：新增 stripHtmlTagsPreserveLineBreaks 和 textToHtml 函数，确保备忘录的回车换行和样式在导入导出时保持一模一样，JSON导出保留原始HTML格式，Excel导出保留换行符，Excel导入自动转换换行为HTML格式
+
+### 优化 ⚡
+
+- PDF导出分页优化：每页显示3条备忘录，自动计算总页数，每页显示页码信息，内容过长时自动缩放适应页面
+- 导入导出模板优化：JSON和Excel模板中添加多行文本示例，展示格式保持功能
+
+---
+
 ## [1.8.8] - 2026-01-13
 
 ### 修复 🐛

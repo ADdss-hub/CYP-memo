@@ -9,7 +9,7 @@ import { app } from 'electron'
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
 import fs from 'fs'
-import type { ServerStatus } from '../shared/types'
+import type { ServerStatus } from '../shared/types.js'
 
 // 默认端口
 const DEFAULT_PORT = 5170

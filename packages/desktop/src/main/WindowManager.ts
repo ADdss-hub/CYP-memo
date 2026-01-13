@@ -6,7 +6,12 @@
 import { BrowserWindow, screen, app } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import { WindowState } from '../shared/types'
+import { fileURLToPath } from 'url'
+import { WindowState } from '../shared/types.js'
+
+// ESM 模块中获取 __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // 默认窗口配置
 const DEFAULT_WINDOW_STATE: WindowState = {

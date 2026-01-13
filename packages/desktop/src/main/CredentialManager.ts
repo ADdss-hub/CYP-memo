@@ -5,12 +5,116 @@
  * - Windows: Credential Manager
  * - macOS: Keychain
  * - Linux: Secret Service API
+ * 
+ * 如果 keytar 不可用，降级为文件存储（开发模式）
  */
 
-import keytar from 'keytar'
+import { app } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as crypto from 'crypto'
 
 // 应用服务名称前缀
 const SERVICE_PREFIX = 'cyp-memo'
+
+// 尝试加载 keytar
+let keytar: typeof import('keytar') | null = null
+try {
+  keytar = require('keytar')
+} catch {
+  console.warn('[CredentialManager] keytar not available, using fallback file storage')
+}
+
+/**
+ * 文件存储降级方案
+ */
+class FileCredentialStore {
+  private filePath: string
+  private encryptionKey: Buffer
+
+  constructor() {
+    const userDataPath = app.getPath('userData')
+    this.filePath = path.join(userDataPath, '.credentials')
+    // 使用机器 ID 作为加密密钥的一部分
+    this.encryptionKey = crypto.scryptSync(
+      process.env.COMPUTERNAME || 'default-key',
+      'cyp-memo-salt',
+      32
+    )
+  }
+
+  private encrypt(text: string): string {
+    const iv = crypto.randomBytes(16)
+    const cipher = crypto.createCipheriv('aes-256-cbc', this.encryptionKey, iv)
+    let encrypted = cipher.update(text, 'utf8', 'hex')
+    encrypted += cipher.final('hex')
+    return iv.toString('hex') + ':' + encrypted
+  }
+
+  private decrypt(text: string): string {
+    const [ivHex, encrypted] = text.split(':')
+    const iv = Buffer.from(ivHex, 'hex')
+    const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv)
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    return decrypted
+  }
+
+  private loadStore(): Record<string, Record<string, string>> {
+    try {
+      if (fs.existsSync(this.filePath)) {
+        const encrypted = fs.readFileSync(this.filePath, 'utf8')
+        const decrypted = this.decrypt(encrypted)
+        return JSON.parse(decrypted)
+      }
+    } catch {
+      // 文件损坏或解密失败，返回空存储
+    }
+    return {}
+  }
+
+  private saveStore(store: Record<string, Record<string, string>>): void {
+    const json = JSON.stringify(store)
+    const encrypted = this.encrypt(json)
+    fs.writeFileSync(this.filePath, encrypted, 'utf8')
+  }
+
+  async setPassword(service: string, account: string, password: string): Promise<void> {
+    const store = this.loadStore()
+    if (!store[service]) {
+      store[service] = {}
+    }
+    store[service][account] = password
+    this.saveStore(store)
+  }
+
+  async getPassword(service: string, account: string): Promise<string | null> {
+    const store = this.loadStore()
+    return store[service]?.[account] || null
+  }
+
+  async deletePassword(service: string, account: string): Promise<boolean> {
+    const store = this.loadStore()
+    if (store[service]?.[account]) {
+      delete store[service][account]
+      this.saveStore(store)
+      return true
+    }
+    return false
+  }
+
+  async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
+    const store = this.loadStore()
+    const serviceStore = store[service] || {}
+    return Object.entries(serviceStore).map(([account, password]) => ({
+      account,
+      password
+    }))
+  }
+}
+
+// 创建降级存储实例
+const fallbackStore = new FileCredentialStore()
 
 /**
  * 凭证管理器类
@@ -47,7 +151,11 @@ export class CredentialManager {
     }
     
     const fullService = this.getFullServiceName(service)
-    await keytar.setPassword(fullService, account, password)
+    if (keytar) {
+      await keytar.setPassword(fullService, account, password)
+    } else {
+      await fallbackStore.setPassword(fullService, account, password)
+    }
   }
 
   /**
@@ -62,7 +170,11 @@ export class CredentialManager {
     }
     
     const fullService = this.getFullServiceName(service)
-    return await keytar.getPassword(fullService, account)
+    if (keytar) {
+      return await keytar.getPassword(fullService, account)
+    } else {
+      return await fallbackStore.getPassword(fullService, account)
+    }
   }
 
   /**
@@ -77,7 +189,11 @@ export class CredentialManager {
     }
     
     const fullService = this.getFullServiceName(service)
-    return await keytar.deletePassword(fullService, account)
+    if (keytar) {
+      return await keytar.deletePassword(fullService, account)
+    } else {
+      return await fallbackStore.deletePassword(fullService, account)
+    }
   }
 
   /**
@@ -102,7 +218,11 @@ export class CredentialManager {
     }
     
     const fullService = this.getFullServiceName(service)
-    return await keytar.findCredentials(fullService)
+    if (keytar) {
+      return await keytar.findCredentials(fullService)
+    } else {
+      return await fallbackStore.findCredentials(fullService)
+    }
   }
 
   /**

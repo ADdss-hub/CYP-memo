@@ -6,7 +6,7 @@
  */
 
 import { BrowserWindow, dialog } from 'electron'
-import type { SyncConflict } from '../shared/types'
+import type { SyncConflict } from '../shared/types.js'
 
 /**
  * 冲突解决选项

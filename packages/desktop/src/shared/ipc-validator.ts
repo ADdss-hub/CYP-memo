@@ -3,14 +3,14 @@
  * IPC message validation utilities for secure main-renderer communication
  */
 
-import { IPC_CHANNELS, type IPCChannel } from './ipc-channels'
+import { IPC_CHANNELS, type IPCChannel } from './ipc-channels.js'
 import type {
   ShortcutConfig,
   CachedMemo,
   NotificationOptions,
   NotificationPreferences,
   CredentialRequest,
-} from './types'
+} from './types.js'
 
 // ============ 验证结果类型 ============
 

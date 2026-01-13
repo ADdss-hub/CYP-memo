@@ -12,7 +12,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS } from '../shared/ipc-channels'
+import { IPC_CHANNELS } from '../shared/ipc-channels.js'
 import {
   validateShortcutConfig,
   validateCachedMemo,
@@ -20,7 +20,7 @@ import {
   validateNotificationPreferences,
   validateId,
   validatePort,
-} from '../shared/ipc-validator'
+} from '../shared/ipc-validator.js'
 import type {
   ElectronAPI,
   ShortcutConfig,
@@ -35,7 +35,7 @@ import type {
   Platform,
   PlatformFeatures,
   DragDropResult,
-} from '../shared/types'
+} from '../shared/types.js'
 
 /**
  * 安全的 IPC 调用包装器

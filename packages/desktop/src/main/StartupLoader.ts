@@ -8,10 +8,10 @@
  */
 
 import { BrowserWindow } from 'electron'
-import { getCacheManager, type CacheManager } from './CacheManager'
-import { getSyncManager, type SyncManager } from './SyncManager'
-import { getNetworkManager, type NetworkManager } from './NetworkManager'
-import type { CachedMemo, SyncResult } from '../shared/types'
+import { getCacheManager, type CacheManager } from './CacheManager.js'
+import { getSyncManager, type SyncManager } from './SyncManager.js'
+import { getNetworkManager, type NetworkManager } from './NetworkManager.js'
+import type { CachedMemo, SyncResult } from '../shared/types.js'
 
 /**
  * 启动加载状态

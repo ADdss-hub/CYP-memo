@@ -15,9 +15,11 @@
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
-import { autoUpdater, UpdateCheckResult, UpdateInfo as ElectronUpdateInfo, ProgressInfo } from 'electron-updater'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
+import type { UpdateCheckResult, UpdateInfo as ElectronUpdateInfo, ProgressInfo } from 'electron-updater'
 import { app } from 'electron'
-import type { UpdateInfo } from '../shared/types'
+import type { UpdateInfo } from '../shared/types.js'
 
 // 最大重试次数
 const MAX_RETRY_COUNT = 3

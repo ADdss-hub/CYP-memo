@@ -250,6 +250,7 @@ async function handleImportJSON(file: File) {
 
 /**
  * 处理Excel导入
+ * 保持备忘录的回车换行格式
  */
 async function handleImportExcel(file: File) {
   const reader = new FileReader()
@@ -259,7 +260,8 @@ async function handleImportExcel(file: File) {
       const workbook = XLSX.read(data, { type: 'binary' })
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet)
+      // 使用 raw: false 确保正确解析换行符
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false })
 
       // 优先级映射：支持中文和英文
       const priorityMap: Record<string, Priority> = {
@@ -276,9 +278,13 @@ async function handleImportExcel(file: File) {
         const rawPriority = String(row['优先级'] || row['priority'] || '中').toLowerCase().trim()
         const priority = priorityMap[rawPriority] || priorityMap[row['优先级']] || 'medium'
         
+        // 获取内容并转换为 HTML 格式（保持换行）
+        const rawContent = row['内容'] || row['content'] || ''
+        const htmlContent = textToHtml(rawContent)
+        
         return {
           title: row['标题'] || row['title'] || '未命名',
-          content: row['内容'] || row['content'] || '',
+          content: htmlContent,
           tags: row['标签'] || row['tags'] ? String(row['标签'] || row['tags']).split(',').map(t => t.trim()) : [],
           priority: priority,
         }
@@ -384,6 +390,7 @@ function downloadTemplate(format: 'json' | 'excel') {
 
 /**
  * 下载JSON模板
+ * 模板中包含换行示例，展示格式保持功能
  */
 function downloadJSONTemplate() {
   const template = {
@@ -392,13 +399,13 @@ function downloadJSONTemplate() {
     memos: [
       {
         title: '示例备忘录1',
-        content: '这是一个示例备忘录内容',
+        content: '<p>这是第一行内容</p><p>这是第二行内容</p><p>支持多行文本和<strong>粗体</strong>、<em>斜体</em>等样式</p>',
         tags: ['示例', '模板'],
         priority: 'medium',
       },
       {
         title: '示例备忘录2',
-        content: '这是另一个示例备忘录内容',
+        content: '<p>工作任务清单：</p><p>1. 完成项目报告</p><p>2. 参加团队会议</p><p>3. 代码审查</p>',
         tags: ['工作', '重要'],
         priority: 'high',
       },
@@ -421,18 +428,19 @@ function downloadJSONTemplate() {
 
 /**
  * 下载Excel模板
+ * 模板中包含换行示例，展示格式保持功能
  */
 function downloadExcelTemplate() {
   const templateData = [
     {
       '标题': '示例备忘录1',
-      '内容': '这是一个示例备忘录内容',
+      '内容': '这是第一行内容\n这是第二行内容\n支持多行文本',
       '标签': '示例,模板',
       '优先级': '中',
     },
     {
       '标题': '示例备忘录2',
-      '内容': '这是另一个示例备忘录内容',
+      '内容': '工作任务清单：\n1. 完成项目报告\n2. 参加团队会议\n3. 代码审查',
       '标签': '工作,重要',
       '优先级': '高',
     },
@@ -445,7 +453,7 @@ function downloadExcelTemplate() {
   // 设置列宽
   worksheet['!cols'] = [
     { wch: 20 }, // 标题
-    { wch: 40 }, // 内容
+    { wch: 50 }, // 内容（加宽以适应多行文本）
     { wch: 20 }, // 标签
     { wch: 10 }, // 优先级
   ]
@@ -488,6 +496,7 @@ async function handleExport(format: 'json' | 'excel' | 'pdf') {
 
 /**
  * 导出为JSON
+ * 保持备忘录的原始HTML格式（包含回车、换行、样式）
  */
 async function exportToJSON(memos: Memo[]) {
   const exportData = {
@@ -495,7 +504,7 @@ async function exportToJSON(memos: Memo[]) {
     exportDate: new Date().toISOString(),
     memos: memos.map((memo) => ({
       title: memo.title,
-      content: memo.content,
+      content: memo.content, // 保持原始 HTML 格式
       tags: memo.tags,
       priority: memo.priority,
     })),
@@ -514,30 +523,77 @@ async function exportToJSON(memos: Memo[]) {
 }
 
 /**
- * 清除HTML标签，提取纯文本内容
+ * 清除HTML标签，保留换行格式，提取纯文本内容
+ * 用于Excel导出，保持回车换行格式
  */
-function stripHtmlTags(html: string): string {
+function stripHtmlTagsPreserveLineBreaks(html: string): string {
   if (!html) return ''
-  // 移除所有HTML标签
-  let text = html.replace(/<[^>]*>/g, '')
-  // 解码HTML实体
+  
+  // 将 HTML 换行标签转换为实际换行符
+  let text = html
+    .replace(/<br\s*\/?>/gi, '\n')      // <br> -> 换行
+    .replace(/<\/p>/gi, '\n')            // </p> -> 换行
+    .replace(/<\/div>/gi, '\n')          // </div> -> 换行
+    .replace(/<\/li>/gi, '\n')           // </li> -> 换行
+    .replace(/<\/h[1-6]>/gi, '\n\n')     // </h1-6> -> 双换行
+    .replace(/<\/blockquote>/gi, '\n')   // </blockquote> -> 换行
+    .replace(/<\/pre>/gi, '\n')          // </pre> -> 换行
+  
+  // 移除其他 HTML 标签
+  text = text.replace(/<[^>]*>/g, '')
+  
+  // 解码 HTML 实体
   const textarea = document.createElement('textarea')
   textarea.innerHTML = text
   text = textarea.value
-  // 清理多余空白
-  text = text.replace(/\s+/g, ' ').trim()
+  
+  // 清理多余的连续换行（超过2个换行变为2个），但保留单个和双换行
+  text = text.replace(/\n{3,}/g, '\n\n')
+  
+  // 去除首尾空白
+  text = text.trim()
+  
   return text
 }
 
 /**
+ * 将纯文本内容转换为HTML格式（用于导入）
+ * 保持回车换行格式
+ */
+function textToHtml(text: string): string {
+  if (!text) return ''
+  
+  // 转义 HTML 特殊字符
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+  
+  // 将换行符转换为 <br> 标签
+  html = html.replace(/\n/g, '<br>')
+  
+  return html
+}
+
+/**
  * 导出为Excel
+ * 保持备忘录的回车换行格式
  */
 async function exportToExcel(memos: Memo[]) {
+  // 优先级中文映射
+  const priorityLabels: Record<string, string> = {
+    low: '低',
+    medium: '中',
+    high: '高',
+  }
+
   const exportData = memos.map((memo) => ({
     '标题': memo.title,
-    '内容': stripHtmlTags(memo.content),
+    '内容': stripHtmlTagsPreserveLineBreaks(memo.content),
     '标签': memo.tags.join(','),
-    '优先级': memo.priority || 'medium',
+    '优先级': priorityLabels[memo.priority] || '中',
     '创建时间': formatDate(memo.createdAt),
     '更新时间': formatDate(memo.updatedAt),
   }))
@@ -549,7 +605,7 @@ async function exportToExcel(memos: Memo[]) {
   // 设置列宽
   worksheet['!cols'] = [
     { wch: 20 }, // 标题
-    { wch: 40 }, // 内容
+    { wch: 60 }, // 内容（加宽以适应多行文本）
     { wch: 20 }, // 标签
     { wch: 10 }, // 优先级
     { wch: 20 }, // 创建时间
@@ -562,6 +618,7 @@ async function exportToExcel(memos: Memo[]) {
 /**
  * 导出为PDF
  * 使用 html2canvas 将中文内容渲染为图片，避免字体乱码问题
+ * 支持长文本完整显示和自动分页
  */
 async function exportToPDF(memos: Memo[]) {
   // 动态导入 html2canvas
@@ -573,102 +630,133 @@ async function exportToPDF(memos: Memo[]) {
   const margin = 15
   const contentWidth = pageWidth - margin * 2
   
-  // 创建临时容器用于渲染
-  const container = document.createElement('div')
-  container.style.cssText = `
-    position: absolute;
-    left: -9999px;
-    top: 0;
-    width: 800px;
-    background: white;
-    font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-    padding: 20px;
-    color: #333;
-  `
-  
-  // 构建HTML内容
+  // 优先级中文映射
   const priorityLabels: Record<string, string> = { low: '低', medium: '中', high: '高' }
   const priorityColors: Record<string, string> = { low: '#67c23a', medium: '#e6a23c', high: '#f56c6c' }
   
-  let htmlContent = `
-    <div style="text-align: center; margin-bottom: 30px;">
-      <h1 style="font-size: 28px; color: #409eff; margin: 0 0 10px 0;">CYP-memo 备忘录导出</h1>
-      <p style="font-size: 14px; color: #909399; margin: 0;">
-        导出日期：${new Date().toLocaleDateString('zh-CN')} | 
-        备忘录总数：${memos.length} 条
-      </p>
-    </div>
-  `
+  // 每页最多显示的备忘录数量（根据内容长度动态调整）
+  const memosPerPage = 3
+  const totalPages = Math.ceil(memos.length / memosPerPage)
   
-  memos.forEach((memo, index) => {
-    const cleanContent = stripHtmlTags(memo.content)
-    const displayContent = cleanContent.length > 200 ? cleanContent.substring(0, 200) + '...' : cleanContent
-    const priority = memo.priority || 'medium'
-    
-    htmlContent += `
-      <div style="border: 1px solid #e4e7ed; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fafafa;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="background: #409eff; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">#${index + 1}</span>
-            <h3 style="font-size: 16px; margin: 0; color: #303133;">${memo.title || '无标题'}</h3>
-          </div>
-          <span style="background: ${priorityColors[priority]}; color: white; padding: 2px 10px; border-radius: 12px; font-size: 12px;">
-            ${priorityLabels[priority]}
-          </span>
-        </div>
-        <p style="font-size: 14px; color: #606266; line-height: 1.6; margin: 0 0 12px 0; white-space: pre-wrap; word-break: break-word;">
-          ${displayContent || '无内容'}
-        </p>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #909399; border-top: 1px solid #e4e7ed; padding-top: 10px;">
-          <div>
-            ${memo.tags.length > 0 
-              ? memo.tags.map(tag => `<span style="background: #ecf5ff; color: #409eff; padding: 2px 8px; border-radius: 4px; margin-right: 6px;">${tag}</span>`).join('')
-              : '<span style="color: #c0c4cc;">无标签</span>'
-            }
-          </div>
-          <span>创建时间：${formatDate(memo.createdAt)}</span>
-        </div>
-      </div>
-    `
-  })
-  
-  container.innerHTML = htmlContent
-  document.body.appendChild(container)
-  
-  try {
-    // 使用 html2canvas 渲染
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-    })
-    
-    const imgData = canvas.toDataURL('image/jpeg', 0.95)
-    const imgWidth = contentWidth
-    const imgHeight = (canvas.height * imgWidth) / canvas.width
-    
-    // 计算需要多少页
-    let heightLeft = imgHeight
-    let position = margin
-    
-    // 添加第一页
-    doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
-    heightLeft -= (pageHeight - margin * 2)
-    
-    // 如果内容超过一页，添加更多页
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight + margin
+  for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+    if (pageIndex > 0) {
       doc.addPage()
-      doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
-      heightLeft -= (pageHeight - margin * 2)
     }
     
-    doc.save(`CYP-memo-备忘录导出-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`)
-  } finally {
-    // 清理临时容器
-    document.body.removeChild(container)
+    // 创建临时容器用于渲染当前页
+    const container = document.createElement('div')
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 800px;
+      background: white;
+      font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      padding: 20px;
+      color: #333;
+    `
+    
+    // 构建当前页的HTML内容
+    let htmlContent = ''
+    
+    // 第一页显示标题
+    if (pageIndex === 0) {
+      htmlContent += `
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="font-size: 28px; color: #409eff; margin: 0 0 10px 0;">CYP-memo 备忘录导出</h1>
+          <p style="font-size: 14px; color: #909399; margin: 0;">
+            导出日期：${new Date().toLocaleDateString('zh-CN')} | 
+            备忘录总数：${memos.length} 条 |
+            第 ${pageIndex + 1} / ${totalPages} 页
+          </p>
+        </div>
+      `
+    } else {
+      htmlContent += `
+        <div style="text-align: right; margin-bottom: 20px; font-size: 12px; color: #909399;">
+          第 ${pageIndex + 1} / ${totalPages} 页
+        </div>
+      `
+    }
+    
+    // 获取当前页的备忘录
+    const startIndex = pageIndex * memosPerPage
+    const endIndex = Math.min(startIndex + memosPerPage, memos.length)
+    const pageMemos = memos.slice(startIndex, endIndex)
+    
+    pageMemos.forEach((memo, index) => {
+      // 保留换行格式的内容
+      const cleanContent = stripHtmlTagsPreserveLineBreaks(memo.content)
+      // 将换行符转换为 HTML <br> 以在 PDF 中正确显示
+      const displayContent = cleanContent ? cleanContent.replace(/\n/g, '<br>') : '无内容'
+      const priority = memo.priority || 'medium'
+      const globalIndex = startIndex + index + 1
+      
+      htmlContent += `
+        <div style="border: 1px solid #e4e7ed; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fafafa; page-break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="background: #409eff; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">#${globalIndex}</span>
+              <h3 style="font-size: 16px; margin: 0; color: #303133; word-break: break-word;">${memo.title || '无标题'}</h3>
+            </div>
+            <span style="background: ${priorityColors[priority]}; color: white; padding: 2px 10px; border-radius: 12px; font-size: 12px; flex-shrink: 0;">
+              ${priorityLabels[priority]}
+            </span>
+          </div>
+          <div style="font-size: 14px; color: #606266; line-height: 1.8; margin: 0 0 12px 0; word-break: break-word; max-height: 300px; overflow: hidden;">
+            ${displayContent}
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #909399; border-top: 1px solid #e4e7ed; padding-top: 10px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              ${memo.tags.length > 0 
+                ? memo.tags.map(tag => `<span style="background: #ecf5ff; color: #409eff; padding: 2px 8px; border-radius: 4px;">${tag}</span>`).join('')
+                : '<span style="color: #c0c4cc;">无标签</span>'
+              }
+            </div>
+            <span style="flex-shrink: 0;">创建时间：${formatDate(memo.createdAt)}</span>
+          </div>
+        </div>
+      `
+    })
+    
+    container.innerHTML = htmlContent
+    document.body.appendChild(container)
+    
+    try {
+      // 使用 html2canvas 渲染当前页
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      })
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      const imgWidth = contentWidth
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      
+      // 如果图片高度超过页面高度，需要缩放
+      const maxHeight = pageHeight - margin * 2
+      let finalWidth = imgWidth
+      let finalHeight = imgHeight
+      
+      if (imgHeight > maxHeight) {
+        const scale = maxHeight / imgHeight
+        finalWidth = imgWidth * scale
+        finalHeight = maxHeight
+      }
+      
+      // 居中显示
+      const xOffset = margin + (contentWidth - finalWidth) / 2
+      
+      doc.addImage(imgData, 'JPEG', xOffset, margin, finalWidth, finalHeight)
+    } finally {
+      // 清理临时容器
+      document.body.removeChild(container)
+    }
   }
+  
+  doc.save(`CYP-memo-备忘录导出-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`)
 }
 
 /**

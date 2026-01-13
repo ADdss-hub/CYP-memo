@@ -6,7 +6,7 @@
 import { globalShortcut, app } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import { ShortcutConfig } from '../shared/types'
+import { ShortcutConfig } from '../shared/types.js'
 
 // 默认快捷键配置
 const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {

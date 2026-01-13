@@ -12,14 +12,14 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
-import { getNetworkManager, type NetworkManager } from './NetworkManager'
+import { getNetworkManager, type NetworkManager } from './NetworkManager.js'
 import type {
   SyncOperation,
   SyncConflict,
   SyncStatus,
   SyncResult,
   CachedMemo,
-} from '../shared/types'
+} from '../shared/types.js'
 
 /**
  * 同步队列项（数据库存储格式）

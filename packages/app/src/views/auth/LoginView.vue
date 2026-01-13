@@ -202,9 +202,11 @@ const handlePasswordLogin = async () => {
 
     toast.success('登录成功')
 
-    // 重定向到目标页面或首页
+    // 重定向到目标页面或首页，添加 refresh 参数强制刷新备忘录数据
     const redirect = route.query.redirect as string
-    router.push(redirect || '/')
+    const targetPath = redirect || '/memos'
+    // 使用 replace 并添加时间戳参数确保页面刷新数据
+    router.replace({ path: targetPath, query: { refresh: Date.now().toString() } })
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : '登录失败'
     error.value = errorMessage
@@ -236,9 +238,11 @@ const handleTokenLogin = async () => {
 
     toast.success('登录成功')
 
-    // 重定向到目标页面或首页
+    // 重定向到目标页面或首页，添加 refresh 参数强制刷新备忘录数据
     const redirect = route.query.redirect as string
-    router.push(redirect || '/')
+    const targetPath = redirect || '/memos'
+    // 使用 replace 并添加时间戳参数确保页面刷新数据
+    router.replace({ path: targetPath, query: { refresh: Date.now().toString() } })
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : '登录失败'
     error.value = errorMessage
