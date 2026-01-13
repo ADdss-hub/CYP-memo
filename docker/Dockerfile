@@ -10,7 +10,7 @@
 FROM node:20-alpine AS builder
 
 # 构建参数 - 版本信息
-ARG VERSION=1.8.7
+ARG VERSION=1.8.9
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
@@ -57,7 +57,7 @@ RUN pnpm build
 FROM node:20-alpine AS production
 
 # 构建参数 - 版本信息
-ARG VERSION=1.8.7
+ARG VERSION=1.8.9
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
@@ -102,6 +102,9 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/pnpm-lock.yaml ./
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+
+# 复制版本文件
+COPY --from=builder /app/VERSION ./
 
 # 复制入口脚本
 COPY docker/entrypoint.sh /entrypoint.sh
