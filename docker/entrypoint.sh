@@ -1,6 +1,7 @@
 #!/bin/sh
 # CYP-memo Docker 容器入口脚本
 # 处理数据目录权限问题，支持多种 NAS 和系统环境
+# 支持数据清理功能（镜像删除时清理所有配置和数据库）
 # Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 
 set -e
@@ -31,6 +32,42 @@ log_debug() {
 # 数据目录
 DATA_DIR="${DATA_DIR:-/app/data}"
 
+# 清理数据功能（当设置 CLEAN_DATA=true 时执行）
+clean_all_data() {
+    log_warn "检测到 CLEAN_DATA=true，正在清理所有数据..."
+    
+    if [ -d "${DATA_DIR}" ]; then
+        # 删除数据库文件
+        if [ -f "${DATA_DIR}/database.sqlite" ]; then
+            rm -f "${DATA_DIR}/database.sqlite"
+            log_info "已删除数据库文件: ${DATA_DIR}/database.sqlite"
+        fi
+        
+        # 删除上传的文件
+        if [ -d "${DATA_DIR}/uploads" ]; then
+            rm -rf "${DATA_DIR}/uploads"
+            log_info "已删除上传目录: ${DATA_DIR}/uploads"
+        fi
+        
+        # 删除配置文件
+        if [ -f "${DATA_DIR}/config.json" ]; then
+            rm -f "${DATA_DIR}/config.json"
+            log_info "已删除配置文件: ${DATA_DIR}/config.json"
+        fi
+        
+        # 删除日志文件
+        find "${DATA_DIR}" -name "*.log" -type f -delete 2>/dev/null || true
+        log_info "已删除日志文件"
+        
+        # 删除其他临时文件
+        find "${DATA_DIR}" -name ".write-test*" -type f -delete 2>/dev/null || true
+        
+        log_info "数据清理完成"
+    else
+        log_warn "数据目录不存在: ${DATA_DIR}"
+    fi
+}
+
 echo ""
 echo "============================================"
 echo "  CYP-memo 容器启动"
@@ -43,6 +80,11 @@ log_info "工作目录: $(pwd)"
 log_info "数据目录: ${DATA_DIR}"
 log_info "运行用户: $(id)"
 log_debug "PUID=${PUID:-not set}, PGID=${PGID:-not set}"
+
+# 检查是否需要清理数据
+if [ "${CLEAN_DATA}" = "true" ] || [ "${CLEAN_DATA}" = "1" ]; then
+    clean_all_data
+fi
 
 # 确保数据目录存在
 if [ ! -d "${DATA_DIR}" ]; then

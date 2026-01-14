@@ -2,6 +2,46 @@
   "schema": "2.1.0",
   "history": [
     {
+      "version": "1.9.2",
+      "timestamp": "2026-01-14T10:00:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "feat",
+          "description": "生产环境数据库自动初始化：登录成功后自动检测和初始化数据库连接，确保数据正确加载"
+        },
+        {
+          "type": "feat",
+          "description": "Watchtower 自动更新支持：docker-compose.yml 集成 Watchtower 服务，每小时自动检测 cyp97/cyp-memo 镜像更新"
+        },
+        {
+          "type": "feat",
+          "description": "标签自动完成功能：备忘录编辑区标签输入框支持从数据库加载已有标签，输入时自动匹配和建议"
+        },
+        {
+          "type": "feat",
+          "description": "数据完全清理功能：支持通过环境变量 CLEAN_DATA=true 或 API 清理所有配置信息和数据库"
+        },
+        {
+          "type": "perf",
+          "description": "认证状态管理增强：新增 ensureDatabaseInitialized 方法和 isDatabaseReady 计算属性，确保数据库就绪状态"
+        },
+        {
+          "type": "perf",
+          "description": "标签输入交互优化：支持键盘上下键导航下拉列表，Enter 键选择，Escape 键关闭"
+        },
+        {
+          "type": "docs",
+          "description": "Docker 文档更新：新增 Watchtower 自动更新配置说明和数据清理方法"
+        }
+      ],
+      "type": "patch",
+      "previousVersion": "1.9.1",
+      "metadata": {
+        "autoRelease": false
+      }
+    },
+    {
       "version": "1.9.1",
       "timestamp": "2026-01-13T10:43:30.294Z",
       "author": "CYP",

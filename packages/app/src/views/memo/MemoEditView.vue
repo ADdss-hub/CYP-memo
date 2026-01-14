@@ -48,14 +48,35 @@
                     {{ tag }}
                     <button class="tag-remove" @click="removeTag(index)">×</button>
                   </span>
-                  <input
-                    v-model="newTag"
-                    type="text"
-                    class="tag-input"
-                    placeholder="添加标签..."
-                    @keydown.enter="addTag"
-                    @keydown.space="addTag"
-                  />
+                  <div class="tag-input-wrapper">
+                    <input
+                      ref="tagInputRef"
+                      v-model="newTag"
+                      type="text"
+                      class="tag-input"
+                      placeholder="添加标签..."
+                      @keydown.enter="addTag"
+                      @keydown.space="addTag"
+                      @input="handleTagInput"
+                      @focus="showTagDropdown = true"
+                      @blur="handleTagInputBlur"
+                      @keydown.down.prevent="navigateDropdown('down')"
+                      @keydown.up.prevent="navigateDropdown('up')"
+                      @keydown.escape="showTagDropdown = false"
+                    />
+                    <!-- 标签自动完成下拉框 -->
+                    <div v-if="showTagDropdown && filteredDatabaseTags.length > 0" class="tag-dropdown">
+                      <div
+                        v-for="(tag, index) in filteredDatabaseTags"
+                        :key="tag"
+                        :class="['tag-dropdown-item', { active: dropdownIndex === index }]"
+                        @mousedown.prevent="selectDropdownTag(tag)"
+                        @mouseenter="dropdownIndex = index"
+                      >
+                        {{ tag }}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div v-if="suggestedTags.length > 0" class="tag-suggestions">
                   <span class="suggestions-label">建议:</span>
@@ -130,14 +151,41 @@ const attachments = ref<File[]>([])
 const lastSaved = ref('')
 const hasUnsavedChanges = ref(false)
 
+// 标签自动完成相关状态
+const tagInputRef = ref<HTMLInputElement>()
+const showTagDropdown = ref(false)
+const dropdownIndex = ref(-1)
+const databaseTags = ref<string[]>([])
+
 // 计算属性
 const isEditMode = computed(() => !!route.params.id)
 const memoId = computed(() => route.params.id as string)
 
-// 标签建议（基于已有标签）
+// 从数据库加载的标签中过滤出匹配输入的标签
+const filteredDatabaseTags = computed(() => {
+  const input = newTag.value.trim().toLowerCase()
+  if (!input) {
+    // 输入为空时显示所有未使用的标签（最多10个）
+    return databaseTags.value
+      .filter(tag => !tags.value.includes(tag))
+      .slice(0, 10)
+  }
+  // 输入不为空时过滤匹配的标签
+  return databaseTags.value
+    .filter(tag => 
+      tag.toLowerCase().includes(input) && 
+      !tags.value.includes(tag)
+    )
+    .slice(0, 10)
+})
+
+// 标签建议（基于已有标签，排除已选择和下拉框中的）
 const suggestedTags = computed(() => {
   const allTags = memoStore.allTags
-  return allTags.filter((tag) => !tags.value.includes(tag)).slice(0, 5)
+  return allTags
+    .filter((tag) => !tags.value.includes(tag))
+    .filter((tag) => !filteredDatabaseTags.value.includes(tag))
+    .slice(0, 5)
 })
 
 // 方法
@@ -173,13 +221,85 @@ const loadMemo = async () => {
   }
 }
 
+/**
+ * 从数据库加载所有标签
+ */
+const loadDatabaseTags = async () => {
+  try {
+    if (!authStore.currentUser) return
+    
+    // 加载用户的所有备忘录以获取标签
+    await memoStore.loadMemos(authStore.currentUser.id)
+    
+    // 从 memoStore 获取所有标签
+    databaseTags.value = [...memoStore.allTags]
+    console.log('[MemoEdit] 已加载数据库标签:', databaseTags.value.length, '个')
+  } catch (err) {
+    console.error('加载数据库标签失败:', err)
+  }
+}
+
 const handleTitleChange = () => {
   hasUnsavedChanges.value = true
+}
+
+/**
+ * 处理标签输入
+ */
+const handleTagInput = () => {
+  showTagDropdown.value = true
+  dropdownIndex.value = -1
+}
+
+/**
+ * 处理标签输入框失焦
+ */
+const handleTagInputBlur = () => {
+  // 延迟关闭下拉框，以便点击事件能够触发
+  setTimeout(() => {
+    showTagDropdown.value = false
+    dropdownIndex.value = -1
+  }, 200)
+}
+
+/**
+ * 导航下拉框
+ */
+const navigateDropdown = (direction: 'up' | 'down') => {
+  if (!showTagDropdown.value || filteredDatabaseTags.value.length === 0) return
+  
+  if (direction === 'down') {
+    dropdownIndex.value = (dropdownIndex.value + 1) % filteredDatabaseTags.value.length
+  } else {
+    dropdownIndex.value = dropdownIndex.value <= 0 
+      ? filteredDatabaseTags.value.length - 1 
+      : dropdownIndex.value - 1
+  }
+}
+
+/**
+ * 选择下拉框中的标签
+ */
+const selectDropdownTag = (tag: string) => {
+  if (!tags.value.includes(tag)) {
+    tags.value.push(tag)
+    hasUnsavedChanges.value = true
+  }
+  newTag.value = ''
+  showTagDropdown.value = false
+  dropdownIndex.value = -1
+  tagInputRef.value?.focus()
 }
 
 const addTag = (event?: KeyboardEvent) => {
   if (event) {
     event.preventDefault()
+  }
+
+  // 如果下拉框打开且有选中项，选择该项
+  if (showTagDropdown.value && dropdownIndex.value >= 0 && dropdownIndex.value < filteredDatabaseTags.value.length) {
+    selectDropdownTag(filteredDatabaseTags.value[dropdownIndex.value])
+    return
   }
 
   const tag = newTag.value.trim()
@@ -199,6 +319,8 @@ const addTag = (event?: KeyboardEvent) => {
 
   tags.value.push(tag)
   newTag.value = ''
+  showTagDropdown.value = false
+  dropdownIndex.value = -1
   hasUnsavedChanges.value = true
 }
 
@@ -376,6 +498,9 @@ const handleBeforeUnload = (event: BeforeUnloadEvent) => {
 
 // 生命周期
 onMounted(async () => {
+  // 先加载数据库中的标签
+  await loadDatabaseTags()
+  // 再加载备忘录
   await loadMemo()
   window.addEventListener('beforeunload', handleBeforeUnload)
 })
@@ -537,6 +662,53 @@ onBeforeUnmount(() => {
 .tag-input:focus {
   outline: none;
   border-color: #409eff;
+}
+
+.tag-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+}
+
+.tag-input-wrapper .tag-input {
+  width: 100%;
+}
+
+.tag-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.tag-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #606266;
+  transition: all 0.2s;
+}
+
+.tag-dropdown-item:hover,
+.tag-dropdown-item.active {
+  background: #ecf5ff;
+  color: #409eff;
+}
+
+.tag-dropdown-item:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.tag-dropdown-item:last-child {
+  border-radius: 0 0 8px 8px;
 }
 
 .tag-suggestions {
@@ -710,6 +882,21 @@ onBeforeUnmount(() => {
   background: #262727;
   border-color: #414243;
   color: #cfd3dc;
+}
+
+[data-theme='dark'] .tag-dropdown {
+  background: #1d1e1f;
+  border-color: #414243;
+}
+
+[data-theme='dark'] .tag-dropdown-item {
+  color: #cfd3dc;
+}
+
+[data-theme='dark'] .tag-dropdown-item:hover,
+[data-theme='dark'] .tag-dropdown-item.active {
+  background: #337ecc;
+  color: white;
 }
 
 [data-theme='dark'] .suggested-tag {

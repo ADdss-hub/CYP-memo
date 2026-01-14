@@ -11,7 +11,7 @@
 docker pull cyp97/cyp-memo:latest
 
 # 拉取指定版本
-docker pull cyp97/cyp-memo:1.7.10
+docker pull cyp97/cyp-memo:1.9.2
 ```
 
 ## 快速部署
@@ -33,9 +33,9 @@ docker run -d \
 |------|------|
 | `Dockerfile` | 生产环境镜像构建文件（多阶段构建） |
 | `Dockerfile.dev` | 开发环境镜像构建文件（支持热重载） |
-| `docker-compose.yml` | 生产环境编排配置 |
+| `docker-compose.yml` | 生产环境编排配置（含 Watchtower 自动更新） |
 | `docker-compose.dev.yml` | 开发环境编排配置 |
-| `entrypoint.sh` | 容器入口脚本（处理权限问题） |
+| `entrypoint.sh` | 容器入口脚本（处理权限和数据清理） |
 | `.dockerignore` | Docker 构建忽略文件 |
 
 ## 使用方法
@@ -86,6 +86,52 @@ docker build -f docker/Dockerfile.dev -t cyp-memo:dev .
 | `TZ` | Asia/Shanghai | 时区 |
 | `PUID` | 1001 | 运行用户 UID |
 | `PGID` | 1001 | 运行用户 GID |
+| `CLEAN_DATA` | false | 启动时清理所有数据（设为 true 或 1 启用） |
+
+## Watchtower 自动更新
+
+CYP-memo 支持使用 Watchtower 自动检测和更新镜像。docker-compose.yml 已包含 Watchtower 配置。
+
+### 自动更新配置
+
+Watchtower 默认每小时检测一次镜像更新（3600秒），检测到新版本后自动拉取并重启容器。
+
+```yaml
+# docker-compose.yml 中的 Watchtower 配置
+watchtower:
+  image: containrrr/watchtower
+  container_name: watchtower
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  environment:
+    - TZ=Asia/Shanghai
+    - WATCHTOWER_POLL_INTERVAL=3600  # 每小时检测一次
+    - WATCHTOWER_LABEL_ENABLE=true   # 只更新带标签的容器
+    - WATCHTOWER_CLEANUP=true        # 更新后清理旧镜像
+  restart: unless-stopped
+```
+
+### 单独部署 Watchtower
+
+如果不使用 docker-compose，可以单独部署 Watchtower：
+
+```bash
+docker run -d \
+  --name watchtower \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e TZ=Asia/Shanghai \
+  -e WATCHTOWER_POLL_INTERVAL=3600 \
+  -e WATCHTOWER_CLEANUP=true \
+  --restart unless-stopped \
+  containrrr/watchtower cyp-memo
+```
+
+### 手动触发更新检测
+
+```bash
+# 立即检测更新
+docker exec watchtower /watchtower --run-once
+```
 
 ## 数据持久化
 
@@ -101,6 +147,47 @@ docker build -f docker/Dockerfile.dev -t cyp-memo:dev .
 
 # 绑定挂载
 -v /path/to/data:/app/data
+```
+
+## 数据清理
+
+### 启动时清理所有数据
+
+如果需要在启动容器时清理所有数据（数据库、上传文件、配置等），设置 `CLEAN_DATA=true`：
+
+```bash
+docker run -d \
+  --name cyp-memo \
+  -p 5170:5170 \
+  -e CLEAN_DATA=true \
+  -v cyp-memo-data:/app/data \
+  --restart unless-stopped \
+  cyp97/cyp-memo:latest
+```
+
+**警告**：此操作不可逆，将删除所有用户数据！
+
+### 删除容器时清理数据
+
+删除容器和数据卷：
+
+```bash
+# 停止并删除容器
+docker stop cyp-memo
+docker rm cyp-memo
+
+# 删除数据卷（将删除所有数据）
+docker volume rm cyp-memo-data
+```
+
+### 通过 API 清理数据
+
+调用清理 API（需要确认码）：
+
+```bash
+curl -X DELETE http://localhost:5170/api/cleanup/all \
+  -H "Content-Type: application/json" \
+  -d '{"confirmCode": "DELETE_ALL_DATA"}'
 ```
 
 ## NAS 部署指南

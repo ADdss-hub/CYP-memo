@@ -2,6 +2,7 @@
 # 多阶段构建，优化镜像体积和构建速度
 # 基于 Alpine 镜像以最小化体积
 # 支持飞牛 NAS、群晖、威联通等多种 NAS 系统
+# 支持 Watchtower 自动更新（cyp97/cyp-memo）
 # Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 
 # ============================================
@@ -10,7 +11,7 @@
 FROM node:20-alpine AS builder
 
 # 构建参数 - 版本信息
-ARG VERSION=1.8.9
+ARG VERSION=1.9.2
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
@@ -57,7 +58,7 @@ RUN pnpm build
 FROM node:20-alpine AS production
 
 # 构建参数 - 版本信息
-ARG VERSION=1.8.9
+ARG VERSION=1.9.2
 ARG BUILD_DATE
 ARG GIT_COMMIT
 

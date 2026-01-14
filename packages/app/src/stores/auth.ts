@@ -5,7 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { authManager } from '@cyp-memo/shared'
+import { authManager, storageManager } from '@cyp-memo/shared'
 import type { User } from '@cyp-memo/shared'
 
 /**
@@ -16,6 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
   const currentUser = ref<User | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const databaseInitialized = ref(false)
 
   // 计算属性
   const isAuthenticated = computed(() => currentUser.value !== null)
@@ -23,6 +24,41 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = computed(() => currentUser.value?.id ?? '')
   const isMainAccount = computed(() => currentUser.value?.isMainAccount ?? false)
   const permissions = computed(() => currentUser.value?.permissions ?? [])
+  const isDatabaseReady = computed(() => databaseInitialized.value && storageManager.isInitialized())
+
+  /**
+   * 确保数据库已初始化（生产环境自动检测和加载）
+   */
+  async function ensureDatabaseInitialized(): Promise<boolean> {
+    if (databaseInitialized.value) {
+      return true
+    }
+
+    try {
+      // 检查存储管理器是否已初始化
+      if (!storageManager.isInitialized()) {
+        console.log('[Auth] 存储管理器未初始化，等待初始化...')
+        return false
+      }
+
+      // 验证数据库连接
+      const adapter = storageManager.getAdapter()
+      
+      // 尝试执行一个简单的查询来验证数据库连接
+      try {
+        await adapter.getUsers()
+        databaseInitialized.value = true
+        console.log('[Auth] 数据库连接验证成功')
+        return true
+      } catch (dbError) {
+        console.error('[Auth] 数据库连接验证失败:', dbError)
+        return false
+      }
+    } catch (err) {
+      console.error('[Auth] 数据库初始化检查失败:', err)
+      return false
+    }
+  }
 
   /**
    * 账号密码登录
@@ -32,8 +68,16 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
+      // 登录前确保数据库已初始化
+      await ensureDatabaseInitialized()
+      
       const user = await authManager.loginWithPassword(username, password, remember)
       currentUser.value = user
+      
+      // 登录成功后标记数据库已初始化
+      databaseInitialized.value = true
+      console.log('[Auth] 登录成功，数据库已就绪')
+      
       return user
     } catch (err) {
       error.value = err instanceof Error ? err.message : '登录失败'
@@ -51,8 +95,16 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
+      // 登录前确保数据库已初始化
+      await ensureDatabaseInitialized()
+      
       const user = await authManager.loginWithToken(token)
       currentUser.value = user
+      
+      // 登录成功后标记数据库已初始化
+      databaseInitialized.value = true
+      console.log('[Auth] 令牌登录成功，数据库已就绪')
+      
       return user
     } catch (err) {
       error.value = err instanceof Error ? err.message : '登录失败'
@@ -130,9 +182,14 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
+      // 自动登录前确保数据库已初始化
+      await ensureDatabaseInitialized()
+      
       const user = await authManager.autoLogin()
       if (user) {
         currentUser.value = user
+        databaseInitialized.value = true
+        console.log('[Auth] 自动登录成功，数据库已就绪')
       }
       return user
     } catch (err) {
@@ -196,6 +253,7 @@ export const useAuthStore = defineStore('auth', () => {
    */
   function forceLogout() {
     currentUser.value = null
+    databaseInitialized.value = false
     authManager.logout()
   }
 
@@ -204,12 +262,14 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser,
     isLoading,
     error,
+    databaseInitialized,
     // 计算属性
     isAuthenticated,
     username,
     userId,
     isMainAccount,
     permissions,
+    isDatabaseReady,
     // 方法
     loginWithPassword,
     loginWithToken,
@@ -221,5 +281,6 @@ export const useAuthStore = defineStore('auth', () => {
     clearError,
     validateSession,
     forceLogout,
+    ensureDatabaseInitialized,
   }
 })

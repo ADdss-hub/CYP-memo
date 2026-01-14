@@ -1,12 +1,12 @@
 /**
  * CYP-memo 版本信息
- * Copyright (c) 2025 CYP <nasDSSCYP@outlook.com>
+ * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
 export const VERSION = {
   major: 1,
   minor: 9,
-  patch: 1,
+  patch: 2,
   get full() {
     return `${this.major}.${this.minor}.${this.patch}`
   },

@@ -1125,6 +1125,59 @@ app.post('/api/cleanup/perform', (req, res) => {
   }
 })
 
+// 完全清理所有数据（用于镜像删除时清理）
+// 警告：此操作不可逆，将删除所有用户数据、备忘录、文件和配置
+app.delete('/api/cleanup/all', (req, res) => {
+  try {
+    const { confirmCode } = req.body
+    
+    // 需要确认码才能执行
+    if (confirmCode !== 'DELETE_ALL_DATA') {
+      return res.status(400).json({ 
+        success: false, 
+        error: { message: '需要提供确认码 DELETE_ALL_DATA 才能执行此操作' } 
+      })
+    }
+    
+    // 记录清理操作日志
+    database.createLog({
+      level: 'warn',
+      message: '执行完全数据清理',
+      action: 'cleanup_all',
+      details: JSON.stringify({ timestamp: new Date().toISOString() })
+    })
+    
+    // 清空所有数据
+    database.clearAllData()
+    
+    // 删除上传的文件
+    const uploadsDir = path.join(config.dataDir, 'uploads')
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir)
+      for (const file of files) {
+        try {
+          fs.unlinkSync(path.join(uploadsDir, file))
+        } catch (e) {
+          logger.warn('删除上传文件失败', { file, error: e })
+        }
+      }
+    }
+    
+    logger.info('完全数据清理完成')
+    
+    res.json({ 
+      success: true, 
+      data: { 
+        message: '所有数据已清理完成',
+        timestamp: new Date().toISOString()
+      } 
+    })
+  } catch (err) {
+    logger.error('完全数据清理失败', err)
+    res.status(500).json({ success: false, error: { message: '清理失败' } })
+  }
+})
+
 // ========== SPA 路由回退 (生产环境) ==========
 // 必须放在所有 API 路由之后
 if (process.env.NODE_ENV === 'production') {

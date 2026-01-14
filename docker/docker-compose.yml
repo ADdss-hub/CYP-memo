@@ -6,10 +6,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        - VERSION=1.8.1
+        - VERSION=1.9.2
         - BUILD_DATE=${BUILD_DATE:-}
         - GIT_COMMIT=${GIT_COMMIT:-}
-    image: cyp-memo:latest
+    image: cyp97/cyp-memo:latest
     container_name: cyp-memo
     ports:
       - "5170:5170"
@@ -30,6 +30,9 @@ services:
       - PUID=${PUID:-1001}
       - PGID=${PGID:-1001}
     restart: unless-stopped
+    labels:
+      # Watchtower 自动更新标签
+      - "com.centurylinklabs.watchtower.enable=true"
     
     # 安全加固配置
     security_opt:
@@ -51,6 +54,29 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+    networks:
+      - cyp-memo-network
+
+  # Watchtower 自动更新服务（可选）
+  # 每小时检测一次镜像更新，自动拉取并重启容器
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=Asia/Shanghai
+      # 每小时检测一次更新（3600秒）
+      - WATCHTOWER_POLL_INTERVAL=3600
+      # 只更新带有 watchtower.enable=true 标签的容器
+      - WATCHTOWER_LABEL_ENABLE=true
+      # 更新后清理旧镜像
+      - WATCHTOWER_CLEANUP=true
+      # 启用通知（可选，需要配置）
+      # - WATCHTOWER_NOTIFICATIONS=email
+      # - WATCHTOWER_NOTIFICATION_EMAIL_FROM=your@email.com
+      # - WATCHTOWER_NOTIFICATION_EMAIL_TO=your@email.com
+    restart: unless-stopped
     networks:
       - cyp-memo-network
 
