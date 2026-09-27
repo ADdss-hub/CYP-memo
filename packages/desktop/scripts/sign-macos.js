@@ -8,7 +8,7 @@
  * - CSC_LINK: 证书文件路径（.p12）或 base64 编码的证书
  * - CSC_KEY_PASSWORD: 证书密码
  * - CSC_NAME: 证书名称（用于从钥匙串中选择）
- * - APPLE_ID: Apple 开发者账号（用于公证）
+ * - APPLE_ID: Apple Developer 账号（用于公证）
  * - APPLE_ID_PASSWORD: 应用专用密码
  * - APPLE_TEAM_ID: 团队 ID
  * 
@@ -81,7 +81,7 @@ function checkMacOSSigningConfig() {
 }
 
 /**
- * 列出钥匙串中的开发者证书
+ * 列出钥匙串中的代码签名证书
  */
 function listDeveloperCertificates() {
   if (process.platform !== 'darwin') {

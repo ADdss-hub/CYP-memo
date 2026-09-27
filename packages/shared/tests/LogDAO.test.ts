@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo LogDAO 单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

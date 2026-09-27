@@ -1,9 +1,10 @@
-﻿/**
+/**
  * CYP-memo 备忘录数据访问对象
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
-import { getStorage } from '../storage'
+import { getStorage, storageManager } from '../storage'
+import { db } from './db'
 import type { Memo, MemoHistory } from '../types'
 
 /**
@@ -36,9 +37,12 @@ export class MemoDAO {
 
   /**
    * 获取所有备忘录（包括已删除）
+   * local：Dexie 全表（单测/离线）；remote：禁止跨租户拉取，请用 getByUserId
    */
   async getAll(): Promise<Memo[]> {
-    // 注意：此方法需要管理员权限，实际使用时需要遍历所有用户
+    if (storageManager.isInitialized() && storageManager.getMode() === 'local') {
+      return await db.memos.toArray()
+    }
     throw new Error('getAll 方法不支持，请使用 getByUserId')
   }
 

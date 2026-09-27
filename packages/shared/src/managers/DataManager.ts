@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 数据持久化管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -40,12 +40,22 @@ export class DataManager {
    */
   async importFromJSON(jsonString: string, merge = false): Promise<void> {
     try {
-      // 如果不是合并模式，先清空数据库
+      let parsed: { version?: string }
+      try {
+        parsed = JSON.parse(jsonString)
+      } catch {
+        throw new Error('无效的 JSON 格式')
+      }
+      if (!parsed || typeof parsed !== 'object' || !parsed.version) {
+        throw new Error('缺少版本信息')
+      }
+
+      // 覆盖模式先清空；合并模式由适配器 bulkPut 不整库清空
       if (!merge) {
         await this.clearAllData()
       }
 
-      await getStorage().importData(jsonString)
+      await getStorage().importData(jsonString, { merge })
 
       await logManager.info('数据导入成功', {
         action: 'data_import',
@@ -91,8 +101,19 @@ export class DataManager {
    */
   async validateDataIntegrity(): Promise<boolean> {
     try {
-      // 获取统计信息以验证数据库可访问性
       await this.getStatistics()
+
+      // 本地模式：检测孤立备忘录（userId 无对应用户）
+      const { storageManager } = await import('../storage')
+      if (storageManager.isInitialized() && storageManager.getAdapter().getMode() === 'local') {
+        const { db } = await import('../database/db')
+        const userIds = new Set((await db.users.toArray()).map((u) => u.id))
+        const orphan = await db.memos.filter((m) => !userIds.has(m.userId)).first()
+        if (orphan) {
+          return false
+        }
+      }
+
       return true
     } catch (error) {
       await logManager.error(error instanceof Error ? error : new Error(String(error)), {

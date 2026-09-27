@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Toast 提示 Composable
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

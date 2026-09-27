@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 格式化工具
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

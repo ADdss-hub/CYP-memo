@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 性能测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  * 
@@ -61,7 +61,7 @@ describe('性能测试', () => {
     })
 
     it('备忘录列表页面加载时间应小于 2 秒', async () => {
-      // 模拟已登录状态
+      // mock 已登录状态
       const authStore = useAuthStore(pinia)
       authStore.currentUser = {
         id: 'test-user',
@@ -345,7 +345,7 @@ describe('性能测试', () => {
         },
       })
 
-      // 模拟滚动事件
+      // mock 滚动事件
       const scrollTimes: number[] = []
       for (let i = 0; i < 10; i++) {
         const scrollTime = await measureTime(async () => {

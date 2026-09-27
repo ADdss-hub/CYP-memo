@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   404 页面未找到
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -10,11 +10,13 @@
       <p>抱歉，您访问的页面不存在。</p>
       <el-button type="primary" @click="goHome"> 返回首页 </el-button>
     </div>
+    <AppFooter />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import AppFooter from '../components/AppFooter.vue'
 
 const router = useRouter()
 
@@ -26,15 +28,23 @@ function goHome() {
 <style scoped>
 .not-found-view {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--cyp-bg-page);
 }
 
 .not-found-content {
   text-align: center;
   color: white;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.not-found-view :deep(.app-footer) {
+  width: 100%;
+  flex-shrink: 0;
+  align-self: stretch;
 }
 
 .error-code {

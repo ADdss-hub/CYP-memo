@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 子账号管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -7,7 +7,7 @@ import { userDAO } from '../../database/UserDAO'
 import { hashPassword, generateUUID } from '../../utils/crypto'
 import { logManager } from '../LogManager'
 import { authValidator } from './AuthValidator'
-import { Permission } from '../../types'
+import { Permission, normalizeMemberPermissions } from '../../types'
 import type { User } from '../../types'
 
 /**
@@ -40,11 +40,10 @@ export class SubAccountManager {
       // 验证密码强度
       authValidator.validatePassword(password)
 
-      // 哈希密码（添加超时控制）
+      // 本地存储仍写 passwordHash；远程由服务端 bcrypt（一并传明文 password）
       let passwordHash: string
       try {
         const hashPromise = hashPassword(password)
-        // 设置 30 秒超时
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('密码哈希超时')), 30000)
         )
@@ -53,17 +52,20 @@ export class SubAccountManager {
         throw new Error(`密码处理失败: ${error instanceof Error ? error.message : '未知错误'}`)
       }
 
-      // 创建子账号对象
-      const subAccount: User = {
+      // 创建子账号对象（权限规范化：强制 profile_self，禁止 account_manage）
+      const normalizedPermissions = normalizeMemberPermissions(permissions)
+      const subAccount: User & { password: string } = {
         id: generateUUID(),
         username,
         passwordHash,
+        password,
         rememberPassword: false,
         isMainAccount: false,
         parentUserId,
-        permissions,
+        permissions: normalizedPermissions,
         createdAt: new Date(),
         lastLoginAt: new Date(),
+        role: 'member',
       }
 
       // 保存到数据库
@@ -143,8 +145,10 @@ export class SubAccountManager {
     // 验证子账号归属
     const subAccount = await authValidator.validateSubAccountOwnership(parentUserId, subAccountId)
 
-    // 更新权限
-    await userDAO.update(subAccountId, { permissions })
+    // 更新权限（规范化）
+    await userDAO.update(subAccountId, {
+      permissions: normalizeMemberPermissions(permissions),
+    })
 
     // 记录日志
     await logManager.info('更新子账号权限', {

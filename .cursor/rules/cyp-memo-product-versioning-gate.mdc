@@ -1,0 +1,36 @@
+---
+description: CYP-memo 产品版本史门禁（改码必写史·未提交同批禁 bump·禁脚本代写）
+alwaysApply: true
+---
+
+# CYP-memo · 产品版本史门禁（强制 · 勿等用户提醒）
+
+权威：`docs/PRODUCT_VERSIONING.md` + 军械库《已上线产品版本化管理条例》（P2 / P2.1 / P3 / P5 / P9 / P12）。
+
+## 完成前自检（改产品代码/配置/删除能力时不可跳过）
+
+1. **有产品变更？** feat/fix/perf/refactor/docs（产品可见）/chore/test（新增测试资产）/remove/breaking → **必须写史**。
+2. **批次门**：当前 `VERSION` 若尚未作为基线 commit/tag → **禁止** `pnpm version:bump`；用 Edit/StrReplace **并入当前 VERSION** 的三处：
+   - `CHANGELOG.md`
+   - `.version/changelog.json`
+   - `.version/VERSION_HISTORY.md`
+3. **已提交基线**且用户/流程明示升版 → 先 `pnpm version:bump`，再改码。
+4. **禁止**用 Shell/Python/`node -e`/临时脚本代写上述三处或 `.workbuddy/memory/`（P12）。
+5. 宣称完成前跑 `pnpm version:info`（或 `verify-version`）退出码 0；答复须点明「已并入/已升版 + 条目一句话」。
+
+## 明确不写版本史（只写工作日志）
+
+- 纯核验 / 纯联调 / 只读排查，**零产品文件变更**
+- 仅改 `.workbuddy/memory/`、临时探针、本地运行时数据
+
+## 与 R-024 联动（禁止假完成）
+
+- 版本史写「已修好」前，对应产品文件须在**当前工作区**可核验；禁止整文件 `git checkout`/`restore` 后再靠旧 CHANGELOG 条目冒充仍有效（见 `cyp-memo-no-wholefile-rollback-gate`）。
+- 长期大批未提交产品改动时：用户若要求固化，应优先基线 commit，而非继续只写史。
+
+## 反例（禁止）
+
+- 改完功能只回「已修好」却不改 CHANGELOG / `.version/*`
+- 未提交同批仍机械 bump patch
+- 等用户说「写一下版本史」才补 —— **视为本规则失败**
+- 整文件回滚清掉 UI 后，CHANGELOG 仍保留「分享评论已修好」却不再复检工作区

@@ -6,10 +6,6 @@
 
 import { Menu, app, shell, BrowserWindow, dialog } from 'electron'
 
-// 开发模式标志 - 使用 app.isPackaged 判断是否为打包后的应用
-// 打包后的应用 app.isPackaged 为 true，此时不是开发模式
-const isDev = !app.isPackaged
-
 export class MenuManager {
   private mainWindow: BrowserWindow | null = null
 
@@ -90,8 +86,8 @@ export class MenuManager {
         submenu: [
           { label: '重新加载', role: 'reload' },
           { label: '强制重新加载', role: 'forceReload' },
-          // 开发者工具 - 始终显示以便调试
-          { label: '开发者工具', role: 'toggleDevTools' as const },
+          // 调试工具 - 始终显示以便调试
+          { label: '调试工具', role: 'toggleDevTools' as const },
           { type: 'separator' as const },
           { label: '实际大小', role: 'resetZoom' },
           { label: '放大', role: 'zoomIn' },

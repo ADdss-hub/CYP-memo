@@ -151,7 +151,7 @@ function checkCIEnvironment() {
       console.log('   Platform: Travis CI')
     }
   } else {
-    console.log('ℹ️  Not running in CI environment')
+    console.log('[info] Not running in CI environment')
     console.log('   Notarization will be skipped in local builds')
   }
   
@@ -182,7 +182,7 @@ if (!hasWindowsSigning && !hasMacOSSigning) {
   console.log('⚠️  No code signing configured!')
   console.log('   Builds will not be signed and may trigger security warnings.')
   console.log('')
-  console.log('For development, this is usually fine.')
+  console.log('For local tooling this is usually fine.')
   console.log('For production releases, configure code signing.')
 }
 

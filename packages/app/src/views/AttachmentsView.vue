@@ -1,5 +1,5 @@
-﻿<!--
-  附件管理界面
+<!--
+  文件库界面（全格式存储与管理）
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
@@ -8,7 +8,7 @@
       <el-menu :default-active="activeFilter" class="sidebar-menu">
         <el-menu-item index="all" @click="filterByType('all')">
           <el-icon><Files /></el-icon>
-          <span>全部附件</span>
+          <span>全部文件</span>
         </el-menu-item>
         <el-menu-item index="image" @click="filterByType('image')">
           <el-icon><Picture /></el-icon>
@@ -18,9 +18,17 @@
           <el-icon><Document /></el-icon>
           <span>文本</span>
         </el-menu-item>
-        <el-menu-item index="application" @click="filterByType('application')">
+        <el-menu-item index="video" @click="filterByType('video')">
           <el-icon><Folder /></el-icon>
-          <span>其他</span>
+          <span>视频</span>
+        </el-menu-item>
+        <el-menu-item index="audio" @click="filterByType('audio')">
+          <el-icon><Folder /></el-icon>
+          <span>音频</span>
+        </el-menu-item>
+        <el-menu-item index="other" @click="filterByType('other')">
+          <el-icon><Folder /></el-icon>
+          <span>其他格式</span>
         </el-menu-item>
       </el-menu>
     </template>
@@ -31,7 +39,10 @@
           <Button type="text" @click="handleBack">
             <span class="back-icon">←</span> 返回
           </Button>
-          <h1 class="page-title">附件管理</h1>
+          <div class="title-block">
+            <h1 class="page-title">文件库</h1>
+            <p class="page-subtitle">同一文件可同时关联多条备忘录，取消某一条关联不会影响其它备忘录</p>
+          </div>
         </div>
 
         <!-- 存储空间信息 -->
@@ -41,9 +52,13 @@
               <el-icon><FolderOpened /></el-icon>
             </div>
             <div class="storage-details">
-              <div class="storage-label">存储空间使用情况</div>
+              <div class="storage-label">存储空间</div>
               <div class="storage-value">
                 {{ formatFileSize(storageInfo.used) }} / {{ formatFileSize(storageInfo.total) }}
+              </div>
+              <div class="storage-account">
+                本账号文件占用 {{ formatFileSize(storageInfo.accountUsed) }} · 可用
+                {{ formatFileSize(storageInfo.available) }}
               </div>
               <el-progress
                 :percentage="storagePercentage"
@@ -65,6 +80,15 @@
           >
             全选
           </el-checkbox>
+          <span v-if="selectedFiles.length > 0" class="selection-impact">
+            已选 {{ selectedFiles.length }}
+            <template v-if="selectedLinkedFileCount > 0">
+              · {{ selectedLinkedFileCount }} 个正被备忘录使用
+            </template>
+          </span>
+          <el-button type="primary" :icon="Upload" :loading="uploading" @click="triggerUpload">
+            上传文件
+          </el-button>
           <el-button
             v-if="selectedFiles.length > 0"
             type="danger"
@@ -73,6 +97,14 @@
           >
             删除选中 ({{ selectedFiles.length }})
           </el-button>
+          <input
+            ref="uploadInputRef"
+            type="file"
+            accept="*/*"
+            multiple
+            class="hidden-upload"
+            @change="handleUploadChange"
+          />
         </div>
 
         <div class="toolbar-right">
@@ -89,7 +121,7 @@
       </div>
 
       <div v-else-if="filteredFiles.length === 0" class="empty-container">
-        <el-empty description="暂无附件" />
+        <el-empty description="暂无文件（支持全部格式上传）" />
       </div>
 
       <div v-else class="attachments-grid">
@@ -110,8 +142,8 @@
           <div class="attachment-preview" @click="handlePreview(file)">
             <!-- 图片预览 -->
             <img
-              v-if="file.type.startsWith('image/')"
-              :src="getFilePreviewUrl(file.id)"
+              v-if="file.type.startsWith('image/') && thumbUrl(file.id)"
+              :src="thumbUrl(file.id)"
               :alt="file.filename"
               class="preview-image"
             />
@@ -128,21 +160,46 @@
             <div class="attachment-name" :title="file.filename">
               {{ file.filename }}
             </div>
-            <div class="attachment-memo" :title="getMemoTitle(file.memoId)">
-              <el-icon><Document /></el-icon>
-              {{ getMemoTitle(file.memoId) }}
+            <div class="attachment-memo">
+              <template v-if="linkedMemosOf(file).length === 0">
+                <span class="memo-empty">未关联备忘录</span>
+              </template>
+              <template v-else>
+                <div class="memo-usage">
+                  已被 {{ linkedMemosOf(file).length }} 条备忘录使用
+                </div>
+                <div class="memo-chip-list">
+                  <button
+                    v-for="memo in linkedMemosOf(file).slice(0, 3)"
+                    :key="memo.id"
+                    type="button"
+                    class="memo-chip"
+                    :title="memo.title || '无标题备忘录'"
+                    @click="openMemo(memo.id)"
+                  >
+                    {{ memo.title || '无标题备忘录' }}
+                  </button>
+                  <span
+                    v-if="linkedMemosOf(file).length > 3"
+                    class="memo-more"
+                    :title="linkedMemosOf(file).slice(3).map((m) => m.title || '无标题备忘录').join('、')"
+                  >
+                    +{{ linkedMemosOf(file).length - 3 }}
+                  </span>
+                </div>
+              </template>
             </div>
-            <div v-if="getMemoTags(file.memoId).length > 0" class="attachment-tags">
+            <div v-if="tagsOf(file).length > 0" class="attachment-tags" title="来自关联备忘录的标签">
               <el-tag
-                v-for="tag in getMemoTags(file.memoId).slice(0, 3)"
+                v-for="tag in tagsOf(file).slice(0, 3)"
                 :key="tag"
                 size="small"
                 type="info"
               >
                 {{ tag }}
               </el-tag>
-              <el-tag v-if="getMemoTags(file.memoId).length > 3" size="small" type="info">
-                +{{ getMemoTags(file.memoId).length - 3 }}
+              <el-tag v-if="tagsOf(file).length > 3" size="small" type="info">
+                +{{ tagsOf(file).length - 3 }}
               </el-tag>
             </div>
             <div class="attachment-meta">
@@ -157,9 +214,12 @@
             </div>
           </div>
 
-          <div class="attachment-actions">
+            <div class="attachment-actions">
             <el-button type="primary" :icon="Download" size="small" @click="handleDownload(file)">
               下载
+            </el-button>
+            <el-button type="success" size="small" @click="openLinkMemoDialog(file)">
+              {{ linkedMemosOf(file).length > 0 ? '管理关联' : '关联备忘录' }}
             </el-button>
             <el-button type="danger" :icon="Delete" size="small" @click="handleDelete(file)">
               删除
@@ -173,7 +233,7 @@
         <div class="preview-container">
           <img
             v-if="previewFile && previewFile.type.startsWith('image/')"
-            :src="getFilePreviewUrl(previewFile.id)"
+            :src="thumbUrl(previewFile.id)"
             :alt="previewFile.filename"
             class="preview-full-image"
           />
@@ -183,15 +243,44 @@
           </div>
         </div>
       </el-dialog>
+
+      <!-- 关联备忘录 -->
+      <el-dialog v-model="linkMemoVisible" title="管理备忘录关联" width="480px">
+        <p class="link-memo-hint">
+          可同时勾选多条备忘录。取消勾选只解除这一条，文件仍留在文件库，其它备忘录不受影响。
+        </p>
+        <el-input
+          v-model="linkMemoFilter"
+          placeholder="搜索备忘录标题..."
+          clearable
+          style="margin-bottom: 12px"
+        />
+        <div v-if="linkMemoCandidates.length === 0" class="link-memo-empty">暂无匹配的备忘录</div>
+        <el-checkbox-group v-else v-model="linkTargetMemoIds" class="link-memo-list">
+          <el-checkbox
+            v-for="memo in linkMemoCandidates"
+            :key="memo.id"
+            :label="memo.id"
+            class="link-memo-item"
+          >
+            {{ memo.title || '无标题备忘录' }}
+          </el-checkbox>
+        </el-checkbox-group>
+        <template #footer>
+          <el-button @click="linkMemoVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmLinkMemo">保存关联</el-button>
+        </template>
+      </el-dialog>
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { fileManager, formatFileSize, memoManager } from '@cyp-memo/shared'
+import { useMemoStore } from '../stores/memo'
+import { fileManager, formatFileSize } from '@cyp-memo/shared'
 import type { FileMetadata, Memo } from '@cyp-memo/shared'
 import { useToast } from '../composables/useToast'
 import AppLayout from '../components/AppLayout.vue'
@@ -206,22 +295,38 @@ import {
   Delete,
   Download,
   Clock,
-  PriceTag,
+  Upload,
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const memoStore = useMemoStore()
 const toast = useToast()
 
 // 状态
 const loading = ref(false)
+const uploading = ref(false)
+const uploadInputRef = ref<HTMLInputElement | null>(null)
 const allFiles = ref<FileMetadata[]>([])
 const activeFilter = ref('all')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 const selectedFiles = ref<string[]>([])
 const previewVisible = ref(false)
 const previewFile = ref<FileMetadata | null>(null)
+
+// 关联备忘录对话框
+const linkMemoVisible = ref(false)
+const linkMemoFile = ref<FileMetadata | null>(null)
+const linkTargetMemoIds = ref<string[]>([])
+const linkMemoFilter = ref('')
+const linkMemoOptions = ref<Memo[]>([])
+
+const linkMemoCandidates = computed(() => {
+  const q = linkMemoFilter.value.trim().toLowerCase()
+  if (!q) return linkMemoOptions.value
+  return linkMemoOptions.value.filter((m) => (m.title || '').toLowerCase().includes(q))
+})
 
 // 备忘录信息缓存（用于显示标题和标签）
 const memoCache = ref<Map<string, Memo>>(new Map())
@@ -231,21 +336,61 @@ const storageInfo = ref({
   used: 0,
   total: 0,
   available: 0,
+  accountUsed: 0,
 })
 
 // 文件预览 URL 缓存
-const previewUrls = new Map<string, string>()
+const previewUrls = ref<Record<string, string>>({})
+
+function thumbUrl(fileId: string): string {
+  return previewUrls.value[fileId] || ''
+}
+
+async function rememberThumb(fileId: string, blob: Blob): Promise<void> {
+  const prev = previewUrls.value[fileId]
+  if (prev) URL.revokeObjectURL(prev)
+  previewUrls.value = { ...previewUrls.value, [fileId]: URL.createObjectURL(blob) }
+}
+
+async function loadImageThumbs(files: FileMetadata[]): Promise<void> {
+  const images = files.filter(
+    (file) => (file.type || '').startsWith('image/') && file.size < 2 * 1024 * 1024
+  )
+  for (const file of images) {
+    if (previewUrls.value[file.id]) continue
+    try {
+      const blob = await fileManager.getFile(file.id)
+      await rememberThumb(file.id, blob)
+    } catch {
+      /* 缩略图失败不挡住列表 */
+    }
+  }
+}
 
 // 计算属性
 const filteredFiles = computed(() => {
   let files = allFiles.value
 
-  // 按类型筛选
-  if (activeFilter.value !== 'all') {
-    files = files.filter((file) => file.type.startsWith(activeFilter.value + '/'))
+  if (activeFilter.value === 'image') {
+    files = files.filter((file) => (file.type || '').startsWith('image/'))
+  } else if (activeFilter.value === 'text') {
+    files = files.filter((file) => (file.type || '').startsWith('text/'))
+  } else if (activeFilter.value === 'video') {
+    files = files.filter((file) => (file.type || '').startsWith('video/'))
+  } else if (activeFilter.value === 'audio') {
+    files = files.filter((file) => (file.type || '').startsWith('audio/'))
+  } else if (activeFilter.value === 'other') {
+    files = files.filter((file) => {
+      const t = (file.type || '').toLowerCase()
+      return (
+        !t.startsWith('image/') &&
+        !t.startsWith('text/') &&
+        !t.startsWith('video/') &&
+        !t.startsWith('audio/')
+      )
+    })
   }
 
-  // 按时间排序
   files = [...files].sort((a, b) => {
     const timeA = new Date(a.uploadedAt).getTime()
     const timeB = new Date(b.uploadedAt).getTime()
@@ -274,82 +419,130 @@ const isIndeterminate = computed(() => {
   return selectedFiles.value.length > 0 && selectedFiles.value.length < filteredFiles.value.length
 })
 
+const selectedLinkedFileCount = computed(() => {
+  const selected = new Set(selectedFiles.value)
+  return allFiles.value.filter((file) => selected.has(file.id) && linkedMemosOf(file).length > 0)
+    .length
+})
+
 const storagePercentage = computed(() => {
   if (storageInfo.value.total === 0) return 0
   return Math.round((storageInfo.value.used / storageInfo.value.total) * 100)
 })
 
 /**
- * 加载附件列表
+ * 加载文件库列表
  */
 async function loadAttachments() {
   if (!authStore.currentUser) return
 
   loading.value = true
   try {
-    // 根据排序方式加载文件
+    const userId = authStore.currentUser.id
     const ascending = sortOrder.value === 'asc'
-    allFiles.value = await fileManager.getFilesByUploadTime(authStore.currentUser.id, ascending)
-
-    // 加载存储信息
-    storageInfo.value = await fileManager.getStorageUsage(authStore.currentUser.id)
-
-    // 加载关联的备忘录信息
-    await loadMemoInfo()
+    const [files, storage] = await Promise.all([
+      fileManager.getFilesByUploadTime(userId, ascending),
+      fileManager.getStorageUsage(userId),
+      loadMemoInfo(),
+    ])
+    allFiles.value = files
+    storageInfo.value = storage
+    void loadImageThumbs(files)
   } catch (error) {
-    console.error('加载附件列表失败:', error)
+    console.error('加载文件库失败:', error)
     const errorMessage = error instanceof Error ? error.message : '未知错误'
-    toast.error(`加载附件列表失败: ${errorMessage}，如有问题请联系系统管理员`)
+    toast.error(`加载文件库失败: ${errorMessage}，如有问题请联系系统管理员`)
   } finally {
     loading.value = false
   }
 }
 
-/**
- * 加载备忘录信息（用于显示标题和标签）
- */
-async function loadMemoInfo() {
-  if (!authStore.currentUser) return
+function triggerUpload() {
+  uploadInputRef.value?.click()
+}
 
-  // 获取所有有关联备忘录的文件的 memoId
-  const memoIds = new Set<string>()
-  allFiles.value.forEach(file => {
-    if (file.memoId) {
-      memoIds.add(file.memoId)
-    }
-  })
+async function handleUploadChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+  input.value = ''
+  if (!files.length || !authStore.currentUser) return
 
-  // 加载每个备忘录的信息
-  for (const memoId of memoIds) {
-    if (!memoCache.value.has(memoId)) {
-      try {
-        const memo = await memoManager.getMemo(memoId)
-        if (memo) {
-          memoCache.value.set(memoId, memo)
+  const maxSize = 10 * 1024 * 1024 * 1024
+  uploading.value = true
+  let ok = 0
+  try {
+    const results = await Promise.allSettled(
+      files.map(async (file) => {
+        if (file.size > maxSize) {
+          throw new Error(`${file.name} 超过 10GB`)
         }
-      } catch (error) {
-        console.warn(`加载备忘录 ${memoId} 信息失败:`, error)
+        // 无 memoId：入库为独立文件，可稍后关联备忘录；accept=*/* 全格式
+        return fileManager.uploadFile(authStore.currentUser!.id, file)
+      })
+    )
+    for (const r of results) {
+      if (r.status === 'fulfilled') ok++
+      else {
+        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason)
+        toast.warning(msg || '上传失败')
       }
     }
+    if (ok > 0) {
+      toast.success(`已上传 ${ok} 个文件到文件库`)
+      await loadAttachments()
+    }
+  } finally {
+    uploading.value = false
   }
 }
 
 /**
- * 获取文件关联的备忘录标题
+ * 加载备忘录，用于汇总一个文件被哪些备忘录使用
  */
-function getMemoTitle(memoId: string | undefined): string {
-  if (!memoId) return '未关联备忘录'
-  const memo = memoCache.value.get(memoId)
-  return memo?.title || '无标题备忘录'
+async function loadMemoInfo() {
+  if (!authStore.currentUser) return
+  try {
+    await memoStore.loadMemos(authStore.currentUser.id)
+    memoCache.value = new Map(memoStore.memos.map((memo) => [memo.id, memo]))
+  } catch (error) {
+    console.warn('加载备忘录信息失败:', error)
+  }
 }
 
-/**
- * 获取文件关联的备忘录标签
- */
-function getMemoTags(memoId: string | undefined): string[] {
-  if (!memoId) return []
-  const memo = memoCache.value.get(memoId)
-  return memo?.tags || []
+function linkedMemosOf(file: FileMetadata): Memo[] {
+  const ids = new Set<string>()
+  for (const memo of memoStore.memos) {
+    if (memo.deletedAt) continue
+    if ((memo.attachments || []).includes(file.id)) ids.add(memo.id)
+  }
+  if (file.memoId) ids.add(file.memoId)
+  for (const id of file.linkedMemoIds || []) ids.add(id)
+
+  const ordered = [...ids]
+  if (file.memoId) {
+    ordered.sort((a, b) => (a === file.memoId ? -1 : b === file.memoId ? 1 : 0))
+  }
+
+  const result: Memo[] = []
+  for (const id of ordered) {
+    const memo = memoCache.value.get(id) || memoStore.memos.find((item) => item.id === id)
+    if (memo && !memo.deletedAt) result.push(memo)
+  }
+  return result
+}
+
+function tagsOf(file: FileMetadata): string[] {
+  const tags = new Set<string>()
+  for (const memo of linkedMemosOf(file)) {
+    for (const tag of memo.tags || []) {
+      if (tag) tags.add(tag)
+    }
+  }
+  return [...tags]
+}
+
+function openMemo(memoId: string) {
+  router.push(`/memos/${memoId}`)
 }
 
 /**
@@ -384,28 +577,14 @@ function handleSelectAll(value: boolean) {
 }
 
 /**
- * 获取文件预览 URL
- */
-function getFilePreviewUrl(fileId: string): string {
-  if (previewUrls.has(fileId)) {
-    return previewUrls.get(fileId)!
-  }
-
-  // 异步加载文件并创建 URL
-  fileManager.getFile(fileId).then((blob) => {
-    const url = URL.createObjectURL(blob)
-    previewUrls.set(fileId, url)
-  })
-
-  return ''
-}
-
-/**
  * 预览文件
  */
 function handlePreview(file: FileMetadata) {
   previewFile.value = file
   previewVisible.value = true
+  if ((file.type || '').startsWith('image/') && !previewUrls.value[file.id]) {
+    void fileManager.getFile(file.id).then((blob) => rememberThumb(file.id, blob)).catch(() => undefined)
+  }
 }
 
 /**
@@ -435,8 +614,15 @@ async function handleDownload(file: FileMetadata) {
  */
 async function handleDelete(file: FileMetadata) {
   try {
+    const usage = linkedMemosOf(file)
+    const usageText =
+      usage.length > 0
+        ? `该文件正被 ${usage.length} 条备忘录使用（${usage
+            .map((memo) => memo.title || '无标题备忘录')
+            .join('、')}），删除后这些备忘录都不再包含此文件。`
+        : '此操作不可恢复。'
     await ElMessageBox.confirm(
-      `确定要删除文件 "${file.filename}" 吗？此操作不可恢复。`,
+      `确定要删除文件 "${file.filename}" 吗？${usageText}`,
       '确认删除',
       {
         confirmButtonText: '删除',
@@ -447,10 +633,15 @@ async function handleDelete(file: FileMetadata) {
 
     await fileManager.deleteFile(file.id)
 
+    // 同步前端备忘录缓存中的附件列表
+    syncMemoStoreAfterFileDelete([file.id], file.memoId)
+
     // 清理预览 URL
-    if (previewUrls.has(file.id)) {
-      URL.revokeObjectURL(previewUrls.get(file.id)!)
-      previewUrls.delete(file.id)
+    if (previewUrls.value[file.id]) {
+      URL.revokeObjectURL(previewUrls.value[file.id])
+      const next = { ...previewUrls.value }
+      delete next[file.id]
+      previewUrls.value = next
     }
 
     toast.success('文件删除成功')
@@ -470,8 +661,15 @@ async function handleBatchDelete() {
   if (selectedFiles.value.length === 0) return
 
   try {
+    const affected = allFiles.value.filter(
+      (file) => selectedFiles.value.includes(file.id) && linkedMemosOf(file).length > 0
+    )
+    const usageText =
+      affected.length > 0
+        ? `其中 ${affected.length} 个文件正被备忘录使用，删除后相关备忘录都会失去这些文件。`
+        : '此操作不可恢复。'
     await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedFiles.value.length} 个文件吗？此操作不可恢复。`,
+      `确定要删除选中的 ${selectedFiles.value.length} 个文件吗？${usageText}`,
       '确认批量删除',
       {
         confirmButtonText: '删除',
@@ -482,11 +680,19 @@ async function handleBatchDelete() {
 
     await fileManager.deleteFiles(selectedFiles.value)
 
+    const deletedIds = [...selectedFiles.value]
+    const memoIds = deletedIds
+      .map((id) => allFiles.value.find((f) => f.id === id)?.memoId)
+      .filter((id): id is string => !!id)
+    syncMemoStoreAfterFileDelete(deletedIds, ...memoIds)
+
     // 清理预览 URL
     selectedFiles.value.forEach((fileId) => {
-      if (previewUrls.has(fileId)) {
-        URL.revokeObjectURL(previewUrls.get(fileId)!)
-        previewUrls.delete(fileId)
+      if (previewUrls.value[fileId]) {
+        URL.revokeObjectURL(previewUrls.value[fileId])
+        const next = { ...previewUrls.value }
+        delete next[fileId]
+        previewUrls.value = next
       }
     })
 
@@ -498,6 +704,77 @@ async function handleBatchDelete() {
       console.error('批量删除文件失败:', error)
       toast.error('批量删除文件失败')
     }
+  }
+}
+
+/**
+ * 删除附件后同步前端备忘录缓存（列表 + 当前详情）
+ */
+function syncMemoStoreAfterFileDelete(fileIds: string[], ...hintMemoIds: Array<string | undefined>) {
+  const remove = new Set(fileIds)
+  const strip = (memo: { attachments?: string[] }) => {
+    if (!memo.attachments?.length) return
+    memo.attachments = memo.attachments.filter((id) => !remove.has(id))
+  }
+
+  for (const memo of memoStore.memos) {
+    strip(memo)
+  }
+  if (memoStore.currentMemo) {
+    strip(memoStore.currentMemo)
+  }
+
+  // hint 仅用于触发相关 memo 的本地一致性；服务端已权威更新
+  void hintMemoIds
+}
+
+/**
+ * 打开「关联到备忘录」对话框
+ */
+async function openLinkMemoDialog(file: FileMetadata) {
+  if (!authStore.currentUser) return
+  linkMemoFile.value = file
+  linkMemoFilter.value = ''
+  linkMemoVisible.value = true
+  try {
+    await memoStore.loadMemos(authStore.currentUser.id)
+    memoCache.value = new Map(memoStore.memos.map((memo) => [memo.id, memo]))
+    linkMemoOptions.value = memoStore.memos.filter((memo) => !memo.deletedAt)
+    linkTargetMemoIds.value = linkedMemosOf(file).map((memo) => memo.id)
+  } catch (err) {
+    console.error('加载备忘录列表失败:', err)
+    toast.error('加载备忘录列表失败')
+    linkMemoOptions.value = []
+    linkTargetMemoIds.value = []
+  }
+}
+
+/**
+ * 保存多备忘录关联（一次 PATCH）
+ */
+async function confirmLinkMemo() {
+  if (!linkMemoFile.value) return
+  const fileId = linkMemoFile.value.id
+  const nextIds = [...linkTargetMemoIds.value]
+  try {
+    await fileManager.setFileMemoLinks(fileId, nextIds)
+    const next = new Set(nextIds)
+    for (const memo of memoStore.memos) {
+      const has = (memo.attachments || []).includes(fileId)
+      const want = next.has(memo.id)
+      if (has && !want) {
+        memo.attachments = (memo.attachments || []).filter((id) => id !== fileId)
+      } else if (!has && want) {
+        memo.attachments = [...(memo.attachments || []), fileId]
+      }
+      memoCache.value.set(memo.id, memo)
+    }
+    toast.success(nextIds.length > 0 ? `已关联 ${nextIds.length} 条备忘录` : '已解除全部关联')
+    linkMemoVisible.value = false
+    await loadAttachments()
+  } catch (err) {
+    console.error('更新备忘录关联失败:', err)
+    toast.error('更新备忘录关联失败')
   }
 }
 
@@ -525,9 +802,9 @@ function formatDate(date: Date): string {
  * 获取存储空间颜色
  */
 function getStorageColor(percentage: number): string {
-  if (percentage < 50) return '#67c23a'
-  if (percentage < 80) return '#e6a23c'
-  return '#f56c6c'
+  if (percentage < 50) return 'var(--cyp-success)'
+  if (percentage < 80) return 'var(--cyp-warning)'
+  return 'var(--cyp-danger)'
 }
 
 /**
@@ -548,11 +825,9 @@ onMounted(() => {
 })
 
 // 组件卸载时清理预览 URL
-onMounted(() => {
-  return () => {
-    previewUrls.forEach((url) => URL.revokeObjectURL(url))
-    previewUrls.clear()
-  }
+onUnmounted(() => {
+  for (const url of Object.values(previewUrls.value)) URL.revokeObjectURL(url)
+  previewUrls.value = {}
 })
 </script>
 
@@ -581,8 +856,25 @@ onMounted(() => {
 .page-title {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
+}
+
+.title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.page-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cyp-text-muted);
+}
+
+.hidden-upload {
+  display: none;
 }
 
 /* 存储空间卡片 */
@@ -604,12 +896,12 @@ onMounted(() => {
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: var(--cyp-success);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: white;
+  color: var(--cyp-text);
   flex-shrink: 0;
 }
 
@@ -619,15 +911,21 @@ onMounted(() => {
 
 .storage-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin-bottom: 4px;
 }
 
 .storage-value {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
-  margin-bottom: 12px;
+  color: var(--cyp-text);
+  margin-bottom: 4px;
+}
+
+.storage-account {
+  font-size: 12px;
+  color: var(--cyp-text-muted);
+  margin-bottom: 10px;
 }
 
 /* 工具栏 */
@@ -637,7 +935,7 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 16px;
   padding: 16px;
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
@@ -677,8 +975,8 @@ onMounted(() => {
 }
 
 .attachment-card.selected {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+  border-color: var(--cyp-brand);
+  box-shadow: 0 0 0 2px var(--cyp-brand-tint);
 }
 
 .attachment-card:hover {
@@ -695,7 +993,7 @@ onMounted(() => {
   top: 12px;
   left: 12px;
   z-index: 10;
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 4px;
   padding: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -708,7 +1006,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   overflow: hidden;
 }
 
@@ -719,7 +1017,7 @@ onMounted(() => {
 }
 
 .preview-icon {
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 /* 附件信息 */
@@ -730,28 +1028,64 @@ onMounted(() => {
 .attachment-name {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
   margin-bottom: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.selection-impact {
+  font-size: 13px;
+  color: var(--cyp-text-secondary);
 }
 
 .attachment-memo {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #409eff;
   margin-bottom: 8px;
+}
+
+.memo-empty {
+  font-size: 12px;
+  color: var(--cyp-text-muted);
+}
+
+.memo-usage {
+  font-size: 12px;
+  color: var(--cyp-brand);
+  margin-bottom: 6px;
+}
+
+.memo-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.memo-chip,
+.memo-more {
+  max-width: 100%;
+  border: 1px solid var(--cyp-brand-tint-strong);
+  background: var(--cyp-brand-tint);
+  color: var(--cyp-brand);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.attachment-memo .el-icon {
-  font-size: 14px;
-  flex-shrink: 0;
+.memo-chip {
+  cursor: pointer;
+}
+
+.memo-chip:hover {
+  background: var(--cyp-brand-tint-strong);
+}
+
+.memo-more {
+  color: var(--cyp-text-secondary);
 }
 
 .attachment-tags {
@@ -778,7 +1112,7 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .meta-item .el-icon {
@@ -816,7 +1150,37 @@ onMounted(() => {
 
 .preview-text p {
   margin-bottom: 16px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
+}
+
+.link-memo-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cyp-text-secondary);
+}
+
+.link-memo-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--cyp-text-muted);
+}
+
+.link-memo-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.link-memo-item {
+  margin: 0 !important;
+  height: auto !important;
+  padding: 8px 4px;
+  white-space: normal;
 }
 
 /* 侧边栏菜单 */
@@ -852,32 +1216,4 @@ onMounted(() => {
   }
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .page-title,
-[data-theme='dark'] .attachment-name,
-[data-theme='dark'] .storage-value {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .attachment-memo {
-  color: #79bbff;
-}
-
-[data-theme='dark'] .storage-label,
-[data-theme='dark'] .meta-item {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .toolbar,
-[data-theme='dark'] .attachment-card {
-  background: #1a1a1a;
-}
-
-[data-theme='dark'] .attachment-preview {
-  background: #262727;
-}
-
-[data-theme='dark'] .attachment-checkbox {
-  background: #1a1a1a;
-}
 </style>

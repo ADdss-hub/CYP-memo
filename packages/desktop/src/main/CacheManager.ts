@@ -1,10 +1,15 @@
 /**
- * 缓存管理器
+ * 缓存管理器（desktop 本地 · 非服务端缓存组件）
  * Cache Manager for local memo storage
- * 
+ *
  * 使用加密的 SQLite 数据库存储备忘录缓存
  * Uses encrypted SQLite database for memo cache storage
- * 
+ *
+ * 【SIX-CACHE 边界】
+ * - 本类 = Electron 客户端离线/同步用本地加密缓存（better-sqlite3）
+ * - **不接入、不冒充**服务端缓存组件
+ * - 系统热路径仍以 sql.js + 进程内 EmbeddedCache 为准
+ *
  * 需求: 5.1, 5.2, 5.4 - 本地数据缓存
  */
 

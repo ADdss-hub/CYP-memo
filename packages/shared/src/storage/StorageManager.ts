@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 存储管理器
  * 统一管理存储适配器的创建和切换
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>

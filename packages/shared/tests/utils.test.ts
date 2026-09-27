@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 工具函数测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -221,6 +221,7 @@ describe('性能优化工具', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 

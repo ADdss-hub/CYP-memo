@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 权限管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

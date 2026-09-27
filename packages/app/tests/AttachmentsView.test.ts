@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 附件管理界面单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -6,10 +6,48 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { createRouter, createMemoryHistory } from 'vue-router'
 import AttachmentsView from '../src/views/AttachmentsView.vue'
 import { useAuthStore } from '../src/stores/auth'
-import { fileManager } from '@cyp-memo/shared'
+import { fileManager, memoManager } from '@cyp-memo/shared'
 import type { FileMetadata } from '@cyp-memo/shared'
+
+const viewStubs = {
+  AppLayout: {
+    template: '<div><slot /><slot name="sidebar" /></div>',
+  },
+  ElMenu: true,
+  ElMenuItem: true,
+  ElCard: true,
+  ElIcon: true,
+  ElCheckbox: true,
+  ElCheckboxGroup: true,
+  ElButton: true,
+  ElSelect: true,
+  ElOption: true,
+  ElProgress: true,
+  ElDialog: true,
+  ElEmpty: true,
+  ElTag: true,
+  ElInput: true,
+  ElRadio: true,
+  ElRadioGroup: true,
+  Loading: true,
+  Button: true,
+}
+
+function mountAttachmentsView(piniaInstance: ReturnType<typeof createPinia>) {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/', component: { template: '<div />' } }],
+  })
+  return mount(AttachmentsView, {
+    global: {
+      plugins: [piniaInstance, router],
+      stubs: viewStubs,
+    },
+  })
+}
 
 // Mock Element Plus icons
 vi.mock('@element-plus/icons-vue', () => ({
@@ -21,6 +59,7 @@ vi.mock('@element-plus/icons-vue', () => ({
   Delete: { name: 'Delete' },
   Download: { name: 'Download' },
   Clock: { name: 'Clock' },
+  Upload: { name: 'Upload' },
   SuccessFilled: { name: 'SuccessFilled' },
   CircleCloseFilled: { name: 'CircleCloseFilled' },
   WarningFilled: { name: 'WarningFilled' },
@@ -83,6 +122,10 @@ describe('AttachmentsView - 批量操作测试', () => {
 
     // 清除所有 mock
     vi.clearAllMocks()
+
+    // 默认 mock：历史孤儿附件修复（避免单测触达真实存储）
+    vi.spyOn(fileManager, 'healOrphanedMemoLinks').mockResolvedValue(0)
+    vi.spyOn(memoManager, 'getAllMemos').mockResolvedValue([])
   })
 
   it('应该支持全选功能', async () => {
@@ -96,28 +139,7 @@ describe('AttachmentsView - 批量操作测试', () => {
       total: 1000000000
     })
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 验证初始状态
@@ -144,28 +166,7 @@ describe('AttachmentsView - 批量操作测试', () => {
       total: 1000000000
     })
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 先全选
@@ -191,28 +192,7 @@ describe('AttachmentsView - 批量操作测试', () => {
       total: 1000000000
     })
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 选择第一个文件
@@ -241,28 +221,7 @@ describe('AttachmentsView - 批量操作测试', () => {
       total: 1000000000
     })
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 选择部分文件
@@ -285,28 +244,7 @@ describe('AttachmentsView - 批量操作测试', () => {
     })
     vi.spyOn(fileManager, 'deleteFiles').mockResolvedValue()
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 选择多个文件
@@ -339,28 +277,7 @@ describe('AttachmentsView - 批量操作测试', () => {
     })
     vi.spyOn(fileManager, 'deleteFiles').mockResolvedValue()
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 选择文件
@@ -392,28 +309,7 @@ describe('AttachmentsView - 批量操作测试', () => {
     })
     vi.spyOn(fileManager, 'deleteFiles').mockResolvedValue()
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 不选择任何文件，直接尝试批量删除
@@ -443,28 +339,7 @@ describe('AttachmentsView - 批量操作测试', () => {
     })
     vi.spyOn(fileManager, 'deleteFiles').mockResolvedValue()
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 验证初始加载
@@ -495,28 +370,7 @@ describe('AttachmentsView - 批量操作测试', () => {
     })
     vi.spyOn(fileManager, 'deleteFiles').mockRejectedValue(new Error('删除失败'))
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 选择文件
@@ -567,28 +421,7 @@ describe('AttachmentsView - 批量操作测试', () => {
       total: 1000000000
     })
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 筛选图片类型
@@ -636,28 +469,7 @@ describe('AttachmentsView - 批量操作测试', () => {
       total: 1000000000
     })
 
-    const wrapper = mount(AttachmentsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /><slot name="sidebar" /></div>'
-          },
-          ElMenu: true,
-          ElMenuItem: true,
-          ElCard: true,
-          ElIcon: true,
-          ElCheckbox: true,
-          ElButton: true,
-          ElSelect: true,
-          ElOption: true,
-          ElProgress: true,
-          ElDialog: true,
-          ElEmpty: true,
-          Loading: true
-        }
-      }
-    })
+    const wrapper = mountAttachmentsView(pinia)
     await flushPromises()
 
     // 选择文件

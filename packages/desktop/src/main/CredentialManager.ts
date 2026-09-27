@@ -6,7 +6,7 @@
  * - macOS: Keychain
  * - Linux: Secret Service API
  * 
- * 如果 keytar 不可用，降级为文件存储（开发模式）
+ * 如果 keytar 不可用，降级为文件存储（本机联调兜底）
  */
 
 import { app } from 'electron'
@@ -17,12 +17,27 @@ import * as crypto from 'crypto'
 // 应用服务名称前缀
 const SERVICE_PREFIX = 'cyp-memo'
 
-// 尝试加载 keytar
-let keytar: typeof import('keytar') | null = null
+type KeytarLike = {
+  setPassword: (service: string, account: string, password: string) => Promise<void>
+  getPassword: (service: string, account: string) => Promise<string | null>
+  deletePassword: (service: string, account: string) => Promise<boolean>
+  findCredentials: (service: string) => Promise<Array<{ account: string; password: string }>>
+}
+
+// 尝试加载 keytar（兼容 CJS / ESM default 互操作）
+let keytar: KeytarLike | null = null
 try {
-  keytar = require('keytar')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('keytar') as { default?: KeytarLike } & KeytarLike
+  const candidate = (mod?.default ?? mod) as KeytarLike
+  keytar = typeof candidate?.setPassword === 'function' ? candidate : null
 } catch {
   console.warn('[CredentialManager] keytar not available, using fallback file storage')
+}
+
+/** 测试注入点：覆盖/清空 keytar 实现 */
+export function __setKeytarForTests(impl: KeytarLike | null): void {
+  keytar = impl
 }
 
 /**

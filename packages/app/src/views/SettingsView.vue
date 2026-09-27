@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   CYP-memo 系统设置界面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -398,11 +398,11 @@ onMounted(() => {
   font-size: 28px;
   font-weight: 600;
   margin: 0;
-  color: var(--text-primary, #333);
+  color: var(--cyp-text);
 }
 
 .settings-section {
-  background: var(--bg-secondary, #fff);
+  background: var(--cyp-bg-card);
   border-radius: 8px;
   padding: 24px;
   margin-bottom: 20px;
@@ -413,8 +413,8 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 20px;
-  color: var(--text-primary, #333);
-  border-bottom: 2px solid var(--border-color, #e0e0e0);
+  color: var(--cyp-text);
+  border-bottom: 2px solid var(--cyp-border);
   padding-bottom: 10px;
 }
 
@@ -422,7 +422,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 16px 0;
-  border-bottom: 1px solid var(--border-color, #f0f0f0);
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .setting-item:last-child {
@@ -432,7 +432,7 @@ onMounted(() => {
 .setting-label {
   flex: 0 0 150px;
   font-weight: 500;
-  color: var(--text-primary, #333);
+  color: var(--cyp-text);
 }
 
 .setting-control {
@@ -444,15 +444,15 @@ onMounted(() => {
 
 .setting-value {
   flex: 1;
-  color: var(--text-secondary, #666);
+  color: var(--cyp-text-secondary);
 }
 
 .setting-select {
   padding: 8px 12px;
-  border: 1px solid var(--border-color, #ddd);
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary, #333);
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
   font-size: 14px;
   cursor: pointer;
   min-width: 120px;
@@ -460,12 +460,12 @@ onMounted(() => {
 
 .setting-select:focus {
   outline: none;
-  border-color: var(--primary-color, #409eff);
+  border-color: var(--cyp-brand);
 }
 
 .setting-hint {
   font-size: 12px;
-  color: var(--text-tertiary, #999);
+  color: var(--cyp-text-muted);
 }
 
 .token-control {
@@ -476,11 +476,11 @@ onMounted(() => {
 .token-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid var(--border-color, #ddd);
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary, #333);
-  font-family: monospace;
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
+  font-family: var(--cyp-font-mono);
   font-size: 14px;
 }
 
@@ -496,22 +496,22 @@ onMounted(() => {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
-  color: var(--text-primary, #333);
+  color: var(--cyp-text);
 }
 
 .form-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--border-color, #ddd);
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
   font-size: 14px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary, #333);
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--primary-color, #409eff);
+  border-color: var(--cyp-brand);
 }
 
 .form-actions {
@@ -527,41 +527,8 @@ onMounted(() => {
 
 .import-confirm p {
   margin-bottom: 12px;
-  color: var(--text-primary, #333);
+  color: var(--cyp-text);
   line-height: 1.6;
-}
-
-/* 深色主题 */
-[data-theme='dark'] .settings-view {
-  color: #e0e0e0;
-}
-
-[data-theme='dark'] .settings-title,
-[data-theme='dark'] .section-title,
-[data-theme='dark'] .setting-label,
-[data-theme='dark'] .form-group label {
-  color: #e0e0e0;
-}
-
-[data-theme='dark'] .settings-section {
-  background: #2c2c2c;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme='dark'] .setting-select,
-[data-theme='dark'] .token-input,
-[data-theme='dark'] .form-input {
-  background: #1e1e1e;
-  border-color: #444;
-  color: #e0e0e0;
-}
-
-[data-theme='dark'] .setting-value {
-  color: #b0b0b0;
-}
-
-[data-theme='dark'] .setting-hint {
-  color: #888;
 }
 
 /* 字体大小 */

@@ -1,5 +1,9 @@
 <template>
-  <div id="app" :data-theme="settingsStore.settings.theme" :data-font-size="settingsStore.settings.fontSize">
+  <div
+    class="app-root"
+    :data-theme="settingsStore.settings.theme"
+    :data-font-size="settingsStore.settings.fontSize"
+  >
     <router-view />
     <TermsDialog />
     <SessionExpiredDialog 
@@ -57,12 +61,16 @@ function applyTheme() {
   }
 }
 
+// 尽早应用主题（避免首屏 Element Plus 浅色闪一下）
+applyTheme()
+
 // 监听主题变化
 watch(
   () => settingsStore.settings.theme,
   () => {
     applyTheme()
-  }
+  },
+  { immediate: true }
 )
 
 // 监听字体大小变化
@@ -168,34 +176,23 @@ onUnmounted(() => {
 </script>
 
 <style>
-#app {
-  font-family:
-    'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑',
-    Arial, sans-serif;
+.app-root {
+  font-family: var(--cyp-font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  width: 100%;
+  min-height: 100%;
 }
 
-/* 全局主题变量 */
+/* 全局主题变量：权威源见 styles/theme.css（军械库 #0099FF） */
 :root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f7fa;
-  --text-primary: #303133;
-  --text-secondary: #606266;
-  --text-tertiary: #909399;
-  --border-color: #dcdfe6;
-  --primary-color: #409eff;
-}
-
-[data-theme='dark'],
-html.dark {
-  --bg-primary: #1d1e1f;
-  --bg-secondary: #262727;
-  --text-primary: #e5eaf3;
-  --text-secondary: #cfd3dc;
-  --text-tertiary: #8a8f99;
-  --border-color: #414243;
-  --primary-color: #409eff;
+  --bg-primary: var(--cyp-bg-card);
+  --bg-secondary: var(--cyp-bg-page);
+  --text-primary: var(--cyp-text);
+  --text-secondary: var(--cyp-text-secondary);
+  --text-tertiary: var(--cyp-text-muted);
+  --border-color: var(--cyp-border);
+  --primary-color: var(--cyp-brand);
 }
 
 /* 全局字体大小 */
@@ -211,202 +208,5 @@ html.dark {
   font-size: 16px;
 }
 
-/* 应用主题到 body */
-body[data-theme='dark'],
-html.dark body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-/* Element Plus 深色主题全局覆盖 */
-html.dark .el-card {
-  --el-card-bg-color: var(--bg-secondary);
-  --el-card-border-color: var(--border-color);
-  background-color: var(--bg-secondary);
-  border-color: var(--border-color);
-}
-
-html.dark .el-card__header {
-  border-bottom-color: var(--border-color);
-}
-
-html.dark .el-dialog {
-  --el-dialog-bg-color: var(--bg-secondary);
-  --el-dialog-title-font-size: 18px;
-  background-color: var(--bg-secondary);
-}
-
-html.dark .el-dialog__header {
-  border-bottom-color: var(--border-color);
-}
-
-html.dark .el-dialog__title {
-  color: var(--text-primary);
-}
-
-html.dark .el-dialog__body {
-  color: var(--text-secondary);
-}
-
-html.dark .el-form-item__label {
-  color: var(--text-secondary);
-}
-
-html.dark .el-input__wrapper {
-  background-color: var(--bg-primary);
-  box-shadow: 0 0 0 1px var(--border-color) inset;
-}
-
-html.dark .el-input__inner {
-  color: var(--text-primary);
-}
-
-html.dark .el-input__inner::placeholder {
-  color: var(--text-tertiary);
-}
-
-html.dark .el-select .el-input__wrapper {
-  background-color: var(--bg-primary);
-}
-
-html.dark .el-select-dropdown {
-  background-color: var(--bg-secondary);
-  border-color: var(--border-color);
-}
-
-html.dark .el-select-dropdown__item {
-  color: var(--text-primary);
-}
-
-html.dark .el-select-dropdown__item.hover,
-html.dark .el-select-dropdown__item:hover {
-  background-color: var(--bg-primary);
-}
-
-html.dark .el-table {
-  --el-table-bg-color: var(--bg-secondary);
-  --el-table-tr-bg-color: var(--bg-secondary);
-  --el-table-header-bg-color: var(--bg-primary);
-  --el-table-row-hover-bg-color: var(--bg-primary);
-  --el-table-border-color: var(--border-color);
-  --el-table-text-color: var(--text-primary);
-  --el-table-header-text-color: var(--text-primary);
-}
-
-html.dark .el-table th.el-table__cell {
-  background-color: var(--bg-primary);
-}
-
-html.dark .el-menu {
-  --el-menu-bg-color: var(--bg-secondary);
-  --el-menu-text-color: var(--text-primary);
-  --el-menu-hover-bg-color: var(--bg-primary);
-  --el-menu-active-color: var(--primary-color);
-  background-color: var(--bg-secondary);
-  border-right-color: var(--border-color);
-}
-
-html.dark .el-menu-item {
-  color: var(--text-primary);
-}
-
-html.dark .el-menu-item:hover {
-  background-color: var(--bg-primary);
-}
-
-html.dark .el-menu-item.is-active {
-  color: var(--primary-color);
-  background-color: var(--bg-primary);
-}
-
-html.dark .el-empty__description {
-  color: var(--text-tertiary);
-}
-
-html.dark .el-alert {
-  --el-alert-bg-color: var(--bg-primary);
-}
-
-html.dark .el-checkbox__label {
-  color: var(--text-primary);
-}
-
-html.dark .el-date-picker {
-  --el-datepicker-bg-color: var(--bg-secondary);
-  --el-datepicker-border-color: var(--border-color);
-  --el-datepicker-text-color: var(--text-primary);
-}
-
-html.dark .el-picker-panel {
-  background-color: var(--bg-secondary);
-  border-color: var(--border-color);
-}
-
-html.dark .el-date-picker__header-label {
-  color: var(--text-primary);
-}
-
-html.dark .el-picker-panel__content {
-  color: var(--text-primary);
-}
-
-html.dark .el-date-table td.available:hover {
-  background-color: var(--bg-primary);
-}
-
-html.dark .el-textarea__inner {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  border-color: var(--border-color);
-}
-
-html.dark .el-textarea__inner::placeholder {
-  color: var(--text-tertiary);
-}
-
-/* 滚动条样式 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #999;
-}
-
-/* 深色主题滚动条 */
-html.dark ::-webkit-scrollbar-thumb {
-  background: #555;
-}
-
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #777;
-}
-
-/* Firefox 滚动条 */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #ccc transparent;
-}
-
-*:hover {
-  scrollbar-color: #999 transparent;
-}
-
-html.dark * {
-  scrollbar-color: #555 transparent;
-}
-
-html.dark *:hover {
-  scrollbar-color: #777 transparent;
-}
+/* Element Plus / 滚动条皮肤已上移至 styles/theme.css */
 </style>

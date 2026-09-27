@@ -268,14 +268,14 @@ describe('ServerConnectionManager', () => {
     })
 
     it('should return success for valid server response', async () => {
-      const mockResponse = {
+      const stubResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
           success: true,
           data: { version: '1.0.0', status: 'ok' },
         }),
       }
-      vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response)
+      vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
       const result = await manager.testConnection('http://localhost:5170')
       
@@ -285,11 +285,11 @@ describe('ServerConnectionManager', () => {
     })
 
     it('should return error for non-ok response', async () => {
-      const mockResponse = {
+      const stubResponse = {
         ok: false,
         status: 500,
       }
-      vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response)
+      vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
       const result = await manager.testConnection('http://localhost:5170')
       
@@ -298,11 +298,11 @@ describe('ServerConnectionManager', () => {
     })
 
     it('should return error for invalid response format', async () => {
-      const mockResponse = {
+      const stubResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({ invalid: 'response' }),
       }
-      vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response)
+      vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
       const result = await manager.testConnection('http://localhost:5170')
       
@@ -360,14 +360,14 @@ describe('ServerConnectionManager', () => {
     })
 
     it('should switch to remote mode with valid URL and successful connection', async () => {
-      const mockResponse = {
+      const stubResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
           success: true,
           data: { version: '1.0.0', status: 'ok' },
         }),
       }
-      vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response)
+      vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
       const result = await manager.switchMode('remote', 'http://localhost:5170')
       
@@ -396,14 +396,14 @@ describe('ServerConnectionManager', () => {
       
       // Now switch to remote mode
       vi.mocked(mockEmbeddedServer.isServerRunning).mockReturnValue(true)
-      const mockResponse = {
+      const stubResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
           success: true,
           data: { version: '1.0.0', status: 'ok' },
         }),
       }
-      vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response)
+      vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
       
       await manager.switchMode('remote', 'http://localhost:5170')
       

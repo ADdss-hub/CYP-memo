@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 文件管理器单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -82,7 +82,7 @@ describe('文件管理器单元测试', () => {
         { type: 'application/octet-stream' }
       )
 
-      // 模拟超大文件（通过修改 size 属性）
+      // mock 超大文件（通过修改 size 属性）
       Object.defineProperty(oversizedFile, 'size', {
         value: 11 * 1024 * 1024 * 1024, // 11 GB
         writable: false
@@ -337,6 +337,36 @@ describe('文件管理器单元测试', () => {
       )
       expect(updateLog).toBeDefined()
     })
+
+    it('同一文件可同时关联多条备忘录，解除其中一条不影响另一条', async () => {
+      const memoA = crypto.randomUUID()
+      const memoB = crypto.randomUUID()
+      const now = new Date()
+      for (const id of [memoA, memoB]) {
+        await memoDAO.create({
+          id,
+          userId: testUserId,
+          title: id,
+          content: 'x',
+          tags: [],
+          attachments: [],
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+
+      const file = new File([new Uint8Array(8)], 'shared.bin', { type: 'application/octet-stream' })
+      const metadata = await fileManager.uploadFile(testUserId, file)
+      await fileManager.setFileMemoLinks(metadata.id, [memoA, memoB])
+
+      expect((await memoDAO.getById(memoA))?.attachments).toContain(metadata.id)
+      expect((await memoDAO.getById(memoB))?.attachments).toContain(metadata.id)
+
+      await fileManager.setFileMemoLinks(metadata.id, [memoB])
+      expect((await memoDAO.getById(memoA))?.attachments || []).not.toContain(metadata.id)
+      expect((await memoDAO.getById(memoB))?.attachments).toContain(metadata.id)
+      expect((await fileManager.getFileMetadata(metadata.id)).memoId).toBe(memoB)
+    })
   })
 
   describe('边界情况和错误处理', () => {
@@ -398,8 +428,9 @@ describe('文件管理器单元测试', () => {
     })
 
     it('应该正确获取存储使用情况', async () => {
-      // 初始状态
+      // 初始状态（本地适配器：used=0；账号占用看 accountUsed）
       const initialUsage = await fileManager.getStorageUsage(testUserId)
+      expect(initialUsage.accountUsed).toBe(0)
       expect(initialUsage.used).toBe(0)
 
       // 上传一些文件
@@ -414,11 +445,11 @@ describe('文件管理器单元测试', () => {
         await fileManager.uploadFile(testUserId, file)
       }
 
-      // 验证存储使用情况
+      // 验证本账号占用（本地适配器不冒充磁盘 used）
       const usage = await fileManager.getStorageUsage(testUserId)
-      expect(usage.used).toBe(fileSize * fileCount)
-      expect(usage.total).toBeGreaterThanOrEqual(0)
-      expect(usage.available).toBeGreaterThanOrEqual(0)
+      expect(usage.accountUsed).toBe(fileSize * fileCount)
+      expect(usage.used).toBe(0)
+      expect(usage.total).toBe(0)
     })
 
     it('应该正确识别和清理孤立文件', async () => {

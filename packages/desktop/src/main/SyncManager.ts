@@ -305,9 +305,9 @@ export class SyncManager {
     conflict?: SyncConflict
     error?: string
   }> {
-    // 如果没有配置服务器 URL，模拟成功
+    // CI02 / Mock 禁令：无服务器 URL 禁止假成功；须显式失败保留队列
     if (!this.serverUrl) {
-      return { success: true }
+      return { success: false, error: 'Server URL not configured' }
     }
 
     try {

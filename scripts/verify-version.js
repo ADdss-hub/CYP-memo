@@ -30,10 +30,6 @@ const filesToCheck = [
     extract: (content) => JSON.parse(content).version,
   },
   {
-    path: 'packages/admin/package.json',
-    extract: (content) => JSON.parse(content).version,
-  },
-  {
     path: 'packages/shared/package.json',
     extract: (content) => JSON.parse(content).version,
   },

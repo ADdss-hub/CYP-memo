@@ -18,10 +18,23 @@ export type NetworkStatusCallback = (isOnline: boolean) => void
 export interface NetworkManagerConfig {
   /** 检查间隔（毫秒），默认 30000 (30秒) */
   checkInterval?: number
-  /** 用于检测网络的 URL，默认使用 DNS 检查 */
+  /**
+   * 用于检测网络的 URL。
+   * 默认优先读环境变量 `CYP_NETWORK_CHECK_URL`；
+   * 未配置时为 `offline-ok`（仅信 Electron net.isOnline，禁止默认境外探测）。
+   * 也可显式设为 `http://127.0.0.1` / 本机服务地址。
+   */
   checkUrl?: string
   /** 超时时间（毫秒），默认 5000 (5秒) */
   timeout?: number
+}
+
+const DEFAULT_CHECK_URL = 'offline-ok'
+
+function resolveDefaultCheckUrl(): string {
+  const fromEnv =
+    typeof process !== 'undefined' ? process.env?.CYP_NETWORK_CHECK_URL?.trim() : ''
+  return fromEnv || DEFAULT_CHECK_URL
 }
 
 /**
@@ -38,7 +51,7 @@ export class NetworkManager {
   constructor(config?: NetworkManagerConfig) {
     this.config = {
       checkInterval: config?.checkInterval ?? 30000,
-      checkUrl: config?.checkUrl ?? 'https://www.google.com',
+      checkUrl: config?.checkUrl ?? resolveDefaultCheckUrl(),
       timeout: config?.timeout ?? 5000,
     }
   }
@@ -89,9 +102,15 @@ export class NetworkManager {
 
   /**
    * 执行网络连接检查
-   * 通过发送 HEAD 请求验证网络可达性
+   * offline-ok：不发起外网探测，仅信 Electron net.isOnline()
+   * 其余：对本机/可配置 URL 发 HEAD
    */
   private async performNetworkCheck(): Promise<boolean> {
+    const url = (this.config.checkUrl || DEFAULT_CHECK_URL).trim()
+    if (!url || url === 'offline-ok' || url === 'none') {
+      return net.isOnline()
+    }
+
     return new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
         resolve(false)
@@ -100,7 +119,7 @@ export class NetworkManager {
       try {
         const request = net.request({
           method: 'HEAD',
-          url: this.config.checkUrl,
+          url,
         })
 
         request.on('response', () => {

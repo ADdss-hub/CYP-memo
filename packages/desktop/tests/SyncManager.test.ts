@@ -120,11 +120,14 @@ class TestSyncManager {
       const operations = await this.getPendingOperations()
       
       for (const operation of operations) {
-        // Without server URL, operations are considered successful
+        // CI02 / Mock 禁令：无 serverUrl 不得假成功；保留队列
         if (!this.serverUrl) {
-          this.pendingOperations = this.pendingOperations.filter(op => op.id !== operation.id)
-          result.synced++
+          result.success = false
+          result.errors.push('Server URL not configured')
+          continue
         }
+        this.pendingOperations = this.pendingOperations.filter(op => op.id !== operation.id)
+        result.synced++
       }
 
       // Notify callbacks
@@ -182,6 +185,10 @@ class TestSyncManager {
     this.conflictCallbacks.clear()
     this.pendingOperations = []
     this.conflicts = []
+  }
+
+  setServerUrl(url: string): void {
+    this.serverUrl = url
   }
 
   destroy(): void {
@@ -369,7 +376,7 @@ describe('SyncManager', () => {
       expect(result.errors).toContain('Network offline')
     })
 
-    it('should sync operations when online (no server)', async () => {
+    it('should fail sync when server URL missing (no fake success)', async () => {
       await syncManager.initialize()
       networkManager.setOnlineStatus(true)
 
@@ -384,18 +391,19 @@ describe('SyncManager', () => {
 
       const result = await syncManager.sync()
       
-      // Without server URL, operations are considered successful
-      expect(result.success).toBe(true)
-      expect(result.synced).toBe(1)
+      expect(result.success).toBe(false)
+      expect(result.synced).toBe(0)
+      expect(result.errors.some((e) => e.includes('Server URL'))).toBe(true)
       
-      // Queue should be empty after sync
+      // Queue must remain for retry
       const pending = await syncManager.getPendingCount()
-      expect(pending).toBe(0)
+      expect(pending).toBe(1)
     })
 
     it('should notify callbacks on sync complete', async () => {
       await syncManager.initialize()
       networkManager.setOnlineStatus(true)
+      syncManager.setServerUrl('https://example.com')
 
       const callback = vi.fn()
       syncManager.onSyncComplete(callback)

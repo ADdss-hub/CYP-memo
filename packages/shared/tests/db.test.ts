@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 数据库初始化测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -52,6 +52,17 @@ describe('数据库初始化', () => {
     expect(indexNames).toContain('username')
     expect(indexNames).toContain('token')
     expect(indexNames).toContain('parentUserId')
+    expect(indexNames).toContain('role')
+    expect(indexNames).toContain('tenantRootId')
+    expect(indexNames).toContain('digitalId')
+  })
+
+  it('应该保留 admins 表（兼容，upgrade 后清空）', () => {
+    const tables = testDb.tables.map((table) => table.name)
+    expect(tables).toContain('admins')
+    const adminsTable = testDb.table('admins')
+    expect(adminsTable.schema.primKey.name).toBe('id')
+    expect(adminsTable.schema.indexes.map((idx) => idx.name)).toContain('username')
   })
 
   it('应该为 memos 表定义正确的索引', () => {
@@ -138,8 +149,49 @@ describe('数据库初始化', () => {
     expect(testDb.isOpen()).toBe(true)
   })
 
-  it('应该使用版本 1', () => {
-    expect(testDb.verno).toBe(1)
+  it('应该使用版本 3（SIX-DB 身份字段）', () => {
+    expect(testDb.verno).toBe(3)
+  })
+
+  it('open 后应回填 role/tenantRootId/digitalId', async () => {
+    await testDb.open()
+    const ownerId = 'owner-smoke-1'
+    const memberId = 'member-smoke-1'
+    await testDb.users.put({
+      id: ownerId,
+      username: 'owner_smoke',
+      rememberPassword: false,
+      isMainAccount: true,
+      permissions: [],
+      createdAt: new Date(),
+      lastLoginAt: new Date(),
+    } as never)
+    await testDb.users.put({
+      id: memberId,
+      username: 'member_smoke',
+      rememberPassword: false,
+      isMainAccount: false,
+      parentUserId: ownerId,
+      permissions: [],
+      createdAt: new Date(),
+      lastLoginAt: new Date(),
+    } as never)
+
+    // 已在 v3 的库不会再次跑 upgrade；手动走投影路径验证契约
+    const { projectUserIdentityFields, allocateClientDigitalId } = await import(
+      '../src/database/identityMigration'
+    )
+    const owner = projectUserIdentityFields((await testDb.users.get(ownerId))!)
+    const member = projectUserIdentityFields((await testDb.users.get(memberId))!)
+    expect(owner.role).toBe('owner')
+    expect(owner.tenantRootId).toBe(ownerId)
+    expect(member.role).toBe('member')
+    expect(member.tenantRootId).toBe(ownerId)
+
+    const used = new Set<string>()
+    const did = allocateClientDigitalId(used)
+    expect(did).toMatch(/^\d{6}$/)
   })
 })
+
 

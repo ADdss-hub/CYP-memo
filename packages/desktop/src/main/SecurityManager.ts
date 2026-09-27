@@ -6,6 +6,7 @@
  */
 
 import { session, app } from 'electron'
+import { buildAppCsp } from '@cyp-memo/shared'
 
 /**
  * HTTPS 验证结果
@@ -20,8 +21,8 @@ export interface HttpsValidationResult {
  * CSP 配置选项
  */
 export interface CSPOptions {
-  /** 是否为开发模式 */
-  isDev?: boolean
+  /** 是否为本机联调工具链（未打包 / HMR；非独立配置面） */
+  isLocalTooling?: boolean
   /** 允许的远程服务器 URL */
   remoteServerUrl?: string
 }
@@ -152,11 +153,11 @@ export class SecurityManager {
    * @param options - CSP 配置选项
    */
   configureCSP(options: CSPOptions = {}): void {
-    const { isDev = false, remoteServerUrl } = options
+    const { isLocalTooling = false, remoteServerUrl } = options
     const defaultSession = session.defaultSession
 
     // 构建 CSP 指令
-    const cspDirectives = this.buildCSPDirectives(isDev, remoteServerUrl)
+    const cspDirectives = this.buildCSPDirectives(isLocalTooling, remoteServerUrl)
 
     // 设置响应头
     defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -173,69 +174,10 @@ export class SecurityManager {
   }
 
   /**
-   * 构建 CSP 指令字符串
+   * 构建 CSP 指令字符串（前端安全防护：与 shared buildAppCsp 单一事实源，禁止平行策略）
    */
-  private buildCSPDirectives(isDev: boolean, remoteServerUrl?: string): string {
-    // 基础 CSP 指令
-    const directives: string[] = []
-
-    // default-src: 默认只允许同源
-    directives.push("default-src 'self'")
-
-    // script-src: 脚本来源
-    if (isDev) {
-      // 开发模式允许 unsafe-eval 用于热重载
-      directives.push("script-src 'self' 'unsafe-inline' 'unsafe-eval'")
-    } else {
-      // 生产模式：Vue 打包后仍需要 unsafe-inline 用于某些动态样式
-      // 注意：这是 Vue/Vite 构建的限制，理想情况下应使用 nonce 或 hash
-      directives.push("script-src 'self' 'unsafe-inline'")
-    }
-
-    // style-src: 样式来源
-    // 允许内联样式（Vue 组件需要）
-    directives.push("style-src 'self' 'unsafe-inline'")
-
-    // img-src: 图片来源
-    directives.push("img-src 'self' data: blob:")
-
-    // font-src: 字体来源
-    directives.push("font-src 'self' data:")
-
-    // connect-src: 连接来源（API 请求等）
-    const connectSources = ["'self'"]
-    if (isDev) {
-      // 开发模式允许 WebSocket 连接（热重载）
-      connectSources.push('ws://localhost:*')
-      connectSources.push('http://localhost:*')
-    }
-    // 允许连接到配置的远程服务器
-    if (remoteServerUrl) {
-      connectSources.push(remoteServerUrl)
-    }
-    // 允许 HTTPS 连接
-    connectSources.push('https:')
-    directives.push(`connect-src ${connectSources.join(' ')}`)
-
-    // media-src: 媒体来源
-    directives.push("media-src 'self'")
-
-    // object-src: 插件来源（禁用）
-    directives.push("object-src 'none'")
-
-    // frame-src: iframe 来源（禁用）
-    directives.push("frame-src 'none'")
-
-    // base-uri: base 标签限制
-    directives.push("base-uri 'self'")
-
-    // form-action: 表单提交限制
-    directives.push("form-action 'self'")
-
-    // frame-ancestors: 防止点击劫持
-    directives.push("frame-ancestors 'none'")
-
-    return directives.join('; ')
+  private buildCSPDirectives(isLocalTooling: boolean, remoteServerUrl?: string): string {
+    return buildAppCsp(isLocalTooling, remoteServerUrl)
   }
 
   /**
@@ -248,8 +190,8 @@ export class SecurityManager {
   /**
    * 获取当前 CSP 配置（用于调试）
    */
-  getCSPConfig(isDev: boolean, remoteServerUrl?: string): string {
-    return this.buildCSPDirectives(isDev, remoteServerUrl)
+  getCSPConfig(isLocalTooling: boolean, remoteServerUrl?: string): string {
+    return this.buildCSPDirectives(isLocalTooling, remoteServerUrl)
   }
 }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 文件管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -8,6 +8,8 @@ import { memoDAO } from '../database/MemoDAO'
 import { validateFileSize } from '../utils/validation'
 import { logManager } from './LogManager'
 import { generateUUID } from '../utils/crypto'
+import { storageManager } from '../storage/StorageManager'
+import { getStorage } from '../storage'
 import type { FileMetadata, StorageInfo } from '../types'
 
 /**
@@ -52,7 +54,7 @@ export class FileManager {
       userId,
       filename: file.name,
       size: fileBlob.size,
-      type: file.type,
+      type: file.type || 'application/octet-stream',
       memoId,
       uploadedAt: new Date(),
     }
@@ -60,16 +62,27 @@ export class FileManager {
     // 保存文件到数据库
     await fileDAO.create(metadata, fileBlob)
 
-    // 记录日志
-    await logManager.info('文件上传成功', {
-      userId,
-      fileId: metadata.id,
-      filename: file.name,
-      size: fileBlob.size,
-      type: file.type,
-      memoId,
-      action: 'file_upload',
-    })
+    if (storageManager.getMode() === 'remote') {
+      void logManager.info('文件上传成功', {
+        userId,
+        fileId: metadata.id,
+        filename: file.name,
+        size: fileBlob.size,
+        type: file.type,
+        memoId,
+        action: 'file_upload',
+      })
+    } else {
+      await logManager.info('文件上传成功', {
+        userId,
+        fileId: metadata.id,
+        filename: file.name,
+        size: fileBlob.size,
+        type: file.type,
+        memoId,
+        action: 'file_upload',
+      })
+    }
 
     return metadata
   }
@@ -86,24 +99,8 @@ export class FileManager {
       throw new Error('文件不存在')
     }
 
-    // 如果文件关联了备忘录，从备忘录的附件列表中移除
-    if (metadata.memoId) {
-      try {
-        const memo = await memoDAO.getById(metadata.memoId)
-        if (memo && memo.attachments) {
-          const updatedAttachments = memo.attachments.filter(id => id !== fileId)
-          await memoDAO.update(metadata.memoId, { attachments: updatedAttachments })
-        }
-      } catch (err) {
-        // 如果更新备忘录失败，记录警告但继续删除文件
-        await logManager.warn('更新备忘录附件列表失败', {
-          fileId,
-          memoId: metadata.memoId,
-          error: err instanceof Error ? err.message : String(err),
-          action: 'memo_attachment_update_failed',
-        })
-      }
-    }
+    // 从全部关联备忘录的 attachments 中移除（多备忘录共用时不能只解主关联）
+    await this.detachFileFromMemos(fileId, metadata.userId, undefined, true)
 
     // 删除文件
     await fileDAO.delete(fileId)
@@ -116,6 +113,56 @@ export class FileManager {
       memoId: metadata.memoId,
       action: 'file_delete',
     })
+  }
+
+  /**
+   * 从备忘录附件列表移除文件 ID
+   * @param scanAll 为 true 时扫该用户全部备忘录（删除文件 / 全部解绑）
+   */
+  private async detachFileFromMemos(
+    fileId: string,
+    userId: string,
+    preferredMemoId?: string,
+    scanAll = false
+  ): Promise<void> {
+    const memoIds = new Set<string>()
+    if (preferredMemoId) memoIds.add(preferredMemoId)
+
+    if (scanAll || !preferredMemoId) {
+      try {
+        const memos = await memoDAO.getByUserId(userId)
+        for (const memo of memos) {
+          if ((memo.attachments || []).includes(fileId)) {
+            memoIds.add(memo.id)
+          }
+        }
+      } catch (err) {
+        await logManager.warn('反查备忘录附件列表失败', {
+          fileId,
+          userId,
+          error: err instanceof Error ? err.message : String(err),
+          action: 'memo_attachment_lookup_failed',
+        })
+      }
+    }
+
+    for (const memoId of memoIds) {
+      try {
+        const memo = await memoDAO.getById(memoId)
+        if (!memo) continue
+        const prev = memo.attachments || []
+        const next = prev.filter((id) => id !== fileId)
+        if (next.length === prev.length) continue
+        await memoDAO.update(memoId, { attachments: next })
+      } catch (err) {
+        await logManager.warn('更新备忘录附件列表失败', {
+          fileId,
+          memoId,
+          error: err instanceof Error ? err.message : String(err),
+          action: 'memo_attachment_update_failed',
+        })
+      }
+    }
   }
 
   /**
@@ -164,32 +211,10 @@ export class FileManager {
     const metadataList = await Promise.all(fileIds.map((id) => fileDAO.getMetadata(id)))
     const validMetadata = metadataList.filter((m) => m !== undefined)
 
-    // 收集需要更新的备忘录
-    const memoUpdates = new Map<string, string[]>() // memoId -> fileIds to remove
+    // 逐个从备忘录 detach（含反查兜底），再批量删文件
     for (const metadata of validMetadata) {
-      if (metadata && metadata.memoId) {
-        const existing = memoUpdates.get(metadata.memoId) || []
-        existing.push(metadata.id)
-        memoUpdates.set(metadata.memoId, existing)
-      }
-    }
-
-    // 更新备忘录的附件列表
-    for (const [memoId, fileIdsToRemove] of memoUpdates) {
-      try {
-        const memo = await memoDAO.getById(memoId)
-        if (memo && memo.attachments) {
-          const updatedAttachments = memo.attachments.filter(id => !fileIdsToRemove.includes(id))
-          await memoDAO.update(memoId, { attachments: updatedAttachments })
-        }
-      } catch (err) {
-        await logManager.warn('批量删除时更新备忘录附件列表失败', {
-          memoId,
-          fileIds: fileIdsToRemove,
-          error: err instanceof Error ? err.message : String(err),
-          action: 'memo_attachment_update_failed',
-        })
-      }
+      if (!metadata) continue
+      await this.detachFileFromMemos(metadata.id, metadata.userId, undefined, true)
     }
 
     // 批量删除文件
@@ -197,48 +222,26 @@ export class FileManager {
 
     // 记录日志
     await logManager.info('批量删除文件成功', {
-      count: fileIds.length,
       fileIds,
+      count: fileIds.length,
       filenames: validMetadata.map((m) => m!.filename),
       action: 'file_bulk_delete',
     })
   }
 
   /**
-   * 获取存储使用情况
-   * @param userId 用户 ID
-   * @returns Promise<StorageInfo> 存储信息
+   * 获取存储空间（远程 = 服务器 dataDir 唯一根所在卷；对外正式名「存储空间」）
    */
   async getStorageUsage(userId: string): Promise<StorageInfo> {
-    // 计算用户已使用的存储空间
-    const used = await fileDAO.getUserStorageUsage(userId)
-
-    // IndexedDB 的总容量取决于浏览器和设备
-    // 通常是可用磁盘空间的一定比例
-    // 这里我们使用 navigator.storage API 获取配额信息
-    let total = 0
-    let available = 0
-
-    if (navigator.storage && navigator.storage.estimate) {
-      try {
-        const estimate = await navigator.storage.estimate()
-        total = estimate.quota || 0
-        available = (estimate.quota || 0) - (estimate.usage || 0)
-      } catch (error) {
-        // 如果获取失败，使用默认值
-        await logManager.warn('获取存储配额失败', {
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-          action: 'storage_estimate_failed',
-        })
-      }
+    const storage = getStorage() as {
+      getStorageInfo?: (userId: string) => Promise<StorageInfo>
+      getStorageUsed: (userId: string) => Promise<number>
     }
 
-    return {
-      used,
-      total,
-      available,
+    if (typeof storage.getStorageInfo !== 'function') {
+      throw new Error('存储适配器缺少 getStorageInfo：禁止用账号占用冒充磁盘口径（R-010）')
     }
+    return await storage.getStorageInfo(userId)
   }
 
   /**
@@ -383,25 +386,140 @@ export class FileManager {
   }
 
   /**
-   * 更新文件关联的备忘录
+   * 更新文件主关联，并追加到目标备忘录（不从其它备忘录移除）
    * @param fileId 文件 ID
-   * @param memoId 备忘录 ID
+   * @param memoId 备忘录 ID；传 null 解除全部关联且不删文件
    */
-  async updateFileMemo(fileId: string, memoId: string): Promise<void> {
+  async updateFileMemo(fileId: string, memoId: string | null): Promise<void> {
     const metadata = await fileDAO.getMetadata(fileId)
     if (!metadata) {
       throw new Error('文件不存在')
     }
 
-    await fileDAO.updateMetadata(fileId, { memoId })
+    const nextMemoId = memoId && String(memoId).trim() ? String(memoId).trim() : null
+    const prevMemoId = metadata.memoId || null
+    const remote = storageManager.getMode() === 'remote'
 
-    // 记录日志
-    await logManager.info('更新文件关联备忘录', {
+    if (remote) {
+      await fileDAO.updateMetadata(fileId, { memoId: nextMemoId })
+    } else if (!nextMemoId) {
+      await this.detachFileFromMemos(fileId, metadata.userId, undefined, true)
+      await fileDAO.updateMetadata(fileId, { memoId: null })
+    } else {
+      if (prevMemoId && prevMemoId !== nextMemoId) {
+        await this.ensureFileOnMemo(prevMemoId, fileId)
+      }
+      await fileDAO.updateMetadata(fileId, { memoId: nextMemoId })
+      await this.ensureFileOnMemo(nextMemoId, fileId)
+    }
+
+    await logManager.info(nextMemoId ? '更新文件关联备忘录' : '解除文件与备忘录关联', {
       userId: metadata.userId,
       fileId,
-      memoId,
-      action: 'file_memo_update',
+      memoId: nextMemoId,
+      prevMemoId,
+      action: nextMemoId ? 'file_memo_update' : 'file_memo_unlink',
     })
+  }
+
+  /**
+   * 按勾选结果设置文件被哪些备忘录使用（一次写入）
+   */
+  async setFileMemoLinks(fileId: string, memoIds: string[]): Promise<void> {
+    const metadata = await fileDAO.getMetadata(fileId)
+    if (!metadata) {
+      throw new Error('文件不存在')
+    }
+    const next = [...new Set(memoIds.map((id) => String(id || '').trim()).filter(Boolean))]
+
+    if (storageManager.getMode() === 'remote') {
+      await fileDAO.updateMetadata(fileId, { linkedMemoIds: next })
+      return
+    }
+
+    const memos = await memoDAO.getByUserId(metadata.userId)
+    const current = new Set<string>()
+    for (const memo of memos) {
+      if ((memo.attachments || []).includes(fileId)) current.add(memo.id)
+    }
+    if (metadata.memoId) current.add(metadata.memoId)
+
+    const nextSet = new Set(next)
+    for (const id of current) {
+      if (nextSet.has(id)) continue
+      const memo = await memoDAO.getById(id)
+      if (!memo) continue
+      const attachments = (memo.attachments || []).filter((item) => item !== fileId)
+      if (attachments.length !== (memo.attachments || []).length) {
+        await memoDAO.update(id, { attachments })
+      }
+    }
+    for (const id of next) {
+      await this.ensureFileOnMemo(id, fileId)
+    }
+
+    const primary =
+      metadata.memoId && nextSet.has(metadata.memoId) ? metadata.memoId : (next[0] ?? null)
+    await fileDAO.updateMetadata(fileId, { memoId: primary })
+  }
+
+  private async ensureFileOnMemo(memoId: string, fileId: string): Promise<void> {
+    const memo = await memoDAO.getById(memoId)
+    if (!memo || (memo.attachments || []).includes(fileId)) return
+    await memoDAO.update(memoId, {
+      attachments: [...(memo.attachments || []), fileId],
+    })
+  }
+
+  /**
+   * 将已有文件库文件关联到备忘录（不复制 blob）
+   */
+  async linkFileToMemo(fileId: string, memoId: string): Promise<void> {
+    await this.updateFileMemo(fileId, memoId)
+  }
+
+  /**
+   * 解除文件与备忘录关联（保留在文件库）
+   */
+  async unlinkFileFromMemo(fileId: string): Promise<void> {
+    await this.updateFileMemo(fileId, null)
+  }
+
+  /**
+   * 修复未关联备忘录的孤儿附件：从备忘录 attachments 反填 memoId
+   */
+  async healOrphanedMemoLinks(userId: string): Promise<number> {
+    const files = await fileDAO.getByUserId(userId)
+    const orphaned = files.filter((f) => !f.memoId)
+    if (orphaned.length === 0) return 0
+
+    const memos = await memoDAO.getByUserId(userId)
+    const fileToMemo = new Map<string, string>()
+    for (const memo of memos) {
+      for (const fileId of memo.attachments || []) {
+        if (fileId) fileToMemo.set(fileId, memo.id)
+      }
+    }
+
+    let healed = 0
+    for (const file of orphaned) {
+      const memoId = fileToMemo.get(file.id)
+      if (!memoId) continue
+      try {
+        await this.updateFileMemo(file.id, memoId)
+        healed++
+      } catch (err) {
+        await logManager.warn('修复附件备忘录关联失败', {
+          userId,
+          fileId: file.id,
+          memoId,
+          error: err instanceof Error ? err.message : String(err),
+          action: 'file_memo_heal_failed',
+        })
+      }
+    }
+
+    return healed
   }
 }
 

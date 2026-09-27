@@ -1,9 +1,10 @@
-﻿/**
+/**
  * CYP-memo 文件数据访问对象
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
-import { getStorage } from '../storage'
+import { getStorage, storageManager } from '../storage'
+import { db } from './db'
 import type { FileMetadata } from '../types'
 
 /**
@@ -13,18 +14,24 @@ import type { FileMetadata } from '../types'
  */
 export class FileDAO {
   /**
-   * 创建文件元数据
+   * 创建文件元数据（local Dexie 兼容；生产请优先 create）
    */
   async createMetadata(metadata: FileMetadata): Promise<string> {
-    // 注意：此方法已废弃，请使用 create
+    if (storageManager.isInitialized() && storageManager.getMode() === 'local') {
+      await db.files.put(metadata)
+      return metadata.id
+    }
     throw new Error('请使用 create 方法同时创建元数据和 Blob')
   }
 
   /**
-   * 存储文件 Blob
+   * 存储文件 Blob（local Dexie 兼容；生产请优先 create）
    */
   async storeBlob(id: string, blob: Blob): Promise<string> {
-    // 注意：此方法已废弃，请使用 create
+    if (storageManager.isInitialized() && storageManager.getMode() === 'local') {
+      await db.fileBlobs.put({ id, blob })
+      return id
+    }
     throw new Error('请使用 create 方法同时创建元数据和 Blob')
   }
 
@@ -65,9 +72,12 @@ export class FileDAO {
 
   /**
    * 获取所有文件元数据
+   * local：Dexie 全表；remote：请用 getByUserId
    */
   async getAll(): Promise<FileMetadata[]> {
-    // 注意：此方法需要管理员权限，实际使用时需要遍历所有用户
+    if (storageManager.isInitialized() && storageManager.getMode() === 'local') {
+      return await db.files.toArray()
+    }
     throw new Error('getAll 方法不支持，请使用 getByUserId')
   }
 
@@ -105,7 +115,10 @@ export class FileDAO {
    * 获取未关联备忘录的文件（孤立文件）
    */
   async getOrphanedFiles(): Promise<FileMetadata[]> {
-    // 注意：此方法需要遍历所有文件，性能较差
+    if (storageManager.isInitialized() && storageManager.getMode() === 'local') {
+      const files = await db.files.toArray()
+      return files.filter((f) => !f.memoId)
+    }
     throw new Error('getOrphanedFiles 方法不支持')
   }
 

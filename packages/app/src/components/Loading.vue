@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   Loading 加载组件
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -49,7 +49,7 @@ withDefaults(defineProps<LoadingProps>(), {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--cyp-bg-page) 92%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -81,8 +81,8 @@ withDefaults(defineProps<LoadingProps>(), {
 .spinner-circle {
   width: 100%;
   height: 100%;
-  border: 3px solid #e4e7ed;
-  border-top-color: #409eff;
+  border: 3px solid var(--cyp-border);
+  border-top-color: var(--cyp-brand);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -95,7 +95,7 @@ withDefaults(defineProps<LoadingProps>(), {
 
 .loading-text {
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   text-align: center;
 }
 
@@ -107,19 +107,5 @@ withDefaults(defineProps<LoadingProps>(), {
 .loading-fade-enter-from,
 .loading-fade-leave-to {
   opacity: 0;
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] .loading-overlay {
-  background: rgba(0, 0, 0, 0.8);
-}
-
-[data-theme='dark'] .spinner-circle {
-  border-color: #414243;
-  border-top-color: #409eff;
-}
-
-[data-theme='dark'] .loading-text {
-  color: #cfd3dc;
 }
 </style>

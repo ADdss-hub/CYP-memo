@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   分享管理界面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -53,7 +53,7 @@
                   <span class="meta-icon">👁️</span>
                   访问 {{ share.accessCount }} 次
                 </span>
-                <span v-if="share.password" class="meta-item">
+                <span v-if="share.hasPassword || share.password" class="meta-item">
                   <span class="meta-icon">🔒</span>
                   需要密码
                 </span>
@@ -80,10 +80,64 @@
               @click="handleSelectLink"
             />
           </div>
+
+          <div class="comments-panel">
+            <button
+              type="button"
+              class="comments-toggle"
+              :aria-expanded="isCommentsExpanded(share.id)"
+              @click="toggleComments(share.id)"
+            >
+              <span>
+                访客反馈
+                {{ commentCount(share.id) }} 条
+                · 有帮助 {{ feedbackCount(share.id, 'helpful') }}
+                · 一般 {{ feedbackCount(share.id, 'neutral') }}
+                · 需改进 {{ feedbackCount(share.id, 'improve') }}
+              </span>
+              <span class="toggle-chevron">{{ isCommentsExpanded(share.id) ? '收起' : '展开' }}</span>
+            </button>
+
+            <div v-if="isCommentsExpanded(share.id)" class="comments-body">
+              <p v-if="commentsFor(share.id).length === 0" class="comments-empty">暂无访客评论</p>
+              <div
+                v-for="c in commentsFor(share.id)"
+                :key="c.id"
+                class="comment-item"
+              >
+                <div class="comment-item-head">
+                  <strong>{{ c.authorName || '访客' }}</strong>
+                  <span class="feedback-tag">{{ feedbackLabel(c.feedback) }}</span>
+                  <time>{{ formatDate(c.createdAt) }}</time>
+                </div>
+                <p class="comment-item-body">{{ c.content }}</p>
+                <div v-if="c.replyContent" class="owner-reply">
+                  <div class="owner-reply-label">已回复</div>
+                  <p>{{ c.replyContent }}</p>
+                  <time v-if="c.replyAt">{{ formatDate(c.replyAt) }}</time>
+                </div>
+                <div v-else class="reply-box">
+                  <textarea
+                    v-model="replyDrafts[c.id]"
+                    class="reply-input"
+                    rows="2"
+                    maxlength="500"
+                    placeholder="回复访客（1-500 字）"
+                  />
+                  <Button
+                    type="primary"
+                    :disabled="isReplying === c.id"
+                    @click="handleReply(share.id, c.id)"
+                  >
+                    {{ isReplying === c.id ? '发送中...' : '回复' }}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 批量操作栏 -->
       <div v-if="shareLinks.length > 0" class="batch-actions">
         <Button type="primary" @click="handleCleanExpired"> 🧹 清理过期链接 </Button>
       </div>
@@ -92,25 +146,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useMemoStore } from '../../stores/memo'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading } from '../../components'
 import { shareManager } from '@cyp-memo/shared'
-import type { ShareLink } from '@cyp-memo/shared'
+import type { ShareCommentFeedback, ShareCommentItem, ShareLink } from '@cyp-memo/shared'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const memoStore = useMemoStore()
 const toast = useToast()
 
-// 状态
 const isLoading = ref(false)
 const shareLinks = ref<ShareLink[]>([])
+const comments = ref<ShareCommentItem[]>([])
+const expandedShareIds = ref<Set<string>>(new Set())
+const replyDrafts = ref<Record<string, string>>({})
+const isReplying = ref<string | null>(null)
 
-// 方法
+const feedbackLabel = (f: ShareCommentFeedback): string => {
+  if (f === 'helpful') return '有帮助'
+  if (f === 'neutral') return '一般'
+  if (f === 'improve') return '需改进'
+  return f
+}
+
+const commentsFor = (shareId: string): ShareCommentItem[] =>
+  comments.value.filter((c) => c.shareId === shareId)
+
+const commentCount = (shareId: string): number => commentsFor(shareId).length
+
+const feedbackCount = (shareId: string, f: ShareCommentFeedback): number =>
+  commentsFor(shareId).filter((c) => c.feedback === f).length
+
+const isCommentsExpanded = (shareId: string): boolean => expandedShareIds.value.has(shareId)
+
+const toggleComments = (shareId: string) => {
+  const next = new Set(expandedShareIds.value)
+  if (next.has(shareId)) next.delete(shareId)
+  else next.add(shareId)
+  expandedShareIds.value = next
+}
+
 const loadShareLinks = async () => {
   isLoading.value = true
   try {
@@ -120,11 +200,16 @@ const loadShareLinks = async () => {
     }
 
     shareLinks.value = await shareManager.getUserShareLinks(userId)
-
-    // 按创建时间倒序排序
     shareLinks.value.sort((a, b) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     })
+
+    try {
+      comments.value = await shareManager.listOwnerShareComments(userId)
+    } catch (err) {
+      console.error('加载分享评论失败:', err)
+      comments.value = []
+    }
   } catch (error) {
     console.error('加载分享链接失败:', error)
     const errorMessage = error instanceof Error ? error.message : '未知错误'
@@ -154,7 +239,6 @@ const formatDate = (date: Date | string): string => {
   const day = String(d.getDate()).padStart(2, '0')
   const hours = String(d.getHours()).padStart(2, '0')
   const minutes = String(d.getMinutes()).padStart(2, '0')
-
   return `${year}-${month}-${day} ${hours}:${minutes}`
 }
 
@@ -202,6 +286,27 @@ const handleRevoke = async (shareId: string) => {
   }
 }
 
+const handleReply = async (shareId: string, commentId: string) => {
+  const content = (replyDrafts.value[commentId] || '').trim()
+  if (!content || content.length > 500) {
+    toast.error('回复内容须为 1-500 字')
+    return
+  }
+  isReplying.value = commentId
+  try {
+    const updated = await shareManager.replyShareComment(shareId, commentId, content)
+    comments.value = comments.value.map((c) => (c.id === commentId ? updated : c))
+    replyDrafts.value = { ...replyDrafts.value, [commentId]: '' }
+    toast.success('回复成功')
+  } catch (error) {
+    console.error('回复失败:', error)
+    const msg = error instanceof Error ? error.message : '回复失败'
+    toast.error(msg)
+  } finally {
+    isReplying.value = null
+  }
+}
+
 const handleCleanExpired = async () => {
   if (!confirm('确定要清理所有过期的分享链接吗？')) {
     return
@@ -217,7 +322,8 @@ const handleCleanExpired = async () => {
     }
   } catch (error) {
     console.error('清理过期链接失败:', error)
-    toast.error('清理失败')
+    const msg = error instanceof Error ? error.message : '清理失败'
+    toast.error(msg)
   }
 }
 
@@ -225,20 +331,16 @@ const handleBack = () => {
   router.back()
 }
 
-// 生命周期
 onMounted(async () => {
   try {
-    // 加载分享链接
     await loadShareLinks()
-    
-    // 加载备忘录列表（用于显示标题）
+
     const userId = authStore.currentUser?.id
     if (userId) {
       try {
         await memoStore.loadMemos(userId)
       } catch (error) {
         console.error('加载备忘录列表失败:', error)
-        // 不影响分享链接的显示，继续执行
       }
     }
   } catch (error) {
@@ -274,10 +376,11 @@ onMounted(async () => {
 }
 
 h1 {
-  font-size: 28px;
+  font-size: 1.75rem;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
+  font-family: var(--cyp-font-sans);
 }
 
 .empty-state {
@@ -295,15 +398,15 @@ h1 {
 }
 
 .empty-text {
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 500;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   margin: 0 0 8px 0;
 }
 
 .empty-hint {
-  font-size: 14px;
-  color: #909399;
+  font-size: 0.875rem;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
@@ -314,11 +417,11 @@ h1 {
 }
 
 .share-card {
-  background: white;
+  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-border);
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s;
+  transition: box-shadow 0.2s;
 }
 
 .share-card:hover {
@@ -326,8 +429,8 @@ h1 {
 }
 
 .share-card.expired {
-  opacity: 0.6;
-  background: #f5f7fa;
+  opacity: 0.65;
+  background: var(--cyp-bg-muted);
 }
 
 .share-header {
@@ -343,9 +446,9 @@ h1 {
 }
 
 .share-title {
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 12px 0;
 }
 
@@ -359,12 +462,12 @@ h1 {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 14px;
-  color: #909399;
+  font-size: 0.875rem;
+  color: var(--cyp-text-muted);
 }
 
 .meta-icon {
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .share-actions {
@@ -374,12 +477,7 @@ h1 {
 }
 
 .danger-text {
-  color: #f56c6c;
-}
-
-.danger-text:hover {
-  color: #f56c6c;
-  background: #fef0f0;
+  color: var(--cyp-danger, #f56c6c);
 }
 
 .share-link {
@@ -389,36 +487,155 @@ h1 {
 .link-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 6px;
-  font-size: 14px;
-  font-family: 'Courier New', monospace;
-  color: #606266;
-  background: #f5f7fa;
+  font-size: 0.875rem;
+  font-family: var(--cyp-font-mono);
+  color: var(--cyp-text-secondary);
+  background: var(--cyp-bg-muted);
   cursor: pointer;
-  transition: all 0.2s;
 }
 
-.link-input:hover {
-  border-color: #409eff;
-  background: white;
-}
-
+.link-input:hover,
 .link-input:focus {
   outline: none;
-  border-color: #409eff;
-  background: white;
+  border-color: var(--cyp-brand);
+  background: var(--cyp-bg-input);
+}
+
+.comments-panel {
+  margin-top: 14px;
+  border-top: 1px solid var(--cyp-border);
+  padding-top: 12px;
+}
+
+.comments-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--cyp-border);
+  border-radius: 8px;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
+  font-size: 0.8125rem;
+  font-family: var(--cyp-font-sans);
+  cursor: pointer;
+  text-align: left;
+}
+
+.comments-toggle:hover {
+  border-color: var(--cyp-brand);
+  color: var(--cyp-brand);
+}
+
+.toggle-chevron {
+  flex-shrink: 0;
+  color: var(--cyp-brand);
+}
+
+.comments-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comments-empty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--cyp-text-muted);
+}
+
+.comment-item {
+  padding: 12px;
+  border: 1px solid var(--cyp-border);
+  border-radius: 8px;
+  background: var(--cyp-bg-input);
+}
+
+.comment-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--cyp-text);
+}
+
+.feedback-tag {
+  color: var(--cyp-brand);
+}
+
+.comment-item-head time {
+  margin-left: auto;
+  color: var(--cyp-text-muted);
+  font-size: 0.75rem;
+}
+
+.comment-item-body {
+  margin: 8px 0;
+  font-size: 0.875rem;
+  color: var(--cyp-text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.owner-reply {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--cyp-border);
+}
+
+.owner-reply-label {
+  font-size: 0.75rem;
+  color: var(--cyp-brand);
+  margin-bottom: 4px;
+}
+
+.owner-reply p {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  color: var(--cyp-text-secondary);
+  white-space: pre-wrap;
+}
+
+.owner-reply time {
+  font-size: 0.7rem;
+  color: var(--cyp-text-muted);
+}
+
+.reply-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reply-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--cyp-border);
+  border-radius: 6px;
+  background: var(--cyp-bg-card);
+  color: var(--cyp-text);
+  font-family: var(--cyp-font-sans);
+  font-size: 0.8125rem;
+  padding: 8px 10px;
+  resize: vertical;
 }
 
 .batch-actions {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--cyp-border);
   display: flex;
   justify-content: center;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .share-manage-view {
     padding: 16px;
@@ -442,35 +659,5 @@ h1 {
     flex-direction: column;
     gap: 8px;
   }
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] h1,
-[data-theme='dark'] .share-title {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .share-card {
-  background: #1d1e1f;
-  border-color: #414243;
-}
-
-[data-theme='dark'] .share-card.expired {
-  background: #262727;
-}
-
-[data-theme='dark'] .link-input {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .link-input:hover,
-[data-theme='dark'] .link-input:focus {
-  background: #1d1e1f;
-}
-
-[data-theme='dark'] .batch-actions {
-  border-top-color: #414243;
 }
 </style>

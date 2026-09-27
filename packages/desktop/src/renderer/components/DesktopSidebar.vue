@@ -1,131 +1,68 @@
 <script setup lang="ts">
 /**
- * 桌面客户端侧边栏导航组件
- * Desktop client sidebar navigation component
- * 
- * 扩展自 web app 的 AppSidebar，添加桌面客户端特有的菜单项
+ * 桌面客户端侧边栏 · 消费 app navigation/menu.ts（VIEW-03 单一数据源）
+ * 仅追加桌面专有「桌面客户端设置」项，禁止再维护第二套业务菜单
  */
-
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@app-stores/auth'
-import { Permission } from '@cyp-memo/shared'
+import { APP_MENU_SECTIONS, DESKTOP_SETTINGS_ITEM, filterMenuByPermissions } from '@app/navigation/menu'
 import { isElectron } from '../composables'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const isDesktop = isElectron()
 
-// 主要功能菜单
-const mainMenuItems = computed(() => {
-  const items = []
-  
-  if (authStore.permissions.includes(Permission.MEMO_MANAGE)) {
-    items.push({ path: '/memos', icon: '📝', label: '备忘录' })
-  }
-  
-  if (authStore.permissions.includes(Permission.STATISTICS_VIEW)) {
-    items.push({ path: '/statistics', icon: '📊', label: '数据统计' })
-  }
-  
-  return items
-})
+const visibleSections = computed(() => {
+  const sections = filterMenuByPermissions(APP_MENU_SECTIONS, authStore.permissions).map(
+    (section) => ({
+      ...section,
+      items: section.items.map((item) => ({ ...item })),
+    })
+  )
 
-// 管理菜单
-const manageMenuItems = computed(() => {
-  const items = []
-  
-  if (authStore.permissions.includes(Permission.ATTACHMENT_MANAGE)) {
-    items.push({ path: '/attachments', icon: '📎', label: '附件管理' })
-  }
-  
-  if (authStore.permissions.includes(Permission.MEMO_MANAGE)) {
-    items.push({ path: '/memo-data', icon: '💾', label: '备忘录数据管理' })
-    items.push({ path: '/shares', icon: '🔗', label: '分享管理' })
-  }
-  
-  if (authStore.permissions.includes(Permission.ACCOUNT_MANAGE)) {
-    items.push({ path: '/accounts', icon: '👥', label: '账号管理' })
-  }
-  
-  return items
-})
-
-// 系统菜单
-const systemMenuItems = computed(() => {
-  const items = []
-  
-  if (authStore.permissions.includes(Permission.SETTINGS_MANAGE)) {
-    items.push({ path: '/settings', icon: '⚙️', label: '系统设置' })
-  }
-  
-  // 桌面客户端特有的设置
   if (isDesktop) {
-    items.push({ path: '/desktop-settings', icon: '💻', label: '桌面客户端设置' })
+    const system = sections.find((s) => s.id === 'system')
+    if (system && !system.items.some((i) => i.path === '/desktop-settings')) {
+      system.items.push({ ...DESKTOP_SETTINGS_ITEM })
+    } else if (!system) {
+      sections.push({
+        id: 'system',
+        title: '系统',
+        items: [{ ...DESKTOP_SETTINGS_ITEM }],
+      })
+    }
   }
-  
-  return items
+
+  return sections
 })
 
-// 判断是否激活
 const isActive = (path: string) => {
-  return route.path.startsWith(path)
+  if (path === '/tenant') {
+    return route.path === '/tenant' || route.path === '/tenant/'
+  }
+  return route.path === path || route.path.startsWith(`${path}/`)
 }
 </script>
 
 <template>
   <nav class="app-sidebar-nav">
-    <div class="nav-section">
-      <h3 class="nav-section-title">主要功能</h3>
+    <div v-for="section in visibleSections" :key="section.id" class="nav-section">
+      <h3 class="nav-section-title">{{ section.title }}</h3>
       <router-link
-        v-for="item in mainMenuItems"
+        v-for="item in section.items"
         :key="item.path"
         :to="item.path"
         class="nav-item"
         :class="{ active: isActive(item.path) }"
+        :title="item.label"
       >
-        <span class="nav-icon">{{ item.icon }}</span>
+        <span class="nav-icon" aria-hidden="true">
+          <el-icon :size="18">
+            <component :is="item.icon" />
+          </el-icon>
+        </span>
         <span class="nav-label">{{ item.label }}</span>
-      </router-link>
-    </div>
-
-    <div class="nav-section">
-      <h3 class="nav-section-title">管理</h3>
-      <router-link
-        v-for="item in manageMenuItems"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item.path) }"
-      >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label">{{ item.label }}</span>
-      </router-link>
-    </div>
-
-    <div class="nav-section">
-      <h3 class="nav-section-title">系统</h3>
-      <router-link
-        v-for="item in systemMenuItems"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item.path) }"
-      >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label">{{ item.label }}</span>
-      </router-link>
-    </div>
-
-    <div class="nav-section">
-      <h3 class="nav-section-title">个人</h3>
-      <router-link
-        to="/profile"
-        class="nav-item"
-        :class="{ active: isActive('/profile') }"
-      >
-        <span class="nav-icon">👤</span>
-        <span class="nav-label">个人资料</span>
       </router-link>
     </div>
   </nav>
@@ -148,7 +85,7 @@ const isActive = (path: string) => {
 .nav-section-title {
   font-size: 12px;
   font-weight: 600;
-  color: #909399;
+  color: var(--cyp-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 8px 20px;
@@ -160,50 +97,34 @@ const isActive = (path: string) => {
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   text-decoration: none;
   transition: all 0.2s;
   border-left: 3px solid transparent;
 }
 
 .nav-item:hover {
-  background: #f5f7fa;
-  color: #409eff;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-brand);
 }
 
 .nav-item.active {
-  background: #ecf5ff;
-  color: #409eff;
-  border-left-color: #409eff;
+  background: var(--cyp-brand-tint);
+  color: var(--cyp-brand);
+  border-left-color: var(--cyp-brand);
   font-weight: 500;
 }
 
 .nav-icon {
-  font-size: 18px;
   width: 24px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: inherit;
 }
 
 .nav-label {
   font-size: 14px;
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] .nav-section-title {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .nav-item {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .nav-item:hover {
-  background: #262727;
-  color: #409eff;
-}
-
-[data-theme='dark'] .nav-item.active {
-  background: #1a3a52;
-  color: #409eff;
 }
 </style>

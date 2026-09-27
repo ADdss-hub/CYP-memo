@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   Toast 提示组件
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -91,7 +91,7 @@ onMounted(() => {
   min-width: 300px;
   max-width: 500px;
   padding: 16px 20px;
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   display: flex;
@@ -106,19 +106,19 @@ onMounted(() => {
 }
 
 .toast-success .toast-icon {
-  color: #67c23a;
+  color: var(--cyp-success);
 }
 
 .toast-error .toast-icon {
-  color: #f56c6c;
+  color: var(--cyp-danger);
 }
 
 .toast-warning .toast-icon {
-  color: #e6a23c;
+  color: var(--cyp-warning);
 }
 
 .toast-info .toast-icon {
-  color: #409eff;
+  color: var(--cyp-brand);
 }
 
 .toast-content {
@@ -129,12 +129,12 @@ onMounted(() => {
   font-weight: 600;
   font-size: 14px;
   margin-bottom: 4px;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .toast-message {
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   line-height: 1.5;
 }
 
@@ -144,12 +144,12 @@ onMounted(() => {
   cursor: pointer;
   padding: 0;
   font-size: 16px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   flex-shrink: 0;
 }
 
 .toast-close:hover {
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .toast-fade-enter-active,
@@ -165,26 +165,5 @@ onMounted(() => {
 .toast-fade-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(-20px);
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] .toast {
-  background: #1d1e1f;
-}
-
-[data-theme='dark'] .toast-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .toast-message {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .toast-close {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .toast-close:hover {
-  color: #cfd3dc;
 }
 </style>

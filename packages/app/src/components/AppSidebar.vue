@@ -1,148 +1,237 @@
-﻿<!--
-  应用侧边栏导航组件
+<!--
+  应用侧边栏 · 消费 navigation/menu.ts（VIEW-03 单一数据源）
+  分组可收纳；主侧栏窄轨时仅显示图标
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
-  <nav class="app-sidebar-nav">
-    <div class="nav-section">
-      <h3 class="nav-section-title">主要功能</h3>
-      <router-link
-        v-for="item in mainMenuItems"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item.path) }"
+  <nav class="sidebar-nav" :class="{ compact }">
+    <div
+      v-for="section in visibleSections"
+      :key="section.id"
+      class="nav-section"
+      :class="{ collapsed: !compact && isCollapsed(section.id) }"
+    >
+      <button
+        v-if="!compact"
+        type="button"
+        class="nav-section-toggle"
+        :aria-expanded="!isCollapsed(section.id)"
+        :aria-controls="`nav-section-${section.id}`"
+        @click="toggleSection(section.id)"
       >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label">{{ item.label }}</span>
-      </router-link>
-    </div>
-
-    <div class="nav-section">
-      <h3 class="nav-section-title">管理</h3>
-      <router-link
-        v-for="item in manageMenuItems"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item.path) }"
+        <span class="nav-section-title">{{ section.title }}</span>
+        <el-icon class="nav-section-chevron" :size="14">
+          <ArrowDown />
+        </el-icon>
+      </button>
+      <div
+        v-else
+        class="nav-section-divider"
+        :title="section.title"
+        aria-hidden="true"
+      />
+      <div
+        :id="`nav-section-${section.id}`"
+        class="nav-section-body"
+        role="region"
+        :aria-label="section.title"
       >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label">{{ item.label }}</span>
-      </router-link>
-    </div>
-
-    <div class="nav-section">
-      <h3 class="nav-section-title">系统</h3>
-      <router-link
-        v-for="item in systemMenuItems"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item.path) }"
-      >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label">{{ item.label }}</span>
-      </router-link>
-    </div>
-
-    <div class="nav-section">
-      <h3 class="nav-section-title">个人</h3>
-      <router-link
-        to="/profile"
-        class="nav-item"
-        :class="{ active: isActive('/profile') }"
-      >
-        <span class="nav-icon">👤</span>
-        <span class="nav-label">个人资料</span>
-      </router-link>
+        <router-link
+          v-for="item in section.items"
+          :key="item.path"
+          :to="item.path"
+          class="nav-item"
+          :class="{ active: isActive(item.path) }"
+          :title="item.label"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <el-icon :size="compact ? 20 : 18">
+              <component :is="item.icon" />
+            </el-icon>
+          </span>
+          <span v-if="!compact" class="nav-label">{{ item.label }}</span>
+        </router-link>
+      </div>
     </div>
   </nav>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
-import { Permission } from '@cyp-memo/shared'
+import { APP_MENU_SECTIONS, filterMenuByPermissions } from '../navigation/menu'
+
+defineProps<{
+  /** 主侧栏收纳为窄轨时仅显示图标 */
+  compact?: boolean
+}>()
+
+const SECTION_STORAGE_KEY = 'cyp-memo-nav-sections-collapsed'
 
 const route = useRoute()
 const authStore = useAuthStore()
 
-// 主要功能菜单
-const mainMenuItems = computed(() => {
-  const items = []
-  
-  if (authStore.permissions.includes(Permission.MEMO_MANAGE)) {
-    items.push({ path: '/memos', icon: '📝', label: '备忘录' })
-  }
-  
-  if (authStore.permissions.includes(Permission.STATISTICS_VIEW)) {
-    items.push({ path: '/statistics', icon: '📊', label: '数据统计' })
-  }
-  
-  return items
-})
+const visibleSections = computed(() =>
+  filterMenuByPermissions(APP_MENU_SECTIONS, authStore.permissions)
+)
 
-// 管理菜单
-const manageMenuItems = computed(() => {
-  const items = []
-  
-  if (authStore.permissions.includes(Permission.ATTACHMENT_MANAGE)) {
-    items.push({ path: '/attachments', icon: '📎', label: '附件管理' })
-  }
-  
-  if (authStore.permissions.includes(Permission.MEMO_MANAGE)) {
-    items.push({ path: '/memo-data', icon: '💾', label: '备忘录数据管理' })
-    items.push({ path: '/shares', icon: '🔗', label: '分享管理' })
-  }
-  
-  if (authStore.permissions.includes(Permission.ACCOUNT_MANAGE)) {
-    items.push({ path: '/accounts', icon: '👥', label: '账号管理' })
-  }
-  
-  return items
-})
+const collapsedIds = ref<Set<string>>(loadCollapsed())
 
-// 系统菜单
-const systemMenuItems = computed(() => {
-  const items = []
-  
-  if (authStore.permissions.includes(Permission.SETTINGS_MANAGE)) {
-    items.push({ path: '/settings', icon: '⚙️', label: '系统设置' })
+function loadCollapsed(): Set<string> {
+  try {
+    const raw =
+      localStorage.getItem(SECTION_STORAGE_KEY) ??
+      localStorage.getItem('cyp-memo-sidebar-collapsed')
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw) as unknown
+    if (!Array.isArray(arr)) return new Set()
+    return new Set(arr.filter((x): x is string => typeof x === 'string'))
+  } catch {
+    return new Set()
   }
-  
-  return items
-})
-
-// 判断是否激活
-const isActive = (path: string) => {
-  return route.path.startsWith(path)
 }
+
+function persistCollapsed() {
+  try {
+    localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify([...collapsedIds.value]))
+  } catch {
+    /* ignore */
+  }
+}
+
+function isCollapsed(sectionId: string): boolean {
+  return collapsedIds.value.has(sectionId)
+}
+
+function toggleSection(sectionId: string) {
+  const next = new Set(collapsedIds.value)
+  if (next.has(sectionId)) next.delete(sectionId)
+  else next.add(sectionId)
+  collapsedIds.value = next
+  persistCollapsed()
+}
+
+function expandSection(sectionId: string) {
+  if (!collapsedIds.value.has(sectionId)) return
+  const next = new Set(collapsedIds.value)
+  next.delete(sectionId)
+  collapsedIds.value = next
+  persistCollapsed()
+}
+
+const isActive = (path: string) => {
+  const current = route?.path ?? ''
+  if (path === '/tenant') {
+    return current === '/tenant' || current === '/tenant/'
+  }
+  return current === path || current.startsWith(`${path}/`)
+}
+
+watch(
+  () => [route?.path ?? '', visibleSections.value] as const,
+  () => {
+    for (const section of visibleSections.value) {
+      if (section.items.some((item) => isActive(item.path))) {
+        expandSection(section.id)
+        break
+      }
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
-.app-sidebar-nav {
+.sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 16px 0;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.sidebar-nav.compact {
+  gap: 4px;
+  padding: 8px 0;
+  align-items: center;
 }
 
 .nav-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  width: 100%;
+}
+
+.sidebar-nav.compact .nav-section {
+  align-items: center;
+}
+
+.nav-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  padding: 8px 16px 8px 20px;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--cyp-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-section-toggle:hover {
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
 }
 
 .nav-section-title {
   font-size: 12px;
   font-weight: 600;
-  color: #909399;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 8px 20px;
-  margin: 0;
+  text-align: left;
+}
+
+.nav-section-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.nav-section.collapsed .nav-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.nav-section-divider {
+  width: 24px;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--cyp-border);
+  opacity: 0.7;
+}
+
+.nav-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  max-height: 480px;
+  opacity: 1;
+  transition: max-height 0.22s ease, opacity 0.18s ease;
+}
+
+.sidebar-nav.compact .nav-section-body {
+  align-items: center;
+  max-height: none;
+  opacity: 1;
+}
+
+.nav-section.collapsed .nav-section-body {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .nav-item {
@@ -150,50 +239,53 @@ const isActive = (path: string) => {
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   text-decoration: none;
   transition: all 0.2s;
   border-left: 3px solid transparent;
 }
 
+.sidebar-nav.compact .nav-item {
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-left: none;
+  border-radius: 8px;
+  gap: 0;
+}
+
 .nav-item:hover {
-  background: #f5f7fa;
-  color: #409eff;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-brand);
 }
 
 .nav-item.active {
-  background: #ecf5ff;
-  color: #409eff;
-  border-left-color: #409eff;
+  background: var(--cyp-brand-tint);
+  color: var(--cyp-brand);
+  border-left-color: var(--cyp-brand);
   font-weight: 500;
 }
 
+.sidebar-nav.compact .nav-item.active {
+  border-left-color: transparent;
+}
+
 .nav-icon {
-  font-size: 18px;
   width: 24px;
-  text-align: center;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.sidebar-nav.compact .nav-icon {
+  width: auto;
 }
 
 .nav-label {
   font-size: 14px;
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .nav-section-title {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .nav-item {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .nav-item:hover {
-  background: #262727;
-  color: #409eff;
-}
-
-[data-theme='dark'] .nav-item.active {
-  background: #1a3a52;
-  color: #409eff;
-}
 </style>

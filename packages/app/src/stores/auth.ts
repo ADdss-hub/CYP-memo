@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证状态管理
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -63,7 +63,12 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * 账号密码登录
    */
-  async function loginWithPassword(username: string, password: string, remember: boolean = false) {
+  async function loginWithPassword(
+    username: string,
+    password: string,
+    remember: boolean = false,
+    challenge?: { challengeId?: string; challengeAnswer?: string }
+  ) {
     isLoading.value = true
     error.value = null
 
@@ -71,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
       // 登录前确保数据库已初始化
       await ensureDatabaseInitialized()
       
-      const user = await authManager.loginWithPassword(username, password, remember)
+      const user = await authManager.loginWithPassword(username, password, remember, challenge)
       currentUser.value = user
       
       // 登录成功后标记数据库已初始化

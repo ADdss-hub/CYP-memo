@@ -1,6 +1,287 @@
-﻿# 更新日志
+# 更新日志
 
-本文档记录 CYP-memo 容器备忘录系统的所有重要变更。
+本文档记录 CYP-memo 备忘录系统的所有重要变更。
+
+
+## [2.0.0] - 2026-08-16
+
+### 文档
+
+- 对齐军械库规则 24.25：文案批准字符集；`verify:font-glyph` / `verify:gates`（字形+禁第二套字族，不检图标）；`--cyp-font-*`；桌面同栈；Release 静态门禁挂接；**禁止借字形治理擅自改图标**
+- 文案字形全面扫收口：CLI 装饰前缀改 `[info]`；encoding 门禁改挂 gcc phase-gate，并跳过 logs/uploads/运行时 data；`pnpm verify:gates` 全绿（**不改产品图标**；规范中的状态图标位已恢复）
+
+### 优化
+
+- 全覆盖性能收口（二）：列表 `getMemosListByUserIds` 在 SQL 层 substr 投影正文；`/api/data/statistics` 改 COUNT 不计全表；运维日志默认 limit=200（上限 2000）；补 `parentUserId`/`logs.userId`/列表排序复合索引；编辑页复用已加载标签
+- 全覆盖性能收口：租户备忘录列表 `getMemosByUserIds` 一次批查 + `(userId,deletedAt)` 复合索引；无变更 PATCH 跳过历史写；附件关联扫描改 `getMemoAttachmentLinks` 轻量列；用户列表一次 enrich；统计页四请求 `Promise.all`；监控/日志轮询 3s/6s；`verify:perf-coverage`
+- 性能升级（对照 sql.js/REST list/Opossum 业界实践）：sql.js 落盘防抖默认 500ms+脏写合并；列表接口正文投影截断 256；新建带附件改为先上传再单次 create；`/api/ops/snapshot` 等观测路由不进时长 SLA 窗
+- 出站熔断生产化：CLOSED/OPEN/HALF 三态 + 冷却指数退避（2s→上限 300s）+ HALF 连续成功回 CLOSED；状态转换才发事件；运维 HTTP force-open/force-close/reset；gateway/status 暴露 circuits
+- 弹性控制面加固：同一原因族 30s 滞回、单次收紧步长≤基线 25%、ops 并发地板 MIN_OPS_CONCURRENCY=3；长轮询独立信号量；XFF 最右非可信；API 预算窗有界淘汰
+- 运维四页信息架构与壳层收口：概览改为健康 KPI + 快捷入口；监控默认总览、底座/调度折叠；日志去掉跨页重复的数据流转；统一 OpsPageShell；监控轮询改单请求 `GET /api/ops/snapshot`
+- 全站界面设计系统收口：`--cyp-*` 语义 token（含 success/warning/danger/elevated）；共享 Button/Modal/Toast 等去并行暗色 hex；Element Plus 双通道皮肤上移 `theme.css`；壳层 BrandMark 统一；底栏/侧栏优先 SVG；桌面侧栏消费 `menu.ts`；删除未挂路由 HomeView / TenantUsersView
+
+### 功能
+
+- 备忘录编辑器工具栏中文化与双行分组布局（历史/字符/段落/列表/样式/插入）
+- 备忘录编辑器办公档富文本：对齐/文字色/高亮/任务列表/上下标/分割线/撤销重做/清除格式；工具栏分组；详情与分享页同步渲染样式
+- 运维监控聚合快照接口 `GET /api/ops/snapshot`：一次返回健康/就绪/配置/告警工单/调度/弹性/性能/发布/文件存储/治理，减少监控页多 GET 串行轮询
+- 使用条款与隐私政策按 2.0.0 现行能力重写：自建存储、双认证、分享评论、主/子账号、运维观测、版本探测出站、MIT 许可；首次使用协议与 /terms、/privacy 同源
+- 运行底座网关中心编制落地：六网关子中心全必建（业务/系统/策略控制/出站治理/事件与可观测/安全准入）；HOST-BIZ 门面与数据面车道分离；出站 half-open；ops 可观测预算地板；命名扫描 `verify:gateway-center-naming`
+- 版本探测必建：`api.github.com` 出站由 bootstrap 自动放行，禁止依赖手工 `CYP_EGRESS_ALLOWLIST` 才启用
+
+### 修复
+
+- 首次使用协议对话框改接 `content/legal.ts` 与 `/terms` 同源，去掉被整文件回滚打回的过期「禁止商业用途」等旧文案；详情页分享失败展示真实错误
+- 门禁 R-024：禁止用 `git checkout`/`restore` 整文件打回 HEAD 收回误改，避免未提交产品修复被清盘（并强化 R-022/版本史联动）
+- 分享管理前端缺口回补：公开页恢复复制工具条与右侧评论反馈；管理页恢复访客评论折叠/计数/回复；列表接口返回 `hasPassword`；清理过期分享允许 `share_manage`
+- 备忘录编辑器全屏：优先浏览器 Fullscreen API（`navigationUI: show`）+ ARIA dialog/live；失败才 Teleport/CSS 回退；编辑区 grid `1fr` 撑满
+- 军械库反哺 R-023：浏览器原生全屏与无障碍门禁（规则 24.26 · X29 · ANTI-84）已镜像到本仓 Cursor 规则
+- 侧栏/底栏图标：去掉 functions 白底占位 SVG 复用，改为 Element Plus 线性图标并跟主题色
+- 打开页面不再把访问/性能/领域事件观测/调度心跳/弹性调控/告警拨号流水写进数据库，避免每次请求整库落盘
+- 观测与核心业务硬隔离：独立 `logs/observability.sqlite` + JSONL；业务库仅 `audit`；告警/security 进观测库；uploads 只作对象存储
+- 网关 API 预算键改为优先取 `X-Forwarded-For`，避免反向代理/多用户压测时全员挤占同一 IP 配额
+- 军械库反哺 R-015：观测写路径与业务库隔离门禁（规则 24.18）已镜像到本仓 Cursor 规则
+- 军械库反哺 R-017：运行底座网关中心族门禁（规则 24.20 · X22 · ANTI-78）已镜像到本仓 Cursor 规则
+- 军械库反哺 R-018：环境依赖一律自动配置（规则 24.21 · X23 · ANTI-79；禁必选/选用与外部注入）已镜像到本仓 Cursor 规则
+- 版本检查 2 秒超时并缓存；日志清理延后到进页之后；文件列表不再整表读取备忘录正文；文件库缩略图延后加载
+- 消息队列落盘遇到文件占用时不再把 API 进程打崩
+- 文件库页样式括号错位导致 Vite 整页报错遮罩，已补回空状态样式
+- 站内通知只进铃铛：新消息不再弹出提醒，未读数仍在铃铛上
+- 性能管控只在业务并发见顶且时延越过目标，或内存/事件循环危机后触发；只收紧观测与调度，不拒绝备忘录、登录、文件等业务请求
+- 性能自动化以本机能力为前提：并发地板/上限、API 每分钟预算、队列出队批量由逻辑 CPU 与物理内存计算（跨平台同一公式）；内存压力只看本机占比；事件循环阈值只在本机能力处定义一次
+- 存储空间测盘主路径为 Node `fs.statfs`（Win/macOS/Linux、跨架构同口径）；CLI 仅兜底，避免 Windows 同步 PowerShell 阻塞并污染 SLA
+- 运维观测轮询不进时长 SLA 窗；分位只保留近 60 秒，避免监控页自己把预警打穿后消不掉
+- 压力面不再用 V8 heapUsed/heapTotal（常态即 80% 以上，导致预警无法恢复）；改为进程 RSS 占整机内存，恢复后自动释放并结束本轮提示
+- 同一 SLA 越阈只提示一次，恢复后关单；同一运维标题不再反复弹出
+- 铃铛/版本等观测轮询不进时长 SLA；已收紧本轮不再重复 regulate；释放时清空分位窗，避免立刻再越阈刷屏
+
+### 测试
+
+- 新增 U200×4 统一压测阶梯脚本（1.7 / R-016）：访问与存储分列满额、档间冷却、禁宕机熔断、档后检测→设置→调优→预警→告知留痕
+- 业务并发闸补本机硬顶：用户车道满额返回 429，禁止无限排队拖死进程（收紧仍不低于基线）
+
+### 文档
+
+- 性能自动化须运行时识别本机硬件再优化：对齐军械库规则 24.17 · R-014 · ANTI-75
+- 自动化验收强制交审前实机整链：禁止仅矩阵/版本静态绿即交审（对齐军械库规则 24.16 · R-013）
+
+### 功能
+
+- 文件可同时被多条备忘录使用：文件库列出全部关联，管理关联按条勾选，删除或删备忘录不会抢走仍被其它备忘录使用的文件
+- 运维监控接口时延卡加宽（跨两列）：P50/P99/目标/判定/采样分格展示，不再挤在约 160px 窄卡里
+- 运维性能目标表单完善：展示已生效/草稿/判定用 P95、脏态保护与放弃修改；保存与闭环操作分区
+- 闭环步骤重整：感知→判定→调压→落地→回升→提高→固化→收尾；每 tick 单意图；无需求不抬升；回升渐进替代一次打满
+- 自动优化：健康释放后自动提高并发并固化基线（感知→调节→执行→释放→优化），禁止只收紧/回基线而不提高
+- 运维完整自动闭环：自动感知→自动调节→自动执行→自动释放→自动优化→自动派单；运维面不按组件分叉（面板合并，禁止弹性/告警另成入口）
+- 自动闭环自愈：启动与样本路径在 SLA 恢复后强制释放残留收紧；释放冷却短于收紧，禁止只收紧不放开
+- 运维监控可手动设置性能 SLA 目标（单请求 / 窗口 P95 / 错误率 / 告警连续越界），经配置管控热变更落盘；默认对齐三维高标准且禁止放宽
+- 性能闭环自动化：越阈收紧弹性并推迟调度 → 连续健康后自动回退弹性、关闭性能告警、刷新更优基线；收紧期间入口执行并发上限
+- 性能自动调压防卡死：内存/事件循环/逼近 SLA 压力面定时调节；始终执行并发闸；危急过载 503 降载；运维页定位为观测与目标设置平台
+- 性能自动化强制三功能：自动感知每轮必跑；有压力才自动调节；连续正常后自动释放弹性并关闭性能告警，禁止只收紧不释放
+- 运维取消人工告警工单：拨号后工单自动派给自动化（按来源映射）并闭环关闭；监控页只观测，不再指派/关闭
+- 闭集 35 自动化/智能化产品标准落地：ACL 矩阵、IA13-X 系统处置单、机检与就绪投影；A3=性能/韧性/告警
+
+### 重构
+
+- 运行底座闭集改为 35 个稳定 ID：就绪投影不再读取旧编制布尔；监控页按 L0 / L1 展示；接线表由平台协调持有；质量门禁、生产Mock、一键部署与通知三键退出闭集
+- 运行底座各服务收成独立目录、独立文件：拆掉共用探针袋与投影袋；平台协调只保留名册与接线一个文件；日志组件与全链路日志、身份访问管控与权限矩阵不再共用同一就绪函数
+- 前端安全防护与系统韧性保障的实现收回本目录；全链路日志、规则校验研判、态势采集监测、启动依赖管控不再借用邻项布尔；密钥保险箱完善档改为实检；开放协作去掉沙箱字段
+- 现行符号与启动任务键去掉 Center：就绪别名、事件槽位与 Phase 任务键不再使用该称谓
+- 项目登记表现行闭集改为 35 个稳定 ID 的实现锚点，退出质量门禁与通知三键；就绪响应内部映射不再使用 centers 变量；验收说明改为闭集 35
+- 机检只认 35 个稳定 ID，就绪体去掉并行 modules 清单；权限判定收回权限矩阵目录；公开接入安全不再借用前端安全防护的就绪布尔
+- 各服务就绪不再借用邻项布尔：性能运行管控不读系统韧性保障，全链路日志不读日志组件，平台协调不读服务协作管控，风险运行管控不读身份访问与告警，溯源与安全审计、开放协作各用本目录条件
+- 业务路由登记收回业务协同对接目录，并去掉生产 Mock 与一键部署平台名；租户可见范围收回权限矩阵目录
+- 血缘边收回数据协作服务目录，不再单列文件
+- 数据源登记收回数据处理核算目录；机器态收回身份访问管控目录；领域事件清单收回事件协作管控目录
+- 告警定级收回风险告警处置目录；日志信封与脱敏收回日志组件目录
+- 登录挑战收回身份访问管控目录；产品事件钩子收回事件协作管控目录；文件存储收回数据库目录
+- 数据迁移收回数据库目录；基础设施资源与环境隔离收回配置组件目录
+- 存储空间探测收回配置组件目录；日志门面收回日志组件目录；CSP 收回前端安全防护目录；地域信号收回身份访问管控目录
+- 请求链路上下文收回全链路日志目录；失败信封与业务码收回码值标准化目录
+- 会话鉴权与租户守卫收回身份访问管控目录；权限矩阵锚点改认本目录
+- 实体写管道与数据运维清理收回数据处理核算目录；实体变更发布收回事件协作管控目录
+- 备忘录/附件/分享/用户/设置写路径收回业务协同对接目录；日志写删收回溯源检索分析目录
+- 启动领域事件接线收回组件协调目录；JSON→SQLite 一次性迁移脚本迁出 src 根
+- 启动依赖管控完整形态锚点改认本目录；服务身份链补 SPIFFE 引用/核验/信任根
+- 通知三键与对象存储写入平台协调扩展点接线，未登记不得汇入
+- 三道边界拒绝用例补可执行复现：名单外、无权限行、未登记接线直连库
+- 工作负载证书到期后自动更换，签发不等待全员确认；探针参数先查覆盖登记
+- 联调与机检说明改称运行底座闭集 35；机检断言到期自动更换且禁止半 TTL / 全员确认门禁
+- 支持矩阵独立登记；完整形态机检扩至闭集 35 加开发设计约束；现行面去掉「完成态」「业务模块」称谓
+- 支持矩阵默认声明集补齐 Windows / x64 的 Server 与 Desktop
+- 桌面声明集机检：嵌入同一服务端路径 + 实机 ready；架构 5.7 补 L0 与密钥保险箱
+- 闭集 35 组件卡片落地；军械库 P0/IA/违规清单现行口径改为闭集 35
+- 组件卡片按模板补齐十二项：定位含不解决、契约、依赖中文全称与自检
+- 桌面嵌入：联调主进程路径对齐 package.json；服务端入口 dist 优先、缺省回退 tsx src；机检含独立 PORT 嵌入冒烟
+- 现行残留收口：安装说明与 cutin 去掉五大中心/B9/28 项完成态投影；登记表锚点改认日志组件 ready
+- 修复 `/api/logs` 请求体变量遮蔽日志函数导致创建失败；桌面机检兼容完整 ready URL
+- 运维/安装/打包/面板与 cutin 现行面去掉「五大中心」与 B9 批次称谓
+- 服务端 TypeScript 可产出 dist；Electron 嵌入实启机检；基础设施选型/安全纵深/模块描述符交付物落地
+
+### 性能 ⚡
+
+- 保存按钮收成一次写入：远程更新不再先读全文、再整段上传历史、再读回；历史由服务端在同一次更新里快照，有新附件时也不再保存两遍
+- 运维告警误报收口：G06 补登记 memo_history/settings 等必建表，磁盘登记与默认并集；创建/删除/上传远程不再阻塞等日志；附件删除有 memoId 时不再全量扫备忘录；弹性配额从压测收紧态复位
+
+### 文档
+
+- 用户动作路径核验门禁：Cursor 规则强制整链往返与耗时证据，禁止单接口探针冒充保存体感通过（对齐军械库 R-008）
+- 服务器存储 SSOT 门禁：Cursor 规则 + `verify:storage-ssot` 强制 dataDir 卷与 health 同口径，禁止浏览器配额冒充磁盘（对齐军械库 R-010）
+- 存储根收口：磁盘探针唯一模块；Phase0 可用空间门禁；sqlite/uploads 禁 cwd 旁路；本地适配器停用浏览器配额
+- 存储空间口径：对外正式名统一「存储空间」；health.storageSpace 正式字段；文件存储中心迁入 Phase1；严禁第二套存储根
+- 完整形态交付门禁：Cursor 规则 + `verify:complete-form`；禁止「非阻断残余」冒充底座完成态（对齐军械库 R-011）
+- 运行底座完整完善：配置热变更扩至 INFO 采样/日志保留期；ready.`completeForm` 投影；台账锚定 config-revision-center
+- 5.7 深度对账：完整形态机检扩至 28 项锚点；告警指派/关闭与 notify/status 纳入 completeForm 门禁
+- 风险运行管控：告警收敛/处置记录落盘 `risk/dispositions.jsonl`；`GET /api/risk/dispositions`；cutin 断言 completeForm
+- 规则校验研判：风险阈值 `riskThresholds` 经配置热变更注入；数据处理核算增加 `POST /api/pipeline/replay` 回放；cutin M
+- 流程调度受性能约束：SLA 越阈或弹性收紧时自动 tick 推迟非心跳任务；`POST /api/release/rollback` 可核验回滚
+- 溯源按业务码检索：`GET /api/logs/by-code/:code` 回链 traceId；客户端错误上报改走统一 API 预算，去掉平行限流 Map
+- 安全审计防护：登录成败、权限拒绝、配置热变更/回滚、紧急停机写入独立审计（`recordAuditSafe`），与运行日志分流
+
+### 新增 ✨
+
+- 运维告警处置闭环：拨号后生成工单；`GET /api/alerts`、`POST .../assign|close`；监控页可指派/关闭；事件 `AlertAssigned`/`AlertClosed` 入目录
+- `/api/notify/status`：系统通知中心运维面（渠道登记与 outbox 计数）
+- 备忘录与附件库双向集成：编辑页加载已有附件、可从附件库选用；附件页可关联/取消关联备忘录；保存一次写 attachments 并由服务端反写 files.memoId；详情页显示真实文件名
+- 文件库：侧栏/权限文案由「附件管理」更名为「文件库」；库内可上传任意格式；筛选含图片/文本/视频/音频/其他；空 MIME 归为通用二进制
+- 文件库存储口径对齐运维：`/users/:id/storage` 与 `/api/health.diskSpace` 同读服务器 dataDir 卷；本账号占用单独字段 accountUsed（废止浏览器配额当分母）
+
+### 测试
+
+- 机检 `verify-complete-form` 扩至 5.7 全 28 项锚点 + 告警指派/关闭路由与事件目录
+- 机检 `verify-complete-form` + 实机 `verify-config-complete-form`：热变更→回滚→托管头
+- 实机核验脚本 `verify-memo-attachment-sync.ts`：PATCH 关联 → updateMemo 反写 → 解绑全绿
+- 实机核验脚本 `verify-file-library-all-formats.ts`：xyz/mp4/flac/7z 全格式入库 PASS
+- 实机核验脚本 `verify-storage-disk-align.ts`：文件库 storage 与 health.diskSpace 一致
+- 机检脚本 `verify-server-storage-ssot.mjs`（`pnpm verify:storage-ssot`）：远程路径禁 navigator.storage；storage API 须挂 getDiskSpace(dataDir)
+
+### 修复 🐛
+
+- 风险告警处置完成态：拨号后工单指派/关闭闭环并回链日志；completeForm 纳入 dispositionReady（对齐 5.7）
+- 风险运行管控完成态：收敛/指派/关闭写入处置记录并回链全链路日志（对齐 5.7）
+- 规则阈值收口配置管控：`riskThresholds` 热变更/回滚；管道 sync-log 可回放对账（对齐 5.7）
+- 流程调度编排受性能运行管控约束（越阈推迟）；版本回滚路由 `POST /api/release/rollback`（对齐 5.7）
+- 溯源检索分析：按业务码定位日志与 traceId；客户端上报限流并入系统韧性保障统一预算（对齐 5.7）
+- 安全审计防护：敏感操作与鉴权拒绝写入独立审计记录，不与运行日志混写（对齐 5.7）
+- 配置管控完成态：版本台账/审计/热变更 `logLevel`+`infoSamplePercent`+`retentionDays`/回滚；防重响应改走系统缓存（对齐 5.7 · R-011）
+- PDF 解析：补齐 cMap/标准字体；扫描件无文字层时提取嵌入页面图像写入编辑器（非 OCR）
+- PDF 解析资源随构建发布：从已安装的 pdfjs-dist 整目录拷贝 cmaps 与标准字体进静态资源，部署不再依赖本机路径
+- 依赖服务随构建机复制：数据库 sql.js（含 wasm）、HTTP/鉴权库与共享库从本机已安装目录解成真实文件打进包，目标平台只配置后启动，不再重新安装
+- 编辑器表格不能操作：光标进入表格后提供加行、加列、删行、删列、删表，并补齐单元格选中与列宽拖动
+- 数据管道入队强制 G06：未登记数据源拒绝并告警；flush 同步写 G07 血缘边
+- 性能运行管控高压实机收口：长轮询/SSE 豁免时长 SLA；事件同 topic 多订阅者不再被 claim 抢占；MQ 无 handler 不堵 drain；outbox 防抖落盘+软上限裁剪；drain 提速（500ms/256）；压测门禁区分硬失败与 429 限流韧性；c=24/c=32 加压 PASS
+- 性能运行管控嵌入式完成态：基线落盘、P50/P95/P99、QPS、错误率、慢路由、SLA 越阈→PerfSlaBreached→弹性可逆收紧+告警候选；监控页 KPI/慢路由/基线操作
+- 权限按侧栏细拆：新增 `memo_data` / `share_manage` / `tenant_logs`；菜单与路由一入口一权；旧账号启动时抬升补齐，之后可单独收回
+- 子用户权限对齐现行侧栏：按业务/运维/个人分组，并标明各权对应页面；停发已废弃的「成员一览」；服务端规范化与客户端一致
+- 数据维护补齐操作：本范围导出/导入/清空（主账号确认）、数据源目录、数据流转、迁移状态，不再只显示计数
+- 运行日志汇总运行日志、操作审计、数据血缘为操作监控，级别/动作/来源以中文展示，并近实时刷新
+- 运行监控改为近实时轮询（约 2s/轮，页签可见时持续拉取；隐藏暂停、聚焦立即刷新），去掉手动刷新与自动开关
+- 运行监控加厚为监控仪表盘：健康/磁盘/P95/告警/十二中心指标卡；必建能力·管控子平台·托管业务·十二中心状态网格；调度任务表；原始 JSON 收起到排障区
+- 运维按军械库《界面独立开发规范》拆回独立页：运维概览 / 数据维护 / 运行监控 / 运行日志各一路由；去掉单页大分栏；与「子用户管理」重叠的用户列表入口并入 `/accounts`
+- 运维中心补「日志」分栏：本范围运行日志（级别筛选）+ 近期审计只读；概览可点日志条数跳转；`/tenant/logs` 重定向
+- 侧栏「用户」四入口重叠：合并为单一「运维中心」（`/tenant` 分栏：概览/成员一览/数据/运行）；旧 `/tenant/users|database|monitor` 与 `/admin*` 重定向；子账号 CRUD 仍只走「子用户管理」
+- 运行底座拆分「通知≠告警」：`风险告警处置`仅 `alert-center`（管理员系统问题）；业务用户触达挂 `业务协同对接`+⑫；ready 增 `必建能力`（系统通知中心/系统通知渠道/业务通知触达一律必建）
+- 系统通知改为近实时：顶栏铃铛用 Bearer 长轮询 `GET .../notifications/wait`，访客评论写入后约亚秒唤醒；切回标签/聚焦也会立即刷新（不再依赖整页刷新或 30 秒轮询）
+- 公开分享评论改到正文右侧栏：桌面左右分栏，评论区限高内滚，避免把整页拉长；窄屏仍叠在正文下方
+- 分享评论折叠/可回复/系统通知：管理页默认折叠摘要；主人可回复并在公开页展示；访客评论经⑫ `notify-center` 入站内铃铛（顶栏），对齐十二中心触达而不自建旁路通道
+- 分享管理可接收访客评论：登录后 `GET /api/users/:userId/share-comments`，每条分享下展示评论与「有帮助 / 一般 / 需改进」计数；点刷新拉取最新反馈
+- 公开分享页增加评论与反馈：访客可选择「有帮助 / 一般 / 需改进」并发表评论；`GET/POST /api/public/shares/:id/comments` 免登录，密码分享须先解锁
+- 分享查看页顶栏收紧为单行工具条（弱提示 + 文字按钮「复制链接/复制正文」），避免大号按钮换行撑高
+- 分享查看页增加「复制链接」「复制正文」；顶栏只读徽标旁可一键复制当前分享 URL 或标题+正文
+- Excel 模板/导出表头与文件名改为中文：`aoa_to_sheet` 固定「标题/内容/标签/优先级/创建时间/更新时间」；下载名与 PDF 对齐品牌前缀（如 `CYP-memo-备忘录导入模板.xlsx`、`CYP-memo-备忘录导出-日期.xlsx`）
+
+- 详情页不能创建分享：主账号分享同租户子账号备忘录时，客户端误拦「必须本人所有」；改为可读即可创建，对齐服务端同租户 guardMemoAccess；失败 toast 展示真实错误；分享写服务 create→MemoShared / delete→ShareRevoked
+
+- 附件显示「未关联备忘录」：实现 PATCH /api/files 写入 memoId；新建备忘录改为先创建再带 memoId 上传；列表反填孤儿；附件页 healOrphanedMemoLinks
+- 删除备忘录后附件残留：软删/硬删同步清理关联附件与磁盘 blob；列表加载 purge 软删残留
+- 附件管理删除未同步备忘录：DELETE /api/files 同步从 memos.attachments 移除；客户端反查兜底；memoStore 缓存同步
+- 底座 **B9 洁净债**：删除 `AdminDAO.ts`；`IStorageAdapter`/Local/Remote 摘除 admins*；`memo-write-service` 收敛 `pipeEntityWrite`；`verify-no-compat` 断言 AdminDAO gone + 无适配器 admins API
+- 底座 **B9** 收口：协作能力子平台 5 + 公开子平台 2；`runtimeBase.batch=B9`；`verify-five-centers`/`verify-runtime-base-stress`/`cutin` 对齐；开放协作探针可重复
+- 底座 **B8**：零兼容硬切——`/api/memos/tenant-scope` 410；删除 `AdminAuthManager`；停导 `AdminDAO`；无 Idempotency-Key 写拒绝；公开分享写入登记表；`verify-no-compat-dualpath.ps1`
+- 底座 **B7**：写路径全抽离——`identity/share/file/settings/memo(+history)/log/data-ops` 服务；`index.ts` 零直连 database 写；数据处理核算 `base-write-kit` 管道；`verify-runtime-base-cutin` 复检通过
+- 底座 **B6**：全量写流量强制过底座——`business-route-registry` 未登记拒绝；Memo 写经 `memo-write-service`（业务协同对接→数据处理核算+事件）；日志经 `log-center`；ready `routesRegistered` + `runtimeBase.batch=B6`
+- 统一运行底座分批切入 **B1**：台账 `docs/CYP-memo-runtime-base-batch-plan.md` + `.cyp-project.json` `runtime_base`；`/healthz/ready` 投影 管控子平台/托管业务服务/质量门禁；LoginView 走 `resolveApiBaseUrl`；停导出 `AdminAuthManager`
+- 底座 **B2** 推进：生产Mock约束 `verify-no-prod-mock.ps1`；CSP 归并 `shared/security/csp.ts`（桌面去掉裸 `https:`）；metadata 锚定 码值标准化
+- 底座 **B2–B5 收口**：`idempotency-center` 防重；`centers.risk`；`perf-center`（性能运行管控）；态势采集监测~系统韧性保障 乙列；LOCAL_DEV/DEPLOY 对齐；`runtime_base.batch=B5`
+- 底座机检补齐：`verify-five-centers` / `verify-runtime-base` 断言 `runtimeBase` 管控子平台/托管业务服务/质量门禁 + risk/perf/idempotency；README 验收口径更新
+- 权限收口：备忘录列表统一为 `GET /api/memos`（十权 `memo_manage` + 租户数据范围）；`/memos/tenant-scope` 仅兼容别名，消除「第二套规则」语义；本地列表改走 `resolveTenantRootId`
+- 分享页正文露出 HTML 标签：与详情页一致剥离富文本为纯文本（避免 `<p>1111</p>` 原文）
+- 首次登录备忘录列表不刷新：`MemoListView` 解构 Pinia 丢失响应式，改为 `storeToRefs` 后登录加载立即更新
+- 备忘录卡片编辑/删除按钮图标空白：emoji 被剥离，改为 Element Plus SVG（编辑笔 / 垃圾桶）
+- 备忘录卡片信息挤成一团：操作改为常显「编辑/删除」文案按钮；理顺标题/摘要/页脚层级
+- 备忘录卡片中间大块空白：去掉固定高度虚拟滚动，改为内容自适应高度
+- 备忘录列表缺创建人/创建时间：按 userId 回填创建人；页脚展示创建人、创建时间、更新时间（多子用户可辨）
+- 分享链接访客打开提示不存在：新增公开访问接口，访客无需登录即可查看分享内容
+- 页脚服务条款/隐私 404：补齐 `/terms`、`/privacy` 路由与正文页
+- 产品壳全面主题对齐：共享组件与备忘/资料/账号/分享/认证/设置/欢迎等页硬编码浅色（`#fff`/`#f5f7fa`/`#303133` 等）改为 `--cyp-*` 变量；PDF 导出内联样式保持浅色打印
+- 用户概览白卡片与深色主题冲突：`TenantDashboardView` 统计/快捷入口写死 `#fff`，改用 `--cyp-bg-card` 等主题变量；租户子页标题/监控块同步；并补 SVG 图标
+- 顶栏多余功能小图标：`AppLayout` 在品牌 Logo 旁误挂 `memo.svg`，移除只保留 Logo + 标题
+- 欢迎页点「开始使用」弹「应用发生错误」：`useToast` 误解构 `showSuccess`/`showError`（实际为 `success`/`error`）；并补齐 `PUT/GET /api/settings*`（原 404）供引导状态同步
+- 欢迎引导步骤/特性图标空白：源文件 emoji 被编码剥离为孤立 `️` 或空串；改为 Element Plus SVG 图标（创建/标签/附件/搜索/统计/设置等）
+- 欢迎页主按钮「下一步/开始使用」白底白字不可读：`.btn-primary` 背景误为 `#f5f5f5`，改回品牌蓝渐变并补暗色模式对比度
+- 欢迎页 / 404 页 `AppFooter` 错位：父级默认横向 flex 导致页脚与主内容并排；改为纵向布局，页脚全宽贴视口底部
+- 生产唯一基准清假成功与非生产ENV
+- `/api/admins/*` 全量 410（含未鉴权 GET/POST；鉴权白名单放行至路由层，禁止先 401）；远程注册改走 `POST /api/auth/register`；Owner 默认十权
+- 登录防爆破对齐 A13/G11：连续失败 ≥3 **永久封禁**（`permanent-bans.json` 持久化）+ `AlertCandidate` 告警；短窗频控仍 `429` 临时锁；`GET check-username` 匿名恒 `exists:false` 防枚举；永久封禁人工解除**仅服务端离线**（`scripts/offline-lift-ban.ts`）；在线 `POST /api/governance/bans/lift` → **410**
+- 按安全工程评估修正：连败默认**临时锁**，永久封禁仅高置信升级；Geo 仅信号；新增检测字段/风险处置/异常数据流三件套设计；P0 `security-telemetry` 路径×状态码采集
+- P2 检测增强：IPv4 `/24` 网段**观测告警**（禁止整段拦截，防业务误伤）；多时间窗 1m/5m/15m/24h；`security-telemetry` 扫描/错误风暴粗检 + AlertCandidate
+- P2 深化：跨租户拒绝可观测；管道 lag 告警；告警 detail 脱敏；`hasPassword` + `POST /api/auth/change-password`（禁前端依赖 passwordHash）
+- P2 收口：G06 数据源登记门禁；G07 血缘边可查；导出遥测；中风险算术挑战（`/api/auth/challenge` + LoginView）
+- 高强度负压纠偏：私网/回环 IP 不得作为永久封禁的「仅 IP」匹配键（防本机/NAT 业务全灭）
+- 永久封禁人工解除：在线 lift API 退役（410）；仅部署机 `offline-lift-ban.ts` + 磁盘热加载
+- P2 收口：G06 数据源登记+未登记拒绝；G07 血缘边可查；导出遥测；登录算术挑战令牌 + LoginView
+- P1：`digitalId` 入检测桶；`geo-signal` 可配置地域/ASN 信号；lift 后 24h 观察期加敏；中风险 `X-CYP-Challenge: delay` 钩子
+- `/api/health` 未就绪返回 `success:false` + HTTP 503（禁假成功）
+- `twelveCenters` c9–c11 按真实能力布尔；登录/注册/欢迎/404 挂载统一 `AppFooter`
+- 旧 `/admin/database`、`/admin/monitor` 重定向至 `/tenant*`
+
+### 移除 🗑️
+
+- 全面取消容器部署：删除 `docker/`、CI 镜像构建、Watchtower/Docker 更新入口与 compose 推荐路径
+
+### 新增 ✨
+
+- 备忘录编辑器插入任意格式文件：选中后确认是否解析到正文；图片、文本与 Excel 写入正文，无法提取可读内容的格式只保留为附件
+- 侧栏菜单分组可收纳：点击分组标题折叠/展开，状态本地持久化；当前路由所在分组自动展开
+- 主侧栏整栏可收纳：顶栏折叠按钮 + 侧栏底部「收纳侧栏」；桌面收为图标窄轨并持久化；移动端滑出/遮罩
+- 附件/统计/账号侧栏 el-menu 未跟主题：统一走 --cyp-* / Element 菜单变量，与主侧栏视觉一致
+- 主题双通道打架：ui store 不再改写 html.dark；Element Plus 深色覆盖同时认 data-theme=dark；补齐下拉/对话框/表格/分页/标签等；分享提示与协议弹窗去浅色靛蓝
+- 登录卡内页脚挤成一行难读：AppFooter 改为「版本/版权」与「条款/隐私/邮箱」两行布局，认证卡内取消 sticky 并加大上边距
+- 新建子用户无法登录：浏览器 PBKDF2 哈希写入服务端，登录只认 bcrypt；改为传明文 password 由服务端哈希；旧格式账号提示删除重建
+- 登录安全验证区不够美观：改为品牌色卡片布局（题目徽章 + 答案输入 + 换一题）
+- 子账号权限与菜单不相符：十权标签/可分配清单对齐；强制 profile_self、禁 account_manage；登录/拒权按权限落地；PATCH /api/me 自助改资料（刷新不再被踢）
+- 注册撞名区分主/子账户：子账户用户名被占用时明确提示联系对应主账户处理
+- 子账户打开备忘录列表报缺 account_manage：改为 /memos/tenant-scope；同租户 sub-accounts/用户资料只读不再强要管理权
+- 按五大中心（配置/初始化/码值/日志/管控）收口部署矩阵；四通道安装：面板(宝塔/1Panel)、NAS 原生、Windows、Unix
+- `scripts/install/*` · `scripts/verify/verify-five-centers.*` · `deploy/panel|nas|systemd` · server tarball 打包
+
+### 优化 ⚡
+
+- 文件解析写入原文：表格按单元格进编辑器，Word/PPT/PDF/ODT 提取正文，不再把可提取内容换成说明句或 CSV 摘要
+- 备忘录编辑页收成单面布局：取消标题溢出（box-sizing）、标题/标签/编辑器合一卡片，工具栏字数与全屏右固定，正文吃满剩余高度
+
+### 其他 🔧
+
+- 本机联调命名与编码洁净对齐CI02
+
+### 重大改版 🔨
+
+- 整仓系统级改版：统一产品壳（`packages/app`）、身份/RBAC、鉴权与权限码收口
+- 平台强制六项落地：配置中心 / 初始化中心 / 日志中心 / 管控中心 / 码值信封 / 嵌入式数据库能力
+- 物理删除 `packages/admin`；产品主视角单壳；`/admin*` 重定向至统一入口
+
+### 测试 🧪
+
+- S-03 九类流程验证与 P4 债批次收束对齐
+- 极高用户量 L2/L3 全环节实机 PASS：80 用户/30 备忘/120 分享；stress c48 hardErr=0%，429 分列韧性（verify-extreme-full-link）
+- 智控闭环实机 PASS：404 路径扫描→弹性 quota_tighten/raise→告警 outbox→通知 outbox（verify-extreme-intelligence-loop）；安全全面机检 33/0 + 高强度负压 22/0
+
+### 文档 📝
+
+- 版本权威升至 **2.0.0**（`VERSION` / 各包 `package.json` / `version.ts` / README / 契约抬头）
+- `DEPLOY.md` / `ops/README.md` / README 部署段改为非容器五大中心通道
+
+---
 
 ## [1.9.2] - 2026-01-14
 
@@ -36,7 +317,7 @@
 
 ### 优化 ⚡
 
-- 桌面端开发模式检测统一：所有主进程模块使用 !app.isPackaged 替代 process.env.NODE_ENV 检测开发模式
+- 桌面端本机联调检测统一：所有主进程模块使用 !app.isPackaged 替代 process.env.NODE_ENV 检测本机联调
 - 桌面端内置服务器工作目录：EmbeddedServer 启动时设置 cwd 为服务器目录，确保 node_modules 正确解析
 
 ---
@@ -74,7 +355,7 @@
 ### 修复 🐛
 
 - 桌面端帮助关于功能错误：修复 MenuManager.ts 中使用 require 导入 dialog 模块在 ESM 环境下报错 'require is not defined' 的问题，改为在文件顶部使用 import 语句导入
-- 桌面端生产环境显示开发者工具：修复打包后的应用仍然显示开发者工具菜单的问题，使用 app.isPackaged 判断是否为生产环境，生产环境下隐藏开发者工具菜单项
+- 桌面端生产环境显示调试工具：修复打包后的应用仍然显示调试工具菜单的问题，使用 app.isPackaged 判断是否为生产环境，生产环境下隐藏调试工具菜单项
 - 桌面端应用图标缺失：将项目图标源文件（图片/桌面CYP-MEMO.png）复制到 resources/icon-source.png，并运行图标生成脚本生成 icon.ico、icon.icns 和各尺寸 PNG 图标
 - PDF导出内容被截断：移除 PDF 导出中备忘录内容的 max-height: 300px 和 overflow: hidden 限制，确保长文本完整显示
 
@@ -148,7 +429,7 @@
 
 ### 优化 ⚡
 
-- pnpm 版本兼容性：放宽 engines 配置从固定版本改为 node>=20 和 pnpm>=8，支持更多开发环境
+- pnpm 版本兼容性：放宽 engines 配置从固定版本改为 node>=20 和 pnpm>=8，支持更多本机联调
 - 原生模块自动构建：添加 pnpm.onlyBuiltDependencies 配置，自动批准 better-sqlite3、keytar、electron、esbuild、sharp 的构建脚本执行
 - npm 镜像源统一：使用 npmmirror（淘宝源）作为 npm、Electron、原生模块的镜像源，提升国内网络环境下载速度和稳定性
 
@@ -158,11 +439,11 @@
 
 ### 新增 ✨
 
-- **跨平台开发环境指南**: 新增 `docs/CROSS_PLATFORM_DEV.md` 文档
-  - 详细说明 Windows/macOS/Linux/WSL2/Docker 环境下的开发配置
+- **跨平台本机联调指南**: 新增 `docs/CROSS_PLATFORM_DEV.md` 文档
+  - 详细说明 Windows/macOS/Linux/WSL2/Docker 环境下的联调配置
   - 包含各平台的常见问题和解决方案
-- **Linux/macOS 开发启动脚本**: 新增 `dev.sh` 脚本
-  - 与 Windows 的 `dev.bat` 对应，提供一致的开发体验
+- **Linux/macOS 本机联调启动脚本**: 新增 `local.sh` 脚本
+  - 与 Windows 的 `local.bat` 对应，提供一致的联调体验
 
 ### 修复 🐛
 
@@ -179,11 +460,11 @@
   - 重构 `sqlite-database.ts` 数据路径初始化为延迟加载
   - 使用 `ensureDataPaths()` 函数在 `init()` 时调用
 - **版本号读取跨环境兼容**: 修复不同环境下版本号读取失败的问题
-  - 支持开发环境、生产环境、Docker 容器等多种路径查找 `package.json`
+  - 支持本机联调、生产环境、Docker 容器等多种路径查找 `package.json`
 
 ### 优化 ⚡
 
-- **开发脚本跨平台优化**: 改进 `scripts/dev.js` 跨平台兼容性
+- **本机联调脚本跨平台优化**: 改进 `scripts/local.js` 跨平台兼容性
   - 支持跨平台进程终止（Windows 使用 `taskkill`，Unix 使用 `SIGTERM`）
   - 正确处理 Windows 的 `pnpm.cmd` 命令
   - 添加错误处理和平台信息输出
@@ -191,7 +472,7 @@
   - Windows: `%LOCALAPPDATA%/cyp-memo/data`
   - macOS: `~/Library/Application Support/cyp-memo/data`
   - Linux: `~/.local/share/cyp-memo/data`
-- **Vite 开发服务器配置增强**: 添加 WSL2/Docker 环境的 HMR 和文件监听配置说明
+- **Vite 联调服务配置增强**: 添加 WSL2/Docker 环境的 HMR 和文件监听配置说明
 
 ---
 
@@ -203,7 +484,7 @@
   - 支持日志级别控制（debug/info/warn/error）
   - 根据 `LOG_LEVEL` 环境变量自动过滤日志输出
   - 提供 `startup()` 方法用于启动信息始终输出
-  - 提供 `sensitive()` 方法仅在开发模式输出敏感信息
+  - 提供 `sensitive()` 方法仅在本机联调输出敏感信息
 - **服务器端 TypeScript 类型定义**: 新增 `types.ts` 类型定义文件
   - 为 Admin、User、Memo、FileRecord、Share、LogEntry 等实体提供完整的接口定义
   - 包含创建参数类型（CreateUserParams、CreateMemoParams 等）
@@ -212,7 +493,7 @@
 ### 修复 🐛
 
 - **生产模式敏感信息泄露**: 修复默认管理员密码在生产环境控制台明文输出的安全问题
-  - 改用 `logger.sensitive()` 仅在开发模式输出
+  - 改用 `logger.sensitive()` 仅在本机联调输出
   - 生产环境只记录管理员创建成功的日志，不显示密码
 - **TypeScript 严格模式 any 类型**: 消除 `sqlite-database.ts` 中所有 `any` 类型
   - 使用具体的接口类型替代，符合 TypeScript 严格模式要求
@@ -231,7 +512,7 @@
 
 ### 其他 🔧
 
-- **代码规范符合开发文档**: 服务器端代码现在完全符合 `docs/DEVELOPMENT.md` 中定义的开发规范
+- **代码规范符合工程文档**: 服务器端代码现在完全符合 `docs/DEVELOPMENT.md` 中定义的工程规范
   - 使用 TypeScript 严格模式
   - 统一日志输出方式
   - 所有源文件包含版权声明
@@ -767,11 +1048,11 @@
 
 ### 优化 ⚡
 
-- **启动脚本优化**: `dev.bat` 自动启动服务器端，无需手动启动多个进程
-  - 修改为调用 `pnpm dev:all` 同时启动服务器端和前端
+- **启动脚本优化**: `local.bat` 自动启动服务器端，无需手动启动多个进程
+  - 修改为调用 `pnpm local:all` 同时启动服务器端和前端
   - 更新端口提示信息，显示服务器端端口 5170
 
-- **自动打开浏览器**: 关闭 Vite 开发服务器的自动打开浏览器功能
+- **自动打开浏览器**: 关闭 Vite 联调服务的自动打开浏览器功能
   - 用户端和管理端的 `vite.config.ts` 中 `server.open` 改为 `false`
   - 避免启动时自动打开多个浏览器标签页
 

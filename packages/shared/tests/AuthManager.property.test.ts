@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证管理器属性测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -429,10 +429,13 @@ describe('认证管理器属性测试', () => {
             const rememberInfo = authManager.getRememberInfo()
             
             if (remember) {
-              // 如果选择记住，应该能获取到信息
+              // 如果选择记住，应仅保存用户名（禁止明文密码）
               expect(rememberInfo).not.toBeNull()
               expect(rememberInfo!.username).toBe(uniqueUsername)
-              expect(rememberInfo!.password).toBe(password)
+              expect((rememberInfo as { password?: string }).password).toBeUndefined()
+              const raw = localStorage.getItem('cyp-memo-remember')
+              expect(raw).not.toBeNull()
+              expect(raw!).not.toContain(password)
             } else {
               // 如果不记住，应该没有信息
               expect(rememberInfo).toBeNull()
@@ -487,7 +490,8 @@ describe('认证管理器属性测试', () => {
             rememberInfo = authManager.getRememberInfo()
             expect(rememberInfo).not.toBeNull()
             expect(rememberInfo!.username).toBe(uniqueUsername)
-            expect(rememberInfo!.password).toBe(password)
+            expect((rememberInfo as { password?: string }).password).toBeUndefined()
+            expect(localStorage.getItem('cyp-memo-remember')!).not.toContain(password)
             
             // 清理
             await userDAO.delete(user.id)

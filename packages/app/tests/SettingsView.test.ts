@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 设置界面单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -228,7 +228,7 @@ describe('SettingsView - 令牌管理测试', () => {
     vi.clearAllMocks()
   })
 
-  it('应该正确切换令牌可见性', async () => {
+  it('令牌可见性/复制已从设置页移除（no-op 兼容）', async () => {
     authStore.currentUser = {
       id: 'test-user-id',
       username: 'testuser',
@@ -257,132 +257,11 @@ describe('SettingsView - 令牌管理测试', () => {
     })
     await flushPromises()
 
-    // 初始状态应该隐藏
-    expect(wrapper.vm.showToken).toBe(false)
-
-    // 切换显示
-    wrapper.vm.toggleTokenVisibility()
-    expect(wrapper.vm.showToken).toBe(true)
-
-    // 再次切换隐藏
-    wrapper.vm.toggleTokenVisibility()
-    expect(wrapper.vm.showToken).toBe(false)
-  })
-
-  it('应该成功复制令牌到剪贴板', async () => {
-    const testToken = 'test-token-12345'
-    authStore.currentUser = {
-      id: 'test-user-id',
-      username: 'testuser',
-      token: testToken,
-      isMainAccount: true,
-      permissions: [],
-      createdAt: new Date(),
-      lastLoginAt: new Date(),
-      rememberPassword: false
-    }
-
-    const wrapper = mount(SettingsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /></div>'
-          },
-          Button: {
-            template: '<button @click="$emit(\'click\')"><slot /></button>',
-            emits: ['click']
-          },
-          Modal: true
-        }
-      }
-    })
-    await flushPromises()
-
-    // 复制令牌
-    await wrapper.vm.copyToken()
-    await flushPromises()
-
-    // 验证复制成功
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(testToken)
-    expect(mockToast.success).toHaveBeenCalledWith('令牌已复制到剪贴板')
-  })
-
-  it('应该在没有令牌时显示错误', async () => {
-    authStore.currentUser = {
-      id: 'test-user-id',
-      username: 'testuser',
-      passwordHash: 'hash',
-      isMainAccount: true,
-      permissions: [],
-      createdAt: new Date(),
-      lastLoginAt: new Date(),
-      rememberPassword: false
-    }
-
-    const wrapper = mount(SettingsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /></div>'
-          },
-          Button: {
-            template: '<button @click="$emit(\'click\')"><slot /></button>',
-            emits: ['click']
-          },
-          Modal: true
-        }
-      }
-    })
-    await flushPromises()
-
-    // 尝试复制令牌
-    await wrapper.vm.copyToken()
-    await flushPromises()
-
-    // 验证显示错误
-    expect(mockToast.error).toHaveBeenCalledWith('没有可复制的令牌')
-  })
-
-  it('应该在复制失败时显示错误', async () => {
-    authStore.currentUser = {
-      id: 'test-user-id',
-      username: 'testuser',
-      token: 'test-token-12345',
-      isMainAccount: true,
-      permissions: [],
-      createdAt: new Date(),
-      lastLoginAt: new Date(),
-      rememberPassword: false
-    }
-
-    // Mock clipboard 失败
-    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('复制失败'))
-
-    const wrapper = mount(SettingsView, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          AppLayout: {
-            template: '<div><slot /></div>'
-          },
-          Button: {
-            template: '<button @click="$emit(\'click\')"><slot /></button>',
-            emits: ['click']
-          },
-          Modal: true
-        }
-      }
-    })
-    await flushPromises()
-
-    // 尝试复制令牌
-    await wrapper.vm.copyToken()
-    await flushPromises()
-
-    // 验证显示错误
-    expect(mockToast.error).toHaveBeenCalledWith('复制失败，请手动复制')
+    expect(wrapper.vm.showToken).toBeUndefined()
+    expect(() => wrapper.vm.toggleTokenVisibility()).not.toThrow()
+    await expect(wrapper.vm.copyToken()).resolves.toBeUndefined()
+    expect(mockToast.success).not.toHaveBeenCalled()
+    expect(mockToast.error).not.toHaveBeenCalled()
   })
 })
 
@@ -401,7 +280,7 @@ describe('SettingsView - 安全问题更新测试', () => {
     vi.clearAllMocks()
   })
 
-  it('应该在用户未登录时显示错误', async () => {
+  it('安全问题更新已从设置页移除（no-op 兼容）', async () => {
     authStore.currentUser = null
 
     const wrapper = mount(SettingsView, {
@@ -421,12 +300,8 @@ describe('SettingsView - 安全问题更新测试', () => {
     })
     await flushPromises()
 
-    // 尝试更新安全问题
-    await wrapper.vm.handleUpdateSecurityQuestion()
-    await flushPromises()
-
-    // 验证显示错误
-    expect(mockToast.error).toHaveBeenCalledWith('用户未登录')
+    await expect(wrapper.vm.handleUpdateSecurityQuestion()).resolves.toBeUndefined()
+    expect(mockToast.error).not.toHaveBeenCalled()
   })
 })
 

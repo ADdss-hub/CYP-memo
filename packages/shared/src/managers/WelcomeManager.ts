@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 欢迎引导管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -136,8 +136,8 @@ export class WelcomeManager {
       },
       {
         id: 'step-4',
-        title: '文件附件上传',
-        description: '支持上传图片、文档等多种格式文件。拖拽即可上传，图片自动预览，大文件也能轻松处理。',
+        title: '文件库上传',
+        description: '文件库支持全部格式。可先入库再关联备忘录；图片可预览，大文件也能上传。',
         target: '#upload-file-btn',
         position: 'left',
       },

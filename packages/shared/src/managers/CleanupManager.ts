@@ -1,10 +1,9 @@
-﻿/**
+/**
  * CYP-memo 自动清理管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
 import { getStorage, storageManager } from '../storage'
-import { memoDAO } from '../database/MemoDAO'
 import { logManager } from './LogManager'
 
 /**
@@ -82,27 +81,28 @@ export class CleanupManager {
         }
         return result
       } else {
-        // 本地模式：使用 DAO 清理
+        // 本地模式：Dexie 全表扫软删除备忘录并物理删除
+        const { db } = await import('../database/db')
         const cutoffDate = new Date()
         cutoffDate.setDate(cutoffDate.getDate() - days)
-        
-        const deletedMemos = await memoDAO.getDeletedMemos()
+
+        const deletedMemos = await db.memos.filter((m) => !!m.deletedAt).toArray()
         let removedCount = 0
-        
+
         for (const memo of deletedMemos) {
           if (memo.deletedAt && new Date(memo.deletedAt) < cutoffDate) {
-            await memoDAO.permanentlyDelete(memo.id)
+            await db.memos.delete(memo.id)
             removedCount++
           }
         }
-        
+
         if (removedCount > 0) {
           await logManager.info('已删除备忘录清理完成', {
             action: 'cleanup_deleted_memos',
             removedCount,
           })
         }
-        
+
         return removedCount
       }
     } catch (error) {
@@ -133,8 +133,21 @@ export class CleanupManager {
         }
         return result
       } else {
-        // 本地模式：暂不支持，返回 0
-        return 0
+        // 本地模式：无 memoId 的文件视为孤立
+        const { db } = await import('../database/db')
+        const files = await db.files.toArray()
+        const orphaned = files.filter((f) => !f.memoId)
+        for (const f of orphaned) {
+          await db.fileBlobs.delete(f.id)
+          await db.files.delete(f.id)
+        }
+        if (orphaned.length > 0) {
+          await logManager.info('孤立文件清理完成', {
+            action: 'cleanup_orphaned_files',
+            removedCount: orphaned.length,
+          })
+        }
+        return orphaned.length
       }
     } catch (error) {
       await logManager.error(error instanceof Error ? error : new Error(String(error)), {
@@ -283,12 +296,42 @@ export class CleanupManager {
     expiredSharesCount: number
     oldLogsCount: number
   }> {
-    // 注意：在远程模式下，此功能需要服务器端支持
-    return {
-      deletedMemosCount: 0,
-      orphanedFilesCount: 0,
-      expiredSharesCount: 0,
-      oldLogsCount: 0,
+    try {
+      const storage = storageManager.getAdapter()
+      if (storage.getMode() === 'remote') {
+        return {
+          deletedMemosCount: 0,
+          orphanedFilesCount: 0,
+          expiredSharesCount: 0,
+          oldLogsCount: 0,
+        }
+      }
+
+      const { db } = await import('../database/db')
+      const now = new Date()
+      const logCutoff = new Date()
+      logCutoff.setHours(logCutoff.getHours() - this.config.logRetentionHours)
+
+      const deletedMemosCount = await db.memos.filter((m) => !!m.deletedAt).count()
+      const orphanedFilesCount = await db.files.filter((f) => !f.memoId).count()
+      const expiredSharesCount = await db.shares
+        .filter((s) => !!s.expiresAt && new Date(s.expiresAt) < now)
+        .count()
+      const oldLogsCount = await db.logs.filter((l) => new Date(l.timestamp) < logCutoff).count()
+
+      return {
+        deletedMemosCount,
+        orphanedFilesCount,
+        expiredSharesCount,
+        oldLogsCount,
+      }
+    } catch {
+      return {
+        deletedMemosCount: 0,
+        orphanedFilesCount: 0,
+        expiredSharesCount: 0,
+        oldLogsCount: 0,
+      }
     }
   }
 }

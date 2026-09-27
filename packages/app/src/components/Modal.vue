@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   Modal 对话框组件
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -108,7 +108,7 @@ const handleConfirm = () => {
 }
 
 .modal-container {
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   max-width: 90vw;
@@ -119,7 +119,7 @@ const handleConfirm = () => {
 
 .modal-header {
   padding: 20px 24px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--cyp-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -129,7 +129,7 @@ const handleConfirm = () => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .modal-close {
@@ -138,7 +138,7 @@ const handleConfirm = () => {
   cursor: pointer;
   padding: 4px;
   font-size: 18px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -147,22 +147,22 @@ const handleConfirm = () => {
 }
 
 .modal-close:hover {
-  background: #f5f7fa;
-  color: #606266;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
 }
 
 .modal-body {
   padding: 24px;
   flex: 1;
   overflow-y: auto;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   font-size: 14px;
   line-height: 1.6;
 }
 
 .modal-footer {
   padding: 16px 24px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--cyp-border);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -192,31 +192,5 @@ const handleConfirm = () => {
 .modal-slide-leave-to {
   opacity: 0;
   transform: scale(0.9) translateY(20px);
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] .modal-container {
-  background: #1d1e1f;
-}
-
-[data-theme='dark'] .modal-header {
-  border-bottom-color: #414243;
-}
-
-[data-theme='dark'] .modal-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .modal-close:hover {
-  background: #262727;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .modal-body {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .modal-footer {
-  border-top-color: #414243;
 }
 </style>

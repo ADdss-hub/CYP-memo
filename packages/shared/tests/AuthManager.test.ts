@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证管理器单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -450,7 +450,10 @@ describe('认证管理器单元测试', () => {
       rememberInfo = authManager.getRememberInfo()
       expect(rememberInfo).not.toBeNull()
       expect(rememberInfo!.username).toBe(username)
-      expect(rememberInfo!.password).toBe(password)
+      expect((rememberInfo as { password?: string }).password).toBeUndefined()
+      const raw = localStorage.getItem('cyp-memo-remember')
+      expect(raw).not.toBeNull()
+      expect(raw!).not.toContain(password)
     })
   })
 

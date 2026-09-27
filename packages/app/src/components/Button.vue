@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   Button 按钮组件（统一样式）
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -126,86 +126,86 @@ const handleClick = (event: MouseEvent) => {
 
 /* 类型 */
 .btn-primary {
-  background: #409eff;
-  color: #ffffff;
-  border-color: #409eff;
+  background: var(--cyp-brand);
+  color: var(--cyp-text);
+  border-color: var(--cyp-brand);
   font-weight: 600;
 }
 
 .btn-primary:hover:not(.btn-disabled):not(.btn-loading) {
-  background: #66b1ff;
-  border-color: #66b1ff;
+  background: var(--cyp-brand-soft);
+  border-color: var(--cyp-brand-soft);
 }
 
 .btn-success {
-  background: #67c23a;
-  color: #ffffff;
-  border-color: #67c23a;
+  background: var(--cyp-success);
+  color: var(--cyp-text);
+  border-color: var(--cyp-success);
   font-weight: 600;
 }
 
 .btn-success:hover:not(.btn-disabled):not(.btn-loading) {
-  background: #85ce61;
-  border-color: #85ce61;
+  background: var(--cyp-success-hover);
+  border-color: var(--cyp-success-hover);
 }
 
 .btn-warning {
-  background: #e6a23c;
-  color: #ffffff;
-  border-color: #e6a23c;
+  background: var(--cyp-warning);
+  color: var(--cyp-text);
+  border-color: var(--cyp-warning);
   font-weight: 600;
 }
 
 .btn-warning:hover:not(.btn-disabled):not(.btn-loading) {
-  background: #ebb563;
-  border-color: #ebb563;
+  background: var(--cyp-warning-hover);
+  border-color: var(--cyp-warning-hover);
 }
 
 .btn-danger {
-  background: #f56c6c;
-  color: #ffffff;
-  border-color: #f56c6c;
+  background: var(--cyp-danger);
+  color: var(--cyp-text);
+  border-color: var(--cyp-danger);
   font-weight: 600;
 }
 
 .btn-danger:hover:not(.btn-disabled):not(.btn-loading) {
-  background: #f78989;
-  border-color: #f78989;
+  background: var(--cyp-danger-hover);
+  border-color: var(--cyp-danger-hover);
 }
 
 .btn-default {
-  background: white;
-  color: #606266;
-  border-color: #dcdfe6;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
+  border-color: var(--cyp-border);
 }
 
 .btn-default:hover:not(.btn-disabled):not(.btn-loading) {
-  color: #409eff;
-  border-color: #c6e2ff;
-  background: #ecf5ff;
+  color: var(--cyp-brand);
+  border-color: var(--cyp-brand);
+  background: var(--cyp-brand-tint);
 }
 
 .btn-text {
   background: transparent;
-  color: #409eff;
+  color: var(--cyp-brand);
   border-color: transparent;
 }
 
 .btn-text:hover:not(.btn-disabled):not(.btn-loading) {
-  color: #66b1ff;
-  background: rgba(64, 158, 255, 0.1);
+  color: var(--cyp-brand-soft);
+  background: var(--cyp-brand-tint);
 }
 
 .btn-secondary {
-  background: #f5f7fa;
-  color: #606266;
-  border-color: #dcdfe6;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
+  border-color: var(--cyp-border);
 }
 
 .btn-secondary:hover:not(.btn-disabled):not(.btn-loading) {
-  color: #409eff;
-  border-color: #c6e2ff;
-  background: #ecf5ff;
+  color: var(--cyp-brand);
+  border-color: var(--cyp-brand);
+  background: var(--cyp-brand-tint);
 }
 
 /* 状态 */
@@ -246,39 +246,5 @@ const handleClick = (event: MouseEvent) => {
   to {
     transform: rotate(360deg);
   }
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] .btn-default {
-  background: #262727;
-  color: #cfd3dc;
-  border-color: #414243;
-}
-
-[data-theme='dark'] .btn-default:hover:not(.btn-disabled):not(.btn-loading) {
-  color: #409eff;
-  border-color: #337ecc;
-  background: #1a1d1f;
-}
-
-[data-theme='dark'] .btn-text {
-  color: #409eff;
-}
-
-[data-theme='dark'] .btn-text:hover:not(.btn-disabled):not(.btn-loading) {
-  color: #66b1ff;
-  background: rgba(64, 158, 255, 0.1);
-}
-
-[data-theme='dark'] .btn-secondary {
-  background: #262727;
-  color: #cfd3dc;
-  border-color: #414243;
-}
-
-[data-theme='dark'] .btn-secondary:hover:not(.btn-disabled):not(.btn-loading) {
-  color: #409eff;
-  border-color: #337ecc;
-  background: #1a1d1f;
 }
 </style>

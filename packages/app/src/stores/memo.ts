@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 备忘录状态管理
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -73,12 +73,18 @@ export const useMemoStore = defineStore('memo', () => {
   /**
    * 创建备忘录
    */
-  async function createMemo(userId: string, title: string, content: string, tags: string[] = []) {
+  async function createMemo(
+    userId: string,
+    title: string,
+    content: string,
+    tags: string[] = [],
+    opts?: { id?: string; attachments?: string[] }
+  ) {
     isLoading.value = true
     error.value = null
 
     try {
-      const memo = await memoManager.createMemo(userId, title, content, tags)
+      const memo = await memoManager.createMemo(userId, title, content, tags, opts)
       memos.value.unshift(memo)
       return memo
     } catch (err) {
@@ -100,10 +106,24 @@ export const useMemoStore = defineStore('memo', () => {
       const memo = await memoManager.updateMemo(memoId, title, content, tags, attachments)
       const index = memos.value.findIndex((m) => m.id === memoId)
       if (index !== -1) {
-        memos.value[index] = memo
+        const prev = memos.value[index]
+        memos.value[index] = {
+          ...prev,
+          ...memo,
+          userId: memo.userId || prev.userId,
+          createdAt: prev.createdAt,
+          attachments: attachments !== undefined ? memo.attachments : prev.attachments,
+        }
       }
       if (currentMemo.value?.id === memoId) {
-        currentMemo.value = memo
+        const prev = currentMemo.value
+        currentMemo.value = {
+          ...prev,
+          ...memo,
+          userId: memo.userId || prev.userId,
+          createdAt: prev.createdAt,
+          attachments: attachments !== undefined ? memo.attachments : prev.attachments,
+        }
       }
       return memo
     } catch (err) {

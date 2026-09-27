@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   会话失效/使用受限提示对话框
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -122,7 +122,7 @@ function handleOverlayClick() {
 }
 
 .session-expired-dialog {
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 16px;
   padding: 32px 40px;
   max-width: 420px;
@@ -160,38 +160,38 @@ function handleOverlayClick() {
 }
 
 .icon-expired {
-  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-  color: #e67e22;
+  background: var(--cyp-brand-tint);
+  color: var(--cyp-brand);
 }
 
 .icon-restricted {
-  background: linear-gradient(135deg, #ffeef8 0%, #ffcce5 100%);
-  color: #e74c3c;
+  background: color-mix(in srgb, var(--cyp-danger) 18%, transparent);
+  color: var(--cyp-danger);
 }
 
 .icon-warning {
-  background: linear-gradient(135deg, #fff3cd 0%, #ffc107 100%);
-  color: #856404;
+  background: color-mix(in srgb, var(--cyp-warning) 20%, transparent);
+  color: var(--cyp-warning);
 }
 
 .dialog-title {
   margin: 0 0 12px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .dialog-message {
   margin: 0 0 8px 0;
   font-size: 15px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   line-height: 1.6;
 }
 
 .dialog-hint {
   margin: 0 0 24px 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   line-height: 1.5;
 }
 
@@ -213,22 +213,22 @@ function handleOverlayClick() {
 }
 
 .dialog-button.primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--cyp-brand);
   color: white;
 }
 
 .dialog-button.primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px var(--cyp-brand-tint-strong);
 }
 
 .dialog-button.secondary {
-  background: #f5f7fa;
-  color: #606266;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
 }
 
 .dialog-button.secondary:hover {
-  background: #e4e7ed;
+  background: var(--cyp-border);
 }
 
 .dialog-button:active {
@@ -246,34 +246,8 @@ function handleOverlayClick() {
   opacity: 0;
 }
 
-/* 深色主题 */
-[data-theme='dark'] .session-expired-dialog {
-  background: #262727;
-}
-
-[data-theme='dark'] .dialog-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .dialog-message {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .dialog-hint {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .dialog-button.secondary {
-  background: #363637;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .dialog-button.secondary:hover {
-  background: #414243;
-}
-
 /* 移动端适配 */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .session-expired-dialog {
     padding: 24px 20px;
     margin: 16px;

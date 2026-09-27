@@ -170,15 +170,15 @@ export class NotificationManager {
    * 获取默认图标路径
    */
   private getDefaultIconPath(): string | null {
-    const isDev = !app.isPackaged
+    const isLocalTooling = !app.isPackaged
     const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
 
-    if (isDev) {
-      // 开发模式：从 dist/main/main/ 到 resources/
+    if (isLocalTooling) {
+      // 未打包：从 dist/main/main/ 到 resources/
       return path.join(__dirname, '../../../resources', iconName)
     }
 
-    // 生产模式：从 resources/resources/ 目录加载
+    // 已打包：从 resources/resources/ 目录加载
     if (process.resourcesPath) {
       return path.join(process.resourcesPath, 'resources', iconName)
     }

@@ -1,19 +1,49 @@
-﻿/**
+/**
  * CYP-memo 本地存储适配器
  * 基于 IndexedDB (Dexie.js) 实现
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
 import { db } from '../database/db'
-import type { User, Memo, MemoHistory, FileMetadata, ShareLink, LogEntry, Admin } from '../types'
+import type { User, Memo, MemoHistory, FileMetadata, ShareLink, LogEntry, StorageInfo } from '../types'
 import type { IStorageAdapter, StorageMode, QueryOptions, FileBlob } from './StorageAdapter'
-import { verifyPassword } from '../utils/crypto'
+
+const DATE_FIELD_KEYS = new Set([
+  'createdAt',
+  'updatedAt',
+  'lastLoginAt',
+  'deletedAt',
+  'uploadedAt',
+  'expiresAt',
+  'timestamp',
+  'exportedAt',
+])
+
+function reviveRecordDates(record: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...record }
+  for (const key of Object.keys(out)) {
+    const value = out[key]
+    if (DATE_FIELD_KEYS.has(key) && typeof value === 'string') {
+      const d = new Date(value)
+      if (!Number.isNaN(d.getTime())) out[key] = d
+    } else if (Array.isArray(value)) {
+      out[key] = value.map((item) =>
+        item && typeof item === 'object' && !(item instanceof Date)
+          ? reviveRecordDates(item as Record<string, unknown>)
+          : item
+      )
+    } else if (value && typeof value === 'object' && !(value instanceof Date)) {
+      out[key] = reviveRecordDates(value as Record<string, unknown>)
+    }
+  }
+  return out
+}
 
 /**
  * 本地存储适配器
  * 使用 IndexedDB 存储数据，适用于本地单机使用
  * 
- * ⚠️ 警告：此适配器已废弃，仅用于开发和测试
+ * ⚠️ 警告：此适配器已废弃，仅用于联调与测试
  * 生产环境应使用 RemoteStorageAdapter（服务器端存储）
  */
 export class LocalStorageAdapter implements IStorageAdapter {
@@ -29,58 +59,6 @@ export class LocalStorageAdapter implements IStorageAdapter {
 
   getMode(): StorageMode {
     return 'local'
-  }
-
-  // ========== 管理员操作 ==========
-  async createAdmin(admin: Admin): Promise<string> {
-    return await db.admins.add(admin)
-  }
-
-  async getAdminById(id: string): Promise<Admin | undefined> {
-    return await db.admins.get(id)
-  }
-
-  async getAdminByUsername(username: string): Promise<Admin | undefined> {
-    return await db.admins.where('username').equals(username).first()
-  }
-
-  async getAllAdmins(): Promise<Admin[]> {
-    return await db.admins.toArray()
-  }
-
-  async updateAdmin(id: string, updates: Partial<Admin>): Promise<number> {
-    return await db.admins.update(id, updates)
-  }
-
-  async deleteAdmin(id: string): Promise<void> {
-    await db.admins.delete(id)
-  }
-
-  async adminUsernameExists(username: string): Promise<boolean> {
-    const count = await db.admins.where('username').equals(username).count()
-    return count > 0
-  }
-
-  async countAdmins(): Promise<number> {
-    return await db.admins.count()
-  }
-
-  async adminLogin(username: string, password: string): Promise<Admin> {
-    const admin = await db.admins.where('username').equals(username).first()
-    
-    if (!admin) {
-      throw new Error('用户名或密码错误')
-    }
-
-    const isValid = await verifyPassword(password, admin.passwordHash)
-    if (!isValid) {
-      throw new Error('用户名或密码错误')
-    }
-
-    // 更新最后登录时间
-    await db.admins.update(admin.id, { lastLoginAt: new Date() })
-
-    return { ...admin, lastLoginAt: new Date() }
   }
 
   // ========== 用户操作 ==========
@@ -255,6 +233,12 @@ export class LocalStorageAdapter implements IStorageAdapter {
     return files.reduce((sum, f) => sum + f.size, 0)
   }
 
+  async getStorageInfo(userId: string): Promise<StorageInfo> {
+    // 本地 IndexedDB（已废弃/仅测）：只报账号占用，不调浏览器配额、不冒充服务器磁盘（R-010）
+    const accountUsed = await this.getStorageUsed(userId)
+    return { used: 0, total: 0, available: 0, accountUsed }
+  }
+
   // ========== 分享链接 ==========
   async createShare(share: ShareLink): Promise<string> {
     return await db.shares.add(share)
@@ -282,7 +266,7 @@ export class LocalStorageAdapter implements IStorageAdapter {
 
   async deleteExpiredShares(): Promise<number> {
     const now = new Date()
-    const expired = await db.shares.filter(s => s.expiresAt && s.expiresAt < now).toArray()
+    const expired = await db.shares.filter(s => Boolean(s.expiresAt && s.expiresAt < now)).toArray()
     await db.shares.bulkDelete(expired.map(s => s.id))
     return expired.length
   }
@@ -349,34 +333,50 @@ export class LocalStorageAdapter implements IStorageAdapter {
       logs: await db.logs.toArray(),
       settings: await db.settings.toArray(),
       exportedAt: new Date().toISOString(),
-      version: '1.0',
+      version: '2.0.0',
     }
     return JSON.stringify(data, null, 2)
   }
 
-  async importData(jsonData: string): Promise<void> {
+  async importData(jsonData: string, options?: { merge?: boolean }): Promise<void> {
+    const merge = options?.merge === true
     const data = JSON.parse(jsonData)
-    
-    await db.transaction('rw', 
+    if (!data || typeof data !== 'object' || !data.version) {
+      throw new Error('缺少版本信息')
+    }
+
+    const revive = <T>(rows: T[] | undefined): T[] => {
+      if (!rows?.length) return []
+      return rows.map((row) => reviveRecordDates(row as Record<string, unknown>) as T)
+    }
+
+    await db.transaction(
+      'rw',
       [db.users, db.memos, db.memoHistory, db.files, db.shares, db.logs, db.settings],
       async () => {
-        // 清空现有数据
-        await db.users.clear()
-        await db.memos.clear()
-        await db.memoHistory.clear()
-        await db.files.clear()
-        await db.shares.clear()
-        await db.logs.clear()
-        await db.settings.clear()
-        
-        // 导入新数据
-        if (data.users) await db.users.bulkAdd(data.users)
-        if (data.memos) await db.memos.bulkAdd(data.memos)
-        if (data.memoHistory) await db.memoHistory.bulkAdd(data.memoHistory)
-        if (data.files) await db.files.bulkAdd(data.files)
-        if (data.shares) await db.shares.bulkAdd(data.shares)
-        if (data.logs) await db.logs.bulkAdd(data.logs)
-        if (data.settings) await db.settings.bulkAdd(data.settings)
+        if (!merge) {
+          await db.users.clear()
+          await db.memos.clear()
+          await db.memoHistory.clear()
+          await db.files.clear()
+          await db.shares.clear()
+          await db.logs.clear()
+          await db.settings.clear()
+        }
+
+        const write = async <T>(table: { bulkAdd: (items: T[]) => Promise<unknown>; bulkPut: (items: T[]) => Promise<unknown> }, rows: T[]) => {
+          if (!rows.length) return
+          if (merge) await table.bulkPut(rows)
+          else await table.bulkAdd(rows)
+        }
+
+        await write(db.users, revive(data.users))
+        await write(db.memos, revive(data.memos))
+        await write(db.memoHistory, revive(data.memoHistory))
+        await write(db.files, revive(data.files))
+        await write(db.shares, revive(data.shares))
+        await write(db.logs, revive(data.logs))
+        await write(db.settings, revive(data.settings))
       }
     )
   }

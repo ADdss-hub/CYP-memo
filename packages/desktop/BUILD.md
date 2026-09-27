@@ -19,7 +19,7 @@
 
 - macOS 10.15+
 - Xcode Command Line Tools
-- Apple 开发者账号（用于代码签名和公证）
+- Apple Developer 账号（用于代码签名和公证）
 
 ### Linux 构建要求
 
@@ -90,12 +90,12 @@ WIN_CSC_LINK=your-certificate-thumbprint
 
 ### macOS 代码签名和公证
 
-1. 在 Apple Developer 网站创建开发者证书
+1. 在 Apple Developer 网站创建代码签名证书
 2. 将证书导入到 macOS 钥匙串
 3. 设置以下环境变量：
 
 ```bash
-# Apple 开发者账号
+# Apple Developer 账号
 APPLE_ID=your-apple-id@example.com
 
 # 应用专用密码（在 appleid.apple.com 生成）

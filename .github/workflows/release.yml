@@ -66,17 +66,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build web app
-        run: pnpm --filter @cyp-memo/app build
+      - name: Static gates (encoding / CI02 / font-glyph / gateway naming)
+        run: pnpm verify:gates
 
-      - name: Build admin app
-        run: pnpm --filter @cyp-memo/admin build
+      - name: Build web app
+        run: |
+          pnpm --filter @cyp-memo/shared build
+          pnpm --filter @cyp-memo/app build
 
       - name: Package web artifacts
         run: |
           mkdir -p artifacts
           cd packages/app && zip -r ../../artifacts/cyp-memo-web-${{ github.ref_name }}.zip dist
-          cd ../admin && zip -r ../../artifacts/cyp-memo-admin-${{ github.ref_name }}.zip dist
 
       - name: Upload web artifacts
         uses: actions/upload-artifact@v4
@@ -157,20 +158,17 @@ jobs:
           npm_config_build_from_source: false
 
       - name: Build shared package
-        run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
+        run: pnpm --filter @cyp-memo/shared build
 
       - name: Build server package
         run: pnpm --filter @cyp-memo/server build
 
-      - name: Install server production dependencies
+      - name: Copy local server dependencies
         shell: pwsh
         run: |
-          cd packages/server
-          # 删除现有的 node_modules（可能是符号链接）
-          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
-          # 只安装生产依赖
-          npm install --omit=dev --ignore-scripts
-          Get-ChildItem node_modules | Select-Object Name
+          if (Test-Path .server-prod) { Remove-Item -Recurse -Force .server-prod }
+          node scripts/install/stage-prod-modules.mjs
+          if (-not (Test-Path .server-prod/node_modules/sql.js/dist/sql-wasm.wasm)) { throw "sql-wasm.wasm missing after stage" }
 
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
@@ -272,19 +270,16 @@ jobs:
           npm_config_build_from_source: false
 
       - name: Build shared package
-        run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
+        run: pnpm --filter @cyp-memo/shared build
 
       - name: Build server package
         run: pnpm --filter @cyp-memo/server build
 
-      - name: Install server production dependencies
+      - name: Copy local server dependencies
         run: |
-          cd packages/server
-          # 删除现有的 node_modules（可能是符号链接）
-          rm -rf node_modules
-          # 只安装生产依赖
-          npm install --omit=dev --ignore-scripts
-          ls -la node_modules/
+          rm -rf .server-prod
+          node scripts/install/stage-prod-modules.mjs
+          test -f .server-prod/node_modules/sql.js/dist/sql-wasm.wasm
 
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
@@ -383,19 +378,16 @@ jobs:
           npm_config_build_from_source: false
 
       - name: Build shared package
-        run: pnpm --filter @cyp-memo/shared build || echo "Shared package has no build script, skipping"
+        run: pnpm --filter @cyp-memo/shared build
 
       - name: Build server package
         run: pnpm --filter @cyp-memo/server build
 
-      - name: Install server production dependencies
+      - name: Copy local server dependencies
         run: |
-          cd packages/server
-          # 删除现有的 node_modules（可能是符号链接）
-          rm -rf node_modules
-          # 只安装生产依赖
-          npm install --omit=dev --ignore-scripts
-          ls -la node_modules/
+          rm -rf .server-prod
+          node scripts/install/stage-prod-modules.mjs
+          test -f .server-prod/node_modules/sql.js/dist/sql-wasm.wasm
 
       - name: Generate placeholder icons
         run: node scripts/create-placeholder-icons.mjs
@@ -424,157 +416,45 @@ jobs:
             packages/desktop/release/**/latest-linux.yml
 
 
-  # ========== 构建 Docker 镜像 (AMD64) ==========
-  build-docker-amd64:
+  # ========== 构建 Server 发行包（非容器 · 五大中心） ==========
+  build-server-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    outputs:
-      version: ${{ steps.version.outputs.VERSION }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            image=moby/buildkit:latest
-            network=host
-
-      - name: Extract version
-        id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Login to Alibaba Cloud ACR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Build and push AMD64
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/cyp-memo:${{ steps.version.outputs.VERSION }}-amd64
-            ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}:${{ steps.version.outputs.VERSION }}-amd64
-          cache-from: type=gha,scope=amd64
-          cache-to: type=gha,mode=max,scope=amd64
-          build-args: |
-            VERSION=${{ steps.version.outputs.VERSION }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
-            GIT_COMMIT=${{ github.sha }}
-          provenance: false
-          sbom: false
-
-  # ========== 构建 Docker 镜像 (ARM64 原生) ==========
-  build-docker-arm64:
-    runs-on: ubuntu-24.04-arm  # GitHub 原生 ARM64 runner
     timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          driver-opts: |
-            image=moby/buildkit:latest
-            network=host
+          version: ${{ env.PNPM_VERSION }}
 
-      - name: Extract version
-        id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
 
-      - name: Login to Alibaba Cloud ACR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Build and push ARM64
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/cyp-memo:${{ steps.version.outputs.VERSION }}-arm64
-            ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}:${{ steps.version.outputs.VERSION }}-arm64
-          cache-from: type=gha,scope=arm64
-          cache-to: type=gha,mode=max,scope=arm64
-          build-args: |
-            VERSION=${{ steps.version.outputs.VERSION }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
-            GIT_COMMIT=${{ github.sha }}
-          provenance: false
-          sbom: false
+      - name: Build app + server
+        run: pnpm build
 
-  # ========== 创建多架构 Docker 清单 ==========
-  create-docker-manifest:
-    needs: [build-docker-amd64, build-docker-arm64]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Login to Alibaba Cloud ACR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Create and push manifest (Docker Hub)
+      - name: Pack server tarball
         run: |
-          VERSION=${{ needs.build-docker-amd64.outputs.version }}
-          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-          
-          # 创建 Docker Hub 多架构清单
-          docker buildx imagetools create \
-            -t ${DOCKER_USERNAME}/cyp-memo:${VERSION} \
-            -t ${DOCKER_USERNAME}/cyp-memo:latest \
-            ${DOCKER_USERNAME}/cyp-memo:${VERSION}-amd64 \
-            ${DOCKER_USERNAME}/cyp-memo:${VERSION}-arm64
+          chmod +x scripts/pack-server-release.sh
+          bash scripts/pack-server-release.sh "${GITHUB_REF_NAME#v}" artifacts
 
-      - name: Create and push manifest (Alibaba Cloud ACR)
-        run: |
-          VERSION=${{ needs.build-docker-amd64.outputs.version }}
-          ACR_REGISTRY=${{ secrets.ACR_REGISTRY }}
-          ACR_NAMESPACE=${{ secrets.ACR_NAMESPACE }}
-          
-          # 创建 ACR 多架构清单
-          docker buildx imagetools create \
-            -t ${ACR_REGISTRY}/${ACR_NAMESPACE}:${VERSION} \
-            -t ${ACR_REGISTRY}/${ACR_NAMESPACE}:latest \
-            ${ACR_REGISTRY}/${ACR_NAMESPACE}:${VERSION}-amd64 \
-            ${ACR_REGISTRY}/${ACR_NAMESPACE}:${VERSION}-arm64
+      - name: Upload server artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-release
+          path: artifacts/*.tar.gz
 
   # ========== 发布 GitHub Release ==========
   publish-release:
-    needs: [build-web, build-desktop-windows, build-desktop-macos, build-desktop-linux, create-docker-manifest]
+    needs: [build-web, build-desktop-windows, build-desktop-macos, build-desktop-linux, build-server-release]
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' || github.event.inputs.publish == 'true' }}
     steps:
@@ -589,7 +469,6 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p final-release
-          # 复制所有文件到 final-release，保持扁平结构
           find release -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.yml" \) -exec cp {} final-release/ \;
           ls -la final-release/
 
@@ -601,9 +480,7 @@ jobs:
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # 提取当前版本的更新日志（从 ## [版本号] 到下一个 ## 或 --- 之间的内容）
           CHANGELOG=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[|^---/{flag=0} flag" CHANGELOG.md | head -50)
-          # 处理多行内容
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -620,35 +497,27 @@ jobs:
             
             ---
             
+            ### 运行底座
+            
+            验收看 `data.runtimeBase.items` 闭集 35。脚本 `scripts/verify/verify-five-centers.*` 与 `GET /healthz/ready`。
+            
             ### 下载
+            
+            #### 服务端（面板 / NAS / Unix）
+            - `cyp-memo-server-*-linux-*.tar.gz` — 解压后见 `DEPLOY.md` 与 `scripts/install/`
             
             #### 桌面客户端
             | 平台 | 下载 | 说明 |
             |------|------|------|
-            | Windows | `CYP-memo-*-setup.exe` | NSIS 安装程序 |
-            | Windows | `CYP-memo-*-portable.exe` | 便携版，无需安装 |
-            | macOS | `CYP-memo-*-universal.dmg` | 支持 Intel 和 Apple Silicon |
-            | Linux | `CYP-memo-*.AppImage` | 通用 Linux 格式 |
-            | Linux (Debian/Ubuntu) | `cyp-memo_*.deb` | Debian 包 |
+            | Windows | `CYP-memo-*-setup.exe` / portable | NSIS / 便携 |
+            | macOS | `CYP-memo-*-universal.dmg` | Intel + Apple Silicon |
+            | Linux | AppImage / deb | x64 |
             
-            #### Web 端
-            - `cyp-memo-web-*.zip` - 用户端静态文件
-            - `cyp-memo-admin-*.zip` - 管理端静态文件
-            
-            #### Docker
-            
-            **Docker Hub（推荐）**
-            ```bash
-            docker pull ${{ secrets.DOCKER_USERNAME }}/cyp-memo:${{ steps.version.outputs.VERSION }}
-            ```
-            
-            **阿里云 ACR（国内加速）**
-            ```bash
-            docker pull ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}:${{ steps.version.outputs.VERSION }}
-            ```
+            #### Web 静态
+            - `cyp-memo-web-*.zip`
             
             ### 自动更新
             
-            桌面客户端支持自动更新。如果您已安装旧版本，应用会自动检测并提示更新。
+            桌面客户端支持自动更新；面板/NAS/Windows 服务端请按 Release 包与安装脚本升级（已取消 Docker）。
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

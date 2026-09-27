@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 组件基础测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -49,9 +49,35 @@ describe('基础组件测试', () => {
   })
 
   it('AppFooter 组件应该显示版本信息', () => {
-    const wrapper = mount(AppFooter)
-    expect(wrapper.text()).toContain('版本')
+    const wrapper = mount(AppFooter, {
+      global: {
+        stubs: {
+          RouterLink: {
+            template: '<a><slot /></a>',
+          },
+        },
+      },
+    })
+    expect(wrapper.text()).toContain('V2.0.0')
     expect(wrapper.text()).toContain('作者')
     expect(wrapper.text()).toContain('CYP')
+  })
+
+  it('AppFooter 应提供服务条款与隐私链接', () => {
+    const wrapper = mount(AppFooter, {
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+        },
+      },
+    })
+    expect(wrapper.text()).toContain('服务条款')
+    expect(wrapper.text()).toContain('隐私')
+    const hrefs = wrapper.findAll('a').map((a) => a.attributes('href'))
+    expect(hrefs).toContain('/terms')
+    expect(hrefs).toContain('/privacy')
   })
 })

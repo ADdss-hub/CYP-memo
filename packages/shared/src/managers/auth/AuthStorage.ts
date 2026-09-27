@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证存储管理
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -20,11 +20,12 @@ export interface AuthInfo {
 }
 
 /**
- * 记住密码信息接口
+ * 记住登录信息（仅用户名；禁止明文密码入库）
  */
 export interface RememberInfo {
   username: string
-  password: string
+  /** 是否勾选「记住」——仅作回填勾选状态，不含口令 */
+  remember?: boolean
 }
 
 /**
@@ -62,14 +63,23 @@ export class AuthStorage {
   }
 
   /**
-   * 保存记住密码信息到本地存储
+   * 保存「记住用户名」信息（禁止写入 password）
    */
   saveRememberInfo(info: RememberInfo): void {
-    localStorage.setItem(STORAGE_KEY_REMEMBER, JSON.stringify(info))
+    const username = (info.username || '').trim()
+    if (!username) {
+      this.clearRememberInfo()
+      return
+    }
+    const payload: RememberInfo = {
+      username,
+      remember: info.remember !== false,
+    }
+    localStorage.setItem(STORAGE_KEY_REMEMBER, JSON.stringify(payload))
   }
 
   /**
-   * 获取记住的密码信息
+   * 获取记住的用户名信息；若历史数据含 password 字段则剥离并回写净化
    */
   getRememberInfo(): RememberInfo | null {
     try {
@@ -77,14 +87,28 @@ export class AuthStorage {
       if (!data) {
         return null
       }
-      return JSON.parse(data) as RememberInfo
+      const parsed = JSON.parse(data) as RememberInfo & { password?: string }
+      const username = (parsed.username || '').trim()
+      if (!username) {
+        return null
+      }
+      // 迁移：清除历史明文密码
+      if (typeof parsed.password === 'string') {
+        const cleaned: RememberInfo = { username, remember: true }
+        localStorage.setItem(STORAGE_KEY_REMEMBER, JSON.stringify(cleaned))
+        return cleaned
+      }
+      return {
+        username,
+        remember: parsed.remember !== false,
+      }
     } catch {
       return null
     }
   }
 
   /**
-   * 清除记住密码信息
+   * 清除记住用户名信息
    */
   clearRememberInfo(): void {
     localStorage.removeItem(STORAGE_KEY_REMEMBER)

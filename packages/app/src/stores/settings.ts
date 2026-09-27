@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 设置状态管理
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -13,7 +13,7 @@ import type { AppSettings } from '@cyp-memo/shared'
 const DEFAULT_SETTINGS: AppSettings = {
   isFirstTime: true,
   welcomeCompleted: false,
-  theme: 'light',
+  theme: 'dark',
   fontSize: 'medium',
   language: 'zh-CN',
   autoCleanLogs: true,
@@ -52,6 +52,14 @@ export const useSettingsStore = defineStore('settings', () => {
       if (stored) {
         const parsed = JSON.parse(stored)
         settings.value = { ...DEFAULT_SETTINGS, ...parsed }
+        // 主题统一：旧浅色壳与品牌大图标不符，升到深色科技壳（可在设置中再改）
+        if (parsed.theme === 'light' && parsed.themeUnifiedDark !== true) {
+          settings.value.theme = 'dark'
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ ...settings.value, themeUnifiedDark: true })
+          )
+        }
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载设置失败'

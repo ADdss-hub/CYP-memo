@@ -46,9 +46,9 @@ const config = {
       to: 'server/',
       filter: ['**/*'],
     },
-    // 包含服务器的 node_modules 依赖（排除 devDependencies）
+    // 本机依赖解引用后的真实目录，随安装包复制，目标机不再安装
     {
-      from: '../server/node_modules/',
+      from: '../../.server-prod/node_modules/',
       to: 'server/node_modules/',
       filter: [
         '**/*',
@@ -58,9 +58,8 @@ const config = {
         '!**/.bin/**',
       ],
     },
-    // 包含服务器的 package.json（用于模块解析）
     {
-      from: '../server/package.json',
+      from: '../../.server-prod/package.json',
       to: 'server/package.json',
     },
   ],

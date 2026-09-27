@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 加密工具
  * 支持多种环境：浏览器、Node.js、NAS 系统（飞牛、群晖等）
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
@@ -212,7 +212,7 @@ async function hashPasswordFallback(password: string): Promise<string> {
     }
   }
   
-  // 最后的备用方案：Base64 编码（不安全，仅用于开发/测试）
+  // 最后的备用方案：Base64 编码（不安全，仅用于联调/测试）
   // 使用 encodeBase64 支持 Unicode 字符（如中文用户名/密码）
   console.warn('警告：使用不安全的密码存储方案，请确保 bcryptjs 或 Web Crypto API 可用')
   return 'base64:' + encodeBase64(password)
@@ -420,7 +420,7 @@ export function generateToken(): string {
     return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
   }
 
-  // 备用方案：使用 Math.random（不安全，仅用于开发/测试）
+  // 备用方案：使用 Math.random（不安全，仅用于联调/测试）
   console.warn('警告：crypto.getRandomValues 不可用，使用不安全的随机数生成')
   let token = ''
   for (let i = 0; i < 64; i++) {
@@ -459,7 +459,7 @@ export function generateUUID(): string {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
   }
 
-  // 备用方案：使用 Math.random（不安全，仅用于开发/测试）
+  // 备用方案：使用 Math.random（不安全，仅用于联调/测试）
   console.warn('警告：crypto API 不可用，使用不安全的 UUID 生成')
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = Math.random() * 16 | 0

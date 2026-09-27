@@ -1,0 +1,514 @@
+/**
+ * CYP-memo 主题单一事实源（军械库 · 科技深色）
+ * 主色 #0099FF；页底/卡片对齐品牌大图标深色调，禁止大面积纯白壳。
+ * 品牌大图标：/assets/images/logo/logo-*.png ← legacy-brand-2
+ * 断点约定：移动端 ≤768px（与 ui store / AppLayout 一致）
+ */
+:root,
+[data-theme='dark'],
+html.dark {
+  /* 批准字体栈（军械库字体规范 3.0 / 规则 24.25）：中文无衬线 + Inter 拉丁/数字 */
+  --cyp-font-sans:
+    'Inter', 'PingFang SC', 'Microsoft YaHei', '微软雅黑', 'Noto Sans SC', 'Source Han Sans SC',
+    system-ui, sans-serif;
+  --cyp-font-mono: 'Consolas', 'Courier New', ui-monospace, monospace;
+
+  --cyp-brand: #0099ff;
+  --cyp-brand-hover: #0088e6;
+  --cyp-brand-soft: #33adff;
+  --cyp-brand-tint: rgba(0, 153, 255, 0.16);
+  --cyp-brand-tint-strong: rgba(0, 153, 255, 0.28);
+
+  --cyp-bg-page: #0f172a;
+  --cyp-bg-card: #1e1e1e;
+  --cyp-bg-muted: #272727;
+  --cyp-bg-input: #121212;
+  --cyp-bg-elevated: #2d2d2d;
+
+  --cyp-text: #ffffff;
+  --cyp-text-secondary: #e0e0e0;
+  --cyp-text-muted: #b0b0b0;
+  --cyp-border: #3a3a3a;
+
+  --cyp-success: #67c23a;
+  --cyp-success-hover: #85ce61;
+  --cyp-warning: #e6a23c;
+  --cyp-warning-hover: #ebb563;
+  --cyp-danger: #f56c6c;
+  --cyp-danger-hover: #f78989;
+
+  --cyp-scrollbar: #555555;
+  --cyp-scrollbar-hover: #777777;
+
+  --primary-color: var(--cyp-brand);
+  --bg-primary: var(--cyp-bg-card);
+  --bg-secondary: var(--cyp-bg-page);
+  --text-primary: var(--cyp-text);
+  --text-secondary: var(--cyp-text-secondary);
+  --text-tertiary: var(--cyp-text-muted);
+  --border-color: var(--cyp-border);
+
+  --el-color-primary: #0099ff;
+  --el-color-primary-light-3: #33adff;
+  --el-color-primary-light-5: #66c2ff;
+  --el-color-primary-light-7: #99d6ff;
+  --el-color-primary-light-8: #b3e0ff;
+  --el-color-primary-light-9: #1a3a4d;
+  --el-color-primary-dark-2: #0088e6;
+  --el-color-success: var(--cyp-success);
+  --el-color-warning: var(--cyp-warning);
+  --el-color-danger: var(--cyp-danger);
+  --el-bg-color: var(--cyp-bg-card);
+  --el-bg-color-page: var(--cyp-bg-page);
+  --el-text-color-primary: var(--cyp-text);
+  --el-text-color-regular: var(--cyp-text-secondary);
+  --el-border-color: var(--cyp-border);
+  --el-fill-color-blank: var(--cyp-bg-input);
+  --el-fill-color-light: var(--cyp-bg-muted);
+  --el-mask-color: rgba(0, 0, 0, 0.55);
+
+  /* Element Plus 菜单（侧栏页内筛选/锚点） */
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: var(--cyp-text-secondary);
+  --el-menu-hover-bg-color: var(--cyp-bg-muted);
+  --el-menu-hover-text-color: var(--cyp-brand);
+  --el-menu-active-color: var(--cyp-brand);
+  --el-menu-border-color: transparent;
+}
+
+/* 可选浅色（设置项）；默认不以浅色为产品壳 */
+[data-theme='light'] {
+  --cyp-bg-page: #f5f5f5;
+  --cyp-bg-card: #ffffff;
+  --cyp-bg-muted: #f0f0f0;
+  --cyp-bg-input: #ffffff;
+  --cyp-bg-elevated: #ffffff;
+  --cyp-text: #303133;
+  --cyp-text-secondary: #606266;
+  --cyp-text-muted: #909399;
+  --cyp-border: #dcdfe6;
+  --cyp-scrollbar: var(--cyp-border);
+  --cyp-scrollbar-hover: var(--cyp-text-muted);
+  --bg-primary: var(--cyp-bg-card);
+  --bg-secondary: var(--cyp-bg-page);
+  --text-primary: var(--cyp-text);
+  --text-secondary: var(--cyp-text-secondary);
+  --text-tertiary: var(--cyp-text-muted);
+  --border-color: var(--cyp-border);
+
+  --el-bg-color: var(--cyp-bg-card);
+  --el-bg-color-page: var(--cyp-bg-page);
+  --el-text-color-primary: var(--cyp-text);
+  --el-text-color-regular: var(--cyp-text-secondary);
+  --el-border-color: var(--cyp-border);
+  --el-fill-color-blank: var(--cyp-bg-input);
+  --el-fill-color-light: var(--cyp-bg-muted);
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: var(--cyp-text-secondary);
+  --el-menu-hover-bg-color: var(--cyp-bg-muted);
+  --el-menu-hover-text-color: var(--cyp-brand);
+  --el-menu-active-color: var(--cyp-brand);
+  --el-menu-border-color: transparent;
+}
+
+body {
+  background-color: var(--cyp-bg-page);
+  color: var(--cyp-text);
+}
+
+/* 品牌大图标 */
+.BrandMark,
+.brand-mark {
+  display: block;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  flex-shrink: 0;
+}
+
+.BrandMark--sm,
+.brand-mark--sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.BrandMark--md,
+.brand-mark--md {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+
+.BrandMark--lg,
+.brand-mark--lg {
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
+}
+
+.BrandMark--xl,
+.brand-mark--xl {
+  width: 112px;
+  height: 112px;
+  border-radius: 22px;
+}
+
+/* 认证壳通用（登录/注册/找回/重置） */
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cyp-bg-page);
+  padding: 20px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  padding: 40px;
+  color: var(--cyp-text);
+}
+
+/* 侧栏内 el-menu（附件类型 / 统计锚点 / 账号导航）对齐 AppSidebar 视觉 */
+html.dark .app-sidebar .sidebar-menu.el-menu,
+html[data-theme='dark'] .app-sidebar .sidebar-menu.el-menu,
+[data-theme='light'] .app-sidebar .sidebar-menu.el-menu,
+.app-sidebar .sidebar-menu.el-menu {
+  background: transparent !important;
+  border-right: none !important;
+  padding: 12px 0;
+  width: 100%;
+}
+
+html.dark .app-sidebar .sidebar-menu .el-menu-item,
+html[data-theme='dark'] .app-sidebar .sidebar-menu .el-menu-item,
+.app-sidebar .sidebar-menu .el-menu-item {
+  height: 44px;
+  line-height: 44px;
+  margin: 2px 8px;
+  padding: 0 12px 0 16px !important;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  color: var(--cyp-text-secondary) !important;
+  background: transparent !important;
+  transition: background 0.15s, color 0.15s;
+}
+
+.app-sidebar .sidebar-menu .el-menu-item .el-icon {
+  color: inherit;
+  margin-right: 10px;
+}
+
+html.dark .app-sidebar .sidebar-menu .el-menu-item:hover,
+html[data-theme='dark'] .app-sidebar .sidebar-menu .el-menu-item:hover,
+.app-sidebar .sidebar-menu .el-menu-item:hover {
+  background: var(--cyp-bg-muted) !important;
+  color: var(--cyp-brand) !important;
+}
+
+html.dark .app-sidebar .sidebar-menu .el-menu-item.is-active,
+html[data-theme='dark'] .app-sidebar .sidebar-menu .el-menu-item.is-active,
+.app-sidebar .sidebar-menu .el-menu-item.is-active {
+  background: var(--cyp-brand-tint) !important;
+  color: var(--cyp-brand) !important;
+  border-left-color: var(--cyp-brand);
+  font-weight: 500;
+}
+
+.app-sidebar.rail .sidebar-menu .el-menu-item span {
+  display: none;
+}
+
+.app-sidebar.rail .sidebar-menu .el-menu-item {
+  justify-content: center;
+  padding: 0 !important;
+  margin: 2px auto;
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  border-left: none;
+}
+
+.app-sidebar.rail .sidebar-menu .el-menu-item .el-icon {
+  margin-right: 0;
+}
+
+/*
+ * Element Plus 组件皮肤：html.dark 与 data-theme=dark 双通道
+ * （禁只靠 class 被清掉）
+ */
+html.dark .el-card,
+html[data-theme='dark'] .el-card {
+  --el-card-bg-color: var(--cyp-bg-card);
+  --el-card-border-color: var(--cyp-border);
+  background-color: var(--cyp-bg-card);
+  border-color: var(--cyp-border);
+  color: var(--cyp-text);
+}
+
+html.dark .el-card__header,
+html[data-theme='dark'] .el-card__header {
+  border-bottom-color: var(--cyp-border);
+  color: var(--cyp-text);
+}
+
+html.dark .el-dialog,
+html[data-theme='dark'] .el-dialog {
+  --el-dialog-bg-color: var(--cyp-bg-card);
+  background-color: var(--cyp-bg-card);
+}
+
+html.dark .el-dialog__header,
+html[data-theme='dark'] .el-dialog__header {
+  border-bottom-color: var(--cyp-border);
+}
+
+html.dark .el-dialog__title,
+html[data-theme='dark'] .el-dialog__title {
+  color: var(--cyp-text);
+}
+
+html.dark .el-dialog__body,
+html[data-theme='dark'] .el-dialog__body {
+  color: var(--cyp-text-secondary);
+}
+
+html.dark .el-message-box,
+html[data-theme='dark'] .el-message-box {
+  --el-messagebox-title-color: var(--cyp-text);
+  background-color: var(--cyp-bg-card);
+  border-color: var(--cyp-border);
+}
+
+html.dark .el-message-box__title,
+html[data-theme='dark'] .el-message-box__title {
+  color: var(--cyp-text);
+}
+
+html.dark .el-message-box__content,
+html[data-theme='dark'] .el-message-box__content {
+  color: var(--cyp-text-secondary);
+}
+
+html.dark .el-form-item__label,
+html[data-theme='dark'] .el-form-item__label {
+  color: var(--cyp-text-secondary);
+}
+
+html.dark .el-input__wrapper,
+html[data-theme='dark'] .el-input__wrapper {
+  background-color: var(--cyp-bg-input);
+  box-shadow: 0 0 0 1px var(--cyp-border) inset;
+}
+
+html.dark .el-input__inner,
+html[data-theme='dark'] .el-input__inner {
+  color: var(--cyp-text);
+}
+
+html.dark .el-input__inner::placeholder,
+html[data-theme='dark'] .el-input__inner::placeholder {
+  color: var(--cyp-text-muted);
+}
+
+html.dark .el-select .el-input__wrapper,
+html[data-theme='dark'] .el-select .el-input__wrapper {
+  background-color: var(--cyp-bg-input);
+}
+
+html.dark .el-select-dropdown,
+html[data-theme='dark'] .el-select-dropdown,
+html.dark .el-dropdown-menu,
+html[data-theme='dark'] .el-dropdown-menu,
+html.dark .el-popper.is-light,
+html[data-theme='dark'] .el-popper.is-light,
+html.dark .el-popover.el-popper,
+html[data-theme='dark'] .el-popover.el-popper {
+  background-color: var(--cyp-bg-card) !important;
+  border-color: var(--cyp-border) !important;
+  color: var(--cyp-text);
+}
+
+html.dark .el-select-dropdown__item,
+html[data-theme='dark'] .el-select-dropdown__item,
+html.dark .el-dropdown-menu__item,
+html[data-theme='dark'] .el-dropdown-menu__item {
+  color: var(--cyp-text-secondary);
+}
+
+html.dark .el-select-dropdown__item.hover,
+html.dark .el-select-dropdown__item:hover,
+html[data-theme='dark'] .el-select-dropdown__item.hover,
+html[data-theme='dark'] .el-select-dropdown__item:hover,
+html.dark .el-dropdown-menu__item:not(.is-disabled):hover,
+html[data-theme='dark'] .el-dropdown-menu__item:not(.is-disabled):hover {
+  background-color: var(--cyp-bg-muted) !important;
+  color: var(--cyp-brand);
+}
+
+html.dark .el-table,
+html[data-theme='dark'] .el-table {
+  --el-table-bg-color: var(--cyp-bg-card);
+  --el-table-tr-bg-color: var(--cyp-bg-card);
+  --el-table-header-bg-color: var(--cyp-bg-muted);
+  --el-table-row-hover-bg-color: var(--cyp-bg-muted);
+  --el-table-border-color: var(--cyp-border);
+  --el-table-text-color: var(--cyp-text);
+  --el-table-header-text-color: var(--cyp-text);
+  background-color: var(--cyp-bg-card);
+  color: var(--cyp-text);
+}
+
+html.dark .el-table th.el-table__cell,
+html[data-theme='dark'] .el-table th.el-table__cell {
+  background-color: var(--cyp-bg-muted);
+}
+
+html.dark .el-table tr,
+html[data-theme='dark'] .el-table tr {
+  background-color: var(--cyp-bg-card);
+}
+
+html.dark .el-menu,
+html[data-theme='dark'] .el-menu {
+  --el-menu-bg-color: var(--cyp-bg-card);
+  --el-menu-text-color: var(--cyp-text-secondary);
+  --el-menu-hover-bg-color: var(--cyp-bg-muted);
+  --el-menu-active-color: var(--cyp-brand);
+  background-color: var(--cyp-bg-card);
+  border-right-color: var(--cyp-border);
+}
+
+html.dark .el-menu-item,
+html[data-theme='dark'] .el-menu-item {
+  color: var(--cyp-text-secondary);
+}
+
+html.dark .el-menu-item:hover,
+html[data-theme='dark'] .el-menu-item:hover {
+  background-color: var(--cyp-bg-muted);
+  color: var(--cyp-brand);
+}
+
+html.dark .el-menu-item.is-active,
+html[data-theme='dark'] .el-menu-item.is-active {
+  color: var(--cyp-brand);
+  background-color: var(--cyp-brand-tint);
+}
+
+html.dark .el-empty__description,
+html[data-theme='dark'] .el-empty__description {
+  color: var(--cyp-text-muted);
+}
+
+html.dark .el-alert,
+html[data-theme='dark'] .el-alert {
+  --el-alert-bg-color: var(--cyp-bg-muted);
+}
+
+html.dark .el-checkbox__label,
+html[data-theme='dark'] .el-checkbox__label {
+  color: var(--cyp-text);
+}
+
+html.dark .el-pagination,
+html[data-theme='dark'] .el-pagination {
+  --el-pagination-bg-color: var(--cyp-bg-card);
+  --el-pagination-text-color: var(--cyp-text-secondary);
+  --el-pagination-button-color: var(--cyp-text-secondary);
+  --el-pagination-button-bg-color: var(--cyp-bg-muted);
+  --el-pagination-hover-color: var(--cyp-brand);
+}
+
+html.dark .el-tag,
+html[data-theme='dark'] .el-tag {
+  --el-tag-bg-color: var(--cyp-bg-muted);
+  --el-tag-border-color: var(--cyp-border);
+  --el-tag-text-color: var(--cyp-text-secondary);
+}
+
+html.dark .el-progress__text,
+html[data-theme='dark'] .el-progress__text {
+  color: var(--cyp-text-secondary) !important;
+}
+
+html.dark .el-date-picker,
+html[data-theme='dark'] .el-date-picker {
+  --el-datepicker-bg-color: var(--cyp-bg-card);
+  --el-datepicker-border-color: var(--cyp-border);
+  --el-datepicker-text-color: var(--cyp-text);
+}
+
+html.dark .el-picker-panel,
+html[data-theme='dark'] .el-picker-panel {
+  background-color: var(--cyp-bg-card);
+  border-color: var(--cyp-border);
+  color: var(--cyp-text);
+}
+
+html.dark .el-date-picker__header-label,
+html[data-theme='dark'] .el-date-picker__header-label {
+  color: var(--cyp-text);
+}
+
+html.dark .el-picker-panel__content,
+html[data-theme='dark'] .el-picker-panel__content {
+  color: var(--cyp-text);
+}
+
+html.dark .el-date-table td.available:hover,
+html[data-theme='dark'] .el-date-table td.available:hover {
+  background-color: var(--cyp-bg-muted);
+}
+
+html.dark .el-textarea__inner,
+html[data-theme='dark'] .el-textarea__inner {
+  background-color: var(--cyp-bg-input);
+  color: var(--cyp-text);
+  border-color: var(--cyp-border);
+  box-shadow: 0 0 0 1px var(--cyp-border) inset;
+}
+
+html.dark .el-textarea__inner::placeholder,
+html[data-theme='dark'] .el-textarea__inner::placeholder {
+  color: var(--cyp-text-muted);
+}
+
+html.dark .el-tooltip__popper,
+html[data-theme='dark'] .el-tooltip__popper,
+html.dark .el-popper.is-dark,
+html[data-theme='dark'] .el-popper.is-dark {
+  background: var(--cyp-bg-muted) !important;
+  color: var(--cyp-text) !important;
+  border-color: var(--cyp-border) !important;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cyp-scrollbar);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyp-scrollbar-hover);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyp-scrollbar) transparent;
+}

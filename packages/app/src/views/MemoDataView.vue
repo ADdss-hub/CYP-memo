@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   备忘录数据管理界面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -18,7 +18,7 @@
         <el-card shadow="hover">
           <div class="import-area">
             <div class="import-info">
-              <el-icon :size="48" color="#409eff">
+              <el-icon :size="48" color="var(--cyp-brand)">
                 <Upload />
               </el-icon>
               <p class="info-text">支持导入 JSON、Excel (XLSX) 格式的备忘录数据</p>
@@ -94,7 +94,7 @@
         <el-card shadow="hover">
           <div class="export-area">
             <div class="export-info">
-              <el-icon :size="48" color="#67c23a">
+              <el-icon :size="48" color="var(--cyp-success)">
                 <Download />
               </el-icon>
               <p class="info-text">导出所有备忘录数据为 JSON、Excel 或 PDF 格式</p>
@@ -417,7 +417,7 @@ function downloadJSONTemplate() {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = 'memo-import-template.json'
+  link.download = 'CYP-memo-备忘录导入模板.json'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
@@ -426,39 +426,33 @@ function downloadJSONTemplate() {
   ElMessage.success('JSON模板下载成功')
 }
 
+/** Excel 列中文表头（模板 / 导出统一；禁止英文列名） */
+const EXCEL_HEADERS_TEMPLATE = ['标题', '内容', '标签', '优先级'] as const
+const EXCEL_HEADERS_EXPORT = ['标题', '内容', '标签', '优先级', '创建时间', '更新时间'] as const
+
 /**
  * 下载Excel模板
- * 模板中包含换行示例，展示格式保持功能
+ * 用 aoa_to_sheet 固定中文表头，避免对象键被当成英文列名
  */
 function downloadExcelTemplate() {
-  const templateData = [
-    {
-      '标题': '示例备忘录1',
-      '内容': '这是第一行内容\n这是第二行内容\n支持多行文本',
-      '标签': '示例,模板',
-      '优先级': '中',
-    },
-    {
-      '标题': '示例备忘录2',
-      '内容': '工作任务清单：\n1. 完成项目报告\n2. 参加团队会议\n3. 代码审查',
-      '标签': '工作,重要',
-      '优先级': '高',
-    },
+  const rows: (string | number)[][] = [
+    [...EXCEL_HEADERS_TEMPLATE],
+    ['示例备忘录1', '这是第一行内容\n这是第二行内容\n支持多行文本', '示例,模板', '中'],
+    [
+      '示例备忘录2',
+      '工作任务清单：\n1. 完成项目报告\n2. 参加团队会议\n3. 代码审查',
+      '工作,重要',
+      '高',
+    ],
   ]
 
-  const worksheet = XLSX.utils.json_to_sheet(templateData)
+  const worksheet = XLSX.utils.aoa_to_sheet(rows)
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, '备忘录模板')
 
-  // 设置列宽
-  worksheet['!cols'] = [
-    { wch: 20 }, // 标题
-    { wch: 50 }, // 内容（加宽以适应多行文本）
-    { wch: 20 }, // 标签
-    { wch: 10 }, // 优先级
-  ]
+  worksheet['!cols'] = [{ wch: 20 }, { wch: 50 }, { wch: 20 }, { wch: 10 }]
 
-  XLSX.writeFile(workbook, 'memo-import-template.xlsx')
+  XLSX.writeFile(workbook, 'CYP-memo-备忘录导入模板.xlsx')
   ElMessage.success('Excel模板下载成功')
 }
 
@@ -515,7 +509,7 @@ async function exportToJSON(memos: Memo[]) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `memo-export-${new Date().toISOString().split('T')[0]}.json`
+  link.download = `CYP-memo-备忘录导出-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
@@ -542,10 +536,14 @@ function stripHtmlTagsPreserveLineBreaks(html: string): string {
   // 移除其他 HTML 标签
   text = text.replace(/<[^>]*>/g, '')
   
-  // 解码 HTML 实体
-  const textarea = document.createElement('textarea')
-  textarea.innerHTML = text
-  text = textarea.value
+  // 解码 HTML 实体（禁 DOM 注入属性）
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
   
   // 清理多余的连续换行（超过2个换行变为2个），但保留单个和双换行
   text = text.replace(/\n{3,}/g, '\n\n')
@@ -579,40 +577,42 @@ function textToHtml(text: string): string {
 
 /**
  * 导出为Excel
- * 保持备忘录的回车换行格式
+ * 用 aoa_to_sheet 固定中文表头；优先级与时间列均为中文
  */
 async function exportToExcel(memos: Memo[]) {
-  // 优先级中文映射
   const priorityLabels: Record<string, string> = {
     low: '低',
     medium: '中',
     high: '高',
   }
 
-  const exportData = memos.map((memo) => ({
-    '标题': memo.title,
-    '内容': stripHtmlTagsPreserveLineBreaks(memo.content),
-    '标签': memo.tags.join(','),
-    '优先级': priorityLabels[memo.priority] || '中',
-    '创建时间': formatDate(memo.createdAt),
-    '更新时间': formatDate(memo.updatedAt),
-  }))
+  const rows: (string | number)[][] = [
+    [...EXCEL_HEADERS_EXPORT],
+    ...memos.map((memo) => [
+      memo.title || '未命名',
+      stripHtmlTagsPreserveLineBreaks(memo.content),
+      (memo.tags || []).join(','),
+      priorityLabels[memo.priority || 'medium'] || '中',
+      formatDate(memo.createdAt),
+      formatDate(memo.updatedAt),
+    ]),
+  ]
 
-  const worksheet = XLSX.utils.json_to_sheet(exportData)
+  const worksheet = XLSX.utils.aoa_to_sheet(rows)
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, '备忘录数据')
 
-  // 设置列宽
   worksheet['!cols'] = [
-    { wch: 20 }, // 标题
-    { wch: 60 }, // 内容（加宽以适应多行文本）
-    { wch: 20 }, // 标签
-    { wch: 10 }, // 优先级
-    { wch: 20 }, // 创建时间
-    { wch: 20 }, // 更新时间
+    { wch: 20 },
+    { wch: 60 },
+    { wch: 20 },
+    { wch: 10 },
+    { wch: 20 },
+    { wch: 20 },
   ]
 
-  XLSX.writeFile(workbook, `memo-export-${new Date().toISOString().split('T')[0]}.xlsx`)
+  const day = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
+  XLSX.writeFile(workbook, `CYP-memo-备忘录导出-${day}.xlsx`)
 }
 
 /**
@@ -632,7 +632,7 @@ async function exportToPDF(memos: Memo[]) {
   
   // 优先级中文映射
   const priorityLabels: Record<string, string> = { low: '低', medium: '中', high: '高' }
-  const priorityColors: Record<string, string> = { low: '#67c23a', medium: '#e6a23c', high: '#f56c6c' }
+  const priorityColors: Record<string, string> = { low: 'var(--cyp-success)', medium: 'var(--cyp-warning)', high: 'var(--cyp-danger)' }
   
   // 每页最多显示的备忘录数量（根据内容长度动态调整）
   const memosPerPage = 3
@@ -651,7 +651,7 @@ async function exportToPDF(memos: Memo[]) {
       top: 0;
       width: 800px;
       background: white;
-      font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      font-family: var(--cyp-font-sans);
       padding: 20px;
       color: #333;
     `
@@ -663,7 +663,7 @@ async function exportToPDF(memos: Memo[]) {
     if (pageIndex === 0) {
       htmlContent += `
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="font-size: 28px; color: #409eff; margin: 0 0 10px 0;">CYP-memo 备忘录导出</h1>
+          <h1 style="font-size: 28px; color: #0099FF; margin: 0 0 10px 0;">CYP-memo 备忘录导出</h1>
           <p style="font-size: 14px; color: #909399; margin: 0;">
             导出日期：${new Date().toLocaleDateString('zh-CN')} | 
             备忘录总数：${memos.length} 条 |
@@ -696,7 +696,7 @@ async function exportToPDF(memos: Memo[]) {
         <div style="border: 1px solid #e4e7ed; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fafafa; page-break-inside: avoid;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 10px;">
-              <span style="background: #409eff; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">#${globalIndex}</span>
+              <span style="background: #0099FF; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">#${globalIndex}</span>
               <h3 style="font-size: 16px; margin: 0; color: #303133; word-break: break-word;">${memo.title || '无标题'}</h3>
             </div>
             <span style="background: ${priorityColors[priority]}; color: white; padding: 2px 10px; border-radius: 12px; font-size: 12px; flex-shrink: 0;">
@@ -709,7 +709,7 @@ async function exportToPDF(memos: Memo[]) {
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #909399; border-top: 1px solid #e4e7ed; padding-top: 10px; flex-wrap: wrap; gap: 8px;">
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               ${memo.tags.length > 0 
-                ? memo.tags.map(tag => `<span style="background: #ecf5ff; color: #409eff; padding: 2px 8px; border-radius: 4px;">${tag}</span>`).join('')
+                ? memo.tags.map(tag => `<span style="background: rgba(0, 153, 255, 0.12); color: #0099FF; padding: 2px 8px; border-radius: 4px;">${tag}</span>`).join('')
                 : '<span style="color: #c0c4cc;">无标签</span>'
               }
             </div>
@@ -719,7 +719,8 @@ async function exportToPDF(memos: Memo[]) {
       `
     })
     
-    container.innerHTML = htmlContent
+    const parsed = new DOMParser().parseFromString(htmlContent, 'text/html')
+    container.replaceChildren(...Array.from(parsed.body.childNodes))
     document.body.appendChild(container)
     
     try {
@@ -808,7 +809,7 @@ function getPriorityLabel(priority: Priority): string {
 /**
  * 格式化日期
  */
-function formatDate(date: Date): string {
+function formatDate(date: Date | string): string {
   const d = new Date(date)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
@@ -840,7 +841,7 @@ onMounted(() => {
 .page-title {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
 }
 
@@ -851,7 +852,7 @@ onMounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 16px 0;
 }
 
@@ -869,13 +870,13 @@ onMounted(() => {
 
 .info-text {
   font-size: 16px;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 16px 0 8px 0;
 }
 
 .info-hint {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
@@ -892,7 +893,7 @@ onMounted(() => {
   gap: 12px;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--cyp-border);
 }
 
 /* 导出区域 */
@@ -919,14 +920,14 @@ onMounted(() => {
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin-bottom: 8px;
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .export-actions {
@@ -972,20 +973,4 @@ onMounted(() => {
   font-size: 16px;
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .page-title,
-[data-theme='dark'] .section-title,
-[data-theme='dark'] .info-text,
-[data-theme='dark'] .stat-value {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .info-hint,
-[data-theme='dark'] .stat-label {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .import-confirm-actions {
-  border-top-color: #414243;
-}
 </style>

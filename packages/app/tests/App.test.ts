@@ -1,5 +1,5 @@
-﻿/**
- * CYP-memo 用户端应用测试
+/**
+ * CYP-memo 统一产品壳应用测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
@@ -8,6 +8,6 @@ import { VERSION } from '@shared/config/version'
 
 describe('App Configuration', () => {
   it('should have correct version', () => {
-    expect(VERSION.full).toBe('1.0.0')
+    expect(VERSION.full).toBe('2.0.0')
   })
 })

@@ -186,7 +186,7 @@ async function completeSetup() {
     <div class="setup-container">
       <!-- 头部 -->
       <div class="setup-header">
-        <div class="setup-logo">📝</div>
+        <div class="setup-logo">CYP</div>
         <h1>欢迎使用 CYP-memo</h1>
         <p class="setup-subtitle">容器备忘录系统 - 桌面客户端</p>
         <p class="setup-desc">请选择您的使用方式来开始</p>
@@ -220,17 +220,17 @@ async function completeSetup() {
             :class="{ selected: selectedMode === 'remote' }"
             @click="selectMode('remote')"
           >
-            <div class="mode-icon">🌐</div>
+            <div class="mode-icon">REMOTE</div>
             <div class="mode-info">
               <h3>连接远程服务器</h3>
               <p>连接到已部署的 CYP-memo 服务器</p>
               <ul class="mode-features">
-                <li>✓ 多设备数据同步</li>
-                <li>✓ 团队协作共享</li>
-                <li>✓ 云端数据备份</li>
+                <li>多设备数据同步</li>
+                <li>团队协作共享</li>
+                <li>云端数据备份</li>
               </ul>
             </div>
-            <div class="mode-check" v-if="selectedMode === 'remote'">✓</div>
+            <div class="mode-check" v-if="selectedMode === 'remote'">OK</div>
           </div>
 
           <div 
@@ -238,17 +238,17 @@ async function completeSetup() {
             :class="{ selected: selectedMode === 'embedded' }"
             @click="selectMode('embedded')"
           >
-            <div class="mode-icon">💻</div>
+            <div class="mode-icon">LOCAL</div>
             <div class="mode-info">
               <h3>使用内置服务器</h3>
               <p>数据存储在本地，无需网络连接</p>
               <ul class="mode-features">
-                <li>✓ 完全离线使用</li>
-                <li>✓ 数据本地存储</li>
-                <li>✓ 适合个人使用</li>
+                <li>完全离线使用</li>
+                <li>数据本地存储</li>
+                <li>适合个人使用</li>
               </ul>
             </div>
-            <div class="mode-check" v-if="selectedMode === 'embedded'">✓</div>
+            <div class="mode-check" v-if="selectedMode === 'embedded'">OK</div>
           </div>
         </div>
       </div>

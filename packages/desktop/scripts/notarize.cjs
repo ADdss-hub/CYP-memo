@@ -5,9 +5,9 @@
  * 需求: 7.6 - 代码签名验证
  * 
  * 环境变量:
- * - APPLE_ID: Apple 开发者账号邮箱
+ * - APPLE_ID: Apple Developer 账号邮箱
  * - APPLE_ID_PASSWORD: 应用专用密码（不是账号密码）
- * - APPLE_TEAM_ID: Apple 开发者团队 ID
+ * - APPLE_TEAM_ID: Apple Developer 团队 ID
  * 
  * 生成应用专用密码:
  * 1. 访问 https://appleid.apple.com/account/manage

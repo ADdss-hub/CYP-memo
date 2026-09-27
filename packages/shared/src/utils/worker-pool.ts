@@ -1,6 +1,12 @@
-﻿/**
+/**
  * CYP-memo Web Worker 池管理
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
+ *
+ * 【与嵌入式 MQ 划界 · SIX-MQ】
+ * - 本文件 = **计算线程池**（CPU 密集任务 fan-out），不是消息 Broker / 可靠投递通道
+ * - 系统消息队列权威：`packages/server/src/mq/embedded-mq.ts`（进程内队列 + outbox 桥）
+ * - 禁止用 WorkerPool 顶替 MQ；禁止引入外置 RabbitMQ/Kafka/Bull 冒充本能力
+ * 权威：reports/P2/CYP-memo-P2-消息队列设计.md
  */
 
 import { generateUUID } from './crypto'
@@ -166,7 +172,7 @@ export class WorkerPool {
         reject,
       }
 
-      this.taskQueue.push(task)
+      this.taskQueue.push(task as WorkerTask)
       this.processNextTask()
     })
   }

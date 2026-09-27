@@ -15,6 +15,10 @@ node_modules
 dist
 dist-ssr
 *.local
+# pdf.js cMap/字体由 vite 从已安装的 pdfjs-dist 拷入 public，随构建发布，不入库
+packages/app/public/pdfjs/
+# 目标平台安装的服务端生产依赖（pnpm deploy），不入库
+.server-prod/
 
 # Desktop release builds (large binary files)
 packages/desktop/release/
@@ -44,6 +48,7 @@ Thumbs.db
 
 # Backup files
 backups/
+support-bundles/
 *.tar.gz
 
 # Database files
@@ -51,6 +56,9 @@ backups/
 *.sqlite3
 *.db
 packages/server/data/
+
+# Runtime CI17 / local scratch (HCM·LBN·edge profiles)
+/data/
 
 # Uploads and user data
 packages/server/data/uploads/
@@ -64,8 +72,33 @@ packages/server/data/uploads/
 # Unified version system
 unified-version-system-v1.0.0/unified-version-system/
 
-# Version tracking (local only)
-.version/
-
 # Build logs (local only)
 docs/gitgud-*.md
+
+# Sensitive docs — leak development / vulnerabilities (see docs/PRODUCT_VERSIONING.md §4.2–4.3)
+reports/
+# docs/：默认整树禁交；仅白名单可入库
+docs/**
+!docs/PRODUCT_VERSIONING.md
+!docs/.gitkeep
+# 不在 reports/docs 内、仍会泄露实现细节/攻击面的路径
+.workbuddy/
+**/BUILD.md
+**/DEPRECATED.md
+**/FIXES*.md
+**/COMMIT_GUIDE.md
+scripts/**/CHANGELOG.md
+frontend/
+security-private/
+vuln-private/
+pentest-raw/
+**/exploit-poc/
+**/*-credentials*
+**/*secret-export*
+logs/local-debug-*.zip
+*.trace.zip
+*.har
+
+__pycache__/
+*.pyc
+

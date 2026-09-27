@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   CYP-memo 工具提示组件
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -213,15 +213,15 @@ onUnmounted(() => {
   z-index: 9999;
   max-width: 300px;
   padding: 0;
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   pointer-events: none;
 }
 
 .tooltip-dark {
-  background: #1f2937;
-  color: white;
+  background: var(--cyp-bg-elevated);
+  color: var(--cyp-text);
 }
 
 .tooltip-content {
@@ -232,21 +232,21 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 0.875rem;
   margin-bottom: 0.25rem;
-  color: #111827;
+  color: var(--cyp-text);
 }
 
 .tooltip-dark .tooltip-title {
-  color: #f9fafb;
+  color: var(--cyp-text);
 }
 
 .tooltip-text {
   font-size: 0.875rem;
   line-height: 1.5;
-  color: #6b7280;
+  color: var(--cyp-text-muted);
 }
 
 .tooltip-dark .tooltip-text {
-  color: #d1d5db;
+  color: var(--cyp-text-secondary);
 }
 
 /* 箭头 */
@@ -262,11 +262,11 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   border-width: 6px 6px 0 6px;
-  border-color: white transparent transparent transparent;
+  border-color: var(--cyp-bg-card) transparent transparent transparent;
 }
 
 .tooltip-dark.tooltip-top .tooltip-arrow {
-  border-color: #1f2937 transparent transparent transparent;
+  border-color: var(--cyp-bg-elevated) transparent transparent transparent;
 }
 
 .tooltip-bottom .tooltip-arrow {
@@ -274,11 +274,11 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   border-width: 0 6px 6px 6px;
-  border-color: transparent transparent white transparent;
+  border-color: transparent transparent var(--cyp-bg-card) transparent;
 }
 
 .tooltip-dark.tooltip-bottom .tooltip-arrow {
-  border-color: transparent transparent #1f2937 transparent;
+  border-color: transparent transparent var(--cyp-bg-elevated) transparent;
 }
 
 .tooltip-left .tooltip-arrow {
@@ -286,11 +286,11 @@ onUnmounted(() => {
   top: 50%;
   transform: translateY(-50%);
   border-width: 6px 0 6px 6px;
-  border-color: transparent transparent transparent white;
+  border-color: transparent transparent transparent var(--cyp-bg-card);
 }
 
 .tooltip-dark.tooltip-left .tooltip-arrow {
-  border-color: transparent transparent transparent #1f2937;
+  border-color: transparent transparent transparent var(--cyp-bg-elevated);
 }
 
 .tooltip-right .tooltip-arrow {
@@ -298,11 +298,11 @@ onUnmounted(() => {
   top: 50%;
   transform: translateY(-50%);
   border-width: 6px 6px 6px 0;
-  border-color: transparent white transparent transparent;
+  border-color: transparent var(--cyp-bg-card) transparent transparent;
 }
 
 .tooltip-dark.tooltip-right .tooltip-arrow {
-  border-color: transparent #1f2937 transparent transparent;
+  border-color: transparent var(--cyp-bg-elevated) transparent transparent;
 }
 
 /* 过渡动画 */

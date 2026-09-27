@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 备忘录界面集成测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  * 
@@ -191,15 +191,15 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     // 创建测试数据
     await memoStore.createMemo(
       authStore.currentUser!.id,
-      '前端开发笔记',
+      '前端专题笔记',
       '<p>Vue 3 和 TypeScript 的使用技巧</p>',
-      ['前端', '开发']
+      ['前端', '专题']
     )
     await memoStore.createMemo(
       authStore.currentUser!.id,
-      '后端开发笔记',
+      '后端专题笔记',
       '<p>Node.js 和 Express 的最佳实践</p>',
-      ['后端', '开发']
+      ['后端', '专题']
     )
     await memoStore.createMemo(
       authStore.currentUser!.id,
@@ -214,8 +214,8 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     const results = await memoStore.searchMemos(authStore.currentUser!.id, '前端')
 
     // 验证搜索结果（只搜索标题中包含"前端"的）
-    expect(results.length).toBe(1) // 只有 "前端开发笔记"
-    expect(results[0].title).toBe('前端开发笔记')
+    expect(results.length).toBe(1) // 只有 "前端专题笔记"
+    expect(results[0].title).toBe('前端专题笔记')
   })
 
   it('应该能够按内容搜索备忘录', async () => {
@@ -223,8 +223,8 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     const results = await memoStore.searchMemos(authStore.currentUser!.id, 'TypeScript')
 
     // 验证搜索结果
-    expect(results.length).toBe(1) // 只有 "前端开发笔记"
-    expect(results[0].title).toBe('前端开发笔记')
+    expect(results.length).toBe(1) // 只有 "前端专题笔记"
+    expect(results[0].title).toBe('前端专题笔记')
   })
 
   it('应该能够按标签筛选备忘录', async () => {
@@ -232,7 +232,7 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     const results = await memoStore.getMemosByTag(authStore.currentUser!.id, '前端')
 
     // 验证筛选结果
-    expect(results.length).toBe(2) // "前端开发笔记" 和 "数据库设计"
+    expect(results.length).toBe(2) // "前端专题笔记" 和 "数据库设计"
     expect(results.every(m => m.tags.includes('前端'))).toBe(true)
   })
 
@@ -241,11 +241,11 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     await memoStore.loadMemos(authStore.currentUser!.id)
 
     // 设置搜索查询
-    memoStore.setSearchQuery('开发')
+    memoStore.setSearchQuery('专题')
 
     // 验证筛选结果
     const filtered = memoStore.filteredMemos
-    expect(filtered.length).toBe(2) // "前端开发笔记" 和 "后端开发笔记"
+    expect(filtered.length).toBe(2) // "前端专题笔记" 和 "后端专题笔记"
   })
 
   it('应该能够同时使用搜索和标签筛选', async () => {
@@ -253,13 +253,13 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     await memoStore.loadMemos(authStore.currentUser!.id)
 
     // 设置搜索查询和标签筛选
-    memoStore.setSearchQuery('开发')
+    memoStore.setSearchQuery('专题')
     memoStore.setSelectedTags(['前端'])
 
-    // 验证筛选结果（同时包含 "开发" 且有 "前端" 标签）
+    // 验证筛选结果（同时包含 "专题" 且有 "前端" 标签）
     const filtered = memoStore.filteredMemos
-    expect(filtered.length).toBe(1) // 只有 "前端开发笔记"
-    expect(filtered[0].title).toBe('前端开发笔记')
+    expect(filtered.length).toBe(1) // 只有 "前端专题笔记"
+    expect(filtered[0].title).toBe('前端专题笔记')
   })
 
   it('应该能够清除筛选条件', async () => {
@@ -267,7 +267,7 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     await memoStore.loadMemos(authStore.currentUser!.id)
 
     // 设置筛选条件
-    memoStore.setSearchQuery('开发')
+    memoStore.setSearchQuery('专题')
     memoStore.setSelectedTags(['前端'])
 
     // 验证筛选生效
@@ -298,10 +298,10 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     const tags = memoStore.allTags
 
     // 验证标签列表
-    expect(tags.length).toBe(4) // '前端', '开发', '后端', '数据库'
+    expect(tags.length).toBe(4) // '前端', '专题', '后端', '数据库'
     expect(tags).toContain('前端')
     expect(tags).toContain('后端')
-    expect(tags).toContain('开发')
+    expect(tags).toContain('专题')
     expect(tags).toContain('数据库')
   })
 
@@ -322,12 +322,12 @@ describe('备忘录界面集成测试 - 搜索和筛选', () => {
     await memoStore.loadMemos(authStore.currentUser!.id)
 
     // 设置多个标签筛选（需要同时包含两个标签）
-    memoStore.setSelectedTags(['前端', '开发'])
+    memoStore.setSelectedTags(['前端', '专题'])
 
     // 验证筛选结果
     const filtered = memoStore.filteredMemos
-    expect(filtered.length).toBe(1) // 只有 "前端开发笔记" 同时包含两个标签
-    expect(filtered[0].title).toBe('前端开发笔记')
+    expect(filtered.length).toBe(1) // 只有 "前端专题笔记" 同时包含两个标签
+    expect(filtered[0].title).toBe('前端专题笔记')
   })
 })
 

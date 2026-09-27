@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 账号管理界面单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -369,7 +369,7 @@ describe('AccountsView - 创建子账号测试', () => {
         'Sub12345',
         [Permission.MEMO_MANAGE]
       )
-    ).rejects.toThrow('用户名已存在')
+    ).rejects.toThrow('该用户名在您的子账号中已存在')
   })
 
   it('应该在密码强度不足时显示错误', async () => {
@@ -864,11 +864,11 @@ describe('AccountsView - 账号信息显示测试', () => {
     })
     await flushPromises()
 
-    // 测试权限标签
-    expect(wrapper.vm.getPermissionLabel(Permission.MEMO_MANAGE)).toBe('备忘录管理')
+    // 测试权限标签（与 PERMISSION_LABELS SSOT 一致）
+    expect(wrapper.vm.getPermissionLabel(Permission.MEMO_MANAGE)).toBe('备忘录')
     expect(wrapper.vm.getPermissionLabel(Permission.STATISTICS_VIEW)).toBe('数据统计')
-    expect(wrapper.vm.getPermissionLabel(Permission.ATTACHMENT_MANAGE)).toBe('附件管理')
+    expect(wrapper.vm.getPermissionLabel(Permission.ATTACHMENT_MANAGE)).toBe('文件库')
     expect(wrapper.vm.getPermissionLabel(Permission.SETTINGS_MANAGE)).toBe('系统设置')
-    expect(wrapper.vm.getPermissionLabel(Permission.ACCOUNT_MANAGE)).toBe('账号管理')
+    expect(wrapper.vm.getPermissionLabel(Permission.ACCOUNT_MANAGE)).toBe('子用户管理')
   })
 })

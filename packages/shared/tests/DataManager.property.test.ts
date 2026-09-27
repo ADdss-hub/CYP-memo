@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 数据持久化管理器属性测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -109,17 +109,17 @@ describe('数据持久化管理器属性测试', () => {
               createdMemos.push(memo)
             }
             
-            // 导出所有数据（模拟系统重启前的状态）
+            // 导出所有数据（mock 系统重启前的状态）
             const exportedData = await dataManager.exportToJSON()
             
-            // 清空数据库（模拟系统重启）
+            // 清空数据库（mock 系统重启）
             await dataManager.clearAllData()
             
             // 验证数据已清空
             const memoCountAfterClear = await db.memos.count()
             expect(memoCountAfterClear).toBe(0)
             
-            // 恢复数据（模拟系统重启后的恢复）
+            // 恢复数据（mock 系统重启后的恢复）
             await dataManager.recoverData(exportedData)
             
             // 验证所有备忘录都被恢复

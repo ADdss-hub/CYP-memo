@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 统计界面单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

@@ -162,7 +162,7 @@ const routes: RouteRecordRaw[] = [
     },
   },
 
-  // 附件管理
+  // 文件库
   {
     path: '/attachments',
     name: 'attachments',
@@ -170,7 +170,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiredPermissions: [Permission.ATTACHMENT_MANAGE],
-      title: '附件管理',
+      title: '文件库',
     },
   },
 

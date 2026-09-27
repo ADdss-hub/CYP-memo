@@ -27,7 +27,7 @@ docs/
 *.swo
 *.sublime-*
 
-# Kiro specs (开发规范文档)
+# Kiro specs (工程规范文档)
 .kiro
 
 # Logs
@@ -69,7 +69,7 @@ coverage/
 *.tsbuildinfo
 
 # TypeScript config (not needed after build)
-# 注意：开发模式需要这些文件，但生产构建不需要
+# 注意：本机联调需要这些文件，但生产构建不需要
 tsconfig*.json
 
 # OS files
@@ -86,8 +86,8 @@ temp/
 *.bak
 
 # Development scripts (not needed in production)
-scripts/dev.js
-dev.bat
+scripts/local.js
+local.bat
 
 # Version system tools (development only)
 unified-version-system-v1.0.0/

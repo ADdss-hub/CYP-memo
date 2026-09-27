@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://unpkg.com; font-src 'self' data: https://unpkg.com; img-src 'self' data: blob: http://localhost:* https://*; connect-src 'self' http://localhost:* https://*;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http://localhost:* https://*; connect-src 'self' http://localhost:* http://127.0.0.1:* https://*;" />
     <title>CYP-memo</title>
     <style>
       * {
@@ -30,9 +30,11 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        font-family: system-ui, -apple-system, sans-serif;
+        background: #0f172a;
+        color: #ffffff;
+        /* 与 theme.css --cyp-font-sans 同口径（首屏 CSS 变量尚未注入） */
+        font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', '微软雅黑', 'Noto Sans SC',
+          'Source Han Sans SC', system-ui, sans-serif;
       }
       .app-initial-loading__logo {
         font-size: 64px;
@@ -53,7 +55,7 @@
     <div id="app">
       <!-- 初始加载状态 -->
       <div class="app-initial-loading">
-        <div class="app-initial-loading__logo">📝</div>
+        <div class="app-initial-loading__logo">CYP</div>
         <div class="app-initial-loading__text">正在加载 CYP-memo...</div>
       </div>
     </div>

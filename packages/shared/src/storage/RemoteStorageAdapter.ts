@@ -1,10 +1,10 @@
-﻿/**
+/**
  * CYP-memo 远程存储适配器
  * 基于 REST API 实现，适用于 NAS/容器环境
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
-import type { User, Memo, MemoHistory, FileMetadata, ShareLink, LogEntry, Admin } from '../types'
+import type { User, Memo, MemoHistory, FileMetadata, ShareLink, LogEntry, StorageInfo } from '../types'
 import type { IStorageAdapter, StorageMode, StorageConfig, QueryOptions } from './StorageAdapter'
 
 /**
@@ -36,6 +36,11 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     this.apiKey = config.apiKey
   }
 
+  /** SIX-LOG：客户端错误上报取 Bearer（无则 undefined） */
+  getAccessToken(): string | undefined {
+    return this.apiKey
+  }
+
   /**
    * 发送 API 请求
    */
@@ -55,6 +60,20 @@ export class RemoteStorageAdapter implements IStorageAdapter {
       headers['Content-Type'] = 'application/json'
     }
 
+    // R4 X-01：客户端→服务端 Trace 贯通
+    const rid =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().replace(/-/g, '')
+        : `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`
+    headers['X-Request-Id'] = rid
+    headers['X-Trace-Id'] = rid
+
+    // 前端安全防护：写操作附带 Idempotency-Key（防重）
+    const m = method.toUpperCase()
+    if (m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE') {
+      headers['Idempotency-Key'] = rid
+    }
+
     const response = await fetch(`${this.apiUrl}${endpoint}`, {
       method,
       headers,
@@ -62,14 +81,33 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: response.statusText }))
-      throw new Error(error.message || `API 请求失败: ${response.status}`)
+      const error = (await response.json().catch(() => ({}))) as {
+        message?: string
+        code?: string
+        error?: { message?: string; code?: string }
+      }
+      const msg =
+        error.message ||
+        error.error?.message ||
+        `API 请求失败: ${response.status}`
+      const code = error.code || error.error?.code
+      const err = new Error(msg) as Error & { code?: string }
+      if (code) err.code = code
+      throw err
     }
 
-    const result: ApiResponse<T> = await response.json()
-    
+    const result = (await response.json()) as ApiResponse<T> & {
+      message?: string
+      code?: string
+    }
+
     if (!result.success) {
-      throw new Error(result.error?.message || 'API 请求失败')
+      const msg = result.message || result.error?.message || 'API 请求失败'
+      const err = new Error(msg) as Error & { code?: string }
+      if (result.code || result.error?.code) {
+        err.code = result.code || result.error?.code
+      }
+      throw err
     }
 
     return result.data as T
@@ -91,63 +129,153 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     return 'remote'
   }
 
-  // ========== 管理员操作 ==========
-  async createAdmin(admin: Admin): Promise<string> {
-    const result = await this.request<{ id: string }>('POST', '/admins', admin)
-    return result.id
-  }
-
-  async getAdminById(id: string): Promise<Admin | undefined> {
-    try {
-      return await this.request<Admin>('GET', `/admins/${id}`)
-    } catch {
-      return undefined
-    }
-  }
-
-  async getAdminByUsername(username: string): Promise<Admin | undefined> {
-    try {
-      return await this.request<Admin>('GET', `/admins/by-username/${encodeURIComponent(username)}`)
-    } catch {
-      return undefined
-    }
-  }
-
-  async getAllAdmins(): Promise<Admin[]> {
-    return await this.request<Admin[]>('GET', '/admins')
-  }
-
-  async updateAdmin(id: string, updates: Partial<Admin>): Promise<number> {
-    await this.request<void>('PATCH', `/admins/${id}`, updates)
-    return 1
-  }
-
-  async deleteAdmin(id: string): Promise<void> {
-    await this.request<void>('DELETE', `/admins/${id}`)
-  }
-
-  async adminUsernameExists(username: string): Promise<boolean> {
-    const result = await this.request<{ exists: boolean }>(
-      'GET',
-      `/admins/check-username/${encodeURIComponent(username)}`
-    )
-    return result.exists
-  }
-
-  async countAdmins(): Promise<number> {
-    const result = await this.request<{ count: number }>('GET', '/admins/count')
-    return result.count
-  }
-
-  async adminLogin(username: string, password: string): Promise<Admin> {
-    const admin = await this.request<Admin>('POST', '/admins/login', { username, password })
-    return admin
-  }
-
   // ========== 用户操作 ==========
-  async createUser(user: User): Promise<string> {
-    const result = await this.request<{ id: string }>('POST', '/users', user)
+  /**
+   * 远程建用户：必须带明文 password，由服务端 bcrypt 哈希。
+   * 禁止上传浏览器 PBKDF2 等非 bcrypt 的 passwordHash（登录侧只认 bcrypt）。
+   */
+  async createUser(user: User & { password?: string }): Promise<string> {
+    const payload: Record<string, unknown> = { ...user }
+    const plain =
+      typeof (user as { password?: string }).password === 'string'
+        ? String((user as { password?: string }).password)
+        : ''
+
+    if (plain) {
+      payload.password = plain
+      delete payload.passwordHash
+    } else if (
+      typeof user.passwordHash === 'string' &&
+      /^\$2[aby]\$/.test(user.passwordHash)
+    ) {
+      payload.passwordHash = user.passwordHash
+    } else {
+      throw new Error(
+        '创建用户须提供明文 password（服务端 bcrypt）；浏览器侧哈希与登录校验不兼容'
+      )
+    }
+
+    const result = await this.request<{ id: string }>('POST', '/users', payload)
     return result.id
+  }
+
+  /**
+   * R2：自助注册 Owner（走 /api/auth/register，禁止 POST /users 冒充）
+   */
+  async registerWithPassword(
+    username: string,
+    password: string,
+    securityQuestion: { question: string; answerHash: string }
+  ): Promise<User> {
+    const result = await this.request<{ accessToken: string; user: User }>(
+      'POST',
+      '/auth/register',
+      { username, password, securityQuestion }
+    )
+    this.apiKey = result.accessToken
+    return { ...result.user, token: result.accessToken }
+  }
+
+  /**
+   * R2：服务端验密登录，签发 Bearer（= users.token）
+   */
+  async loginWithPassword(
+    username: string,
+    password: string,
+    challenge?: { challengeId?: string; challengeAnswer?: string }
+  ): Promise<User> {
+    const result = await this.request<{ accessToken: string; user: User }>(
+      'POST',
+      '/auth/login',
+      {
+        username,
+        password,
+        challengeId: challenge?.challengeId,
+        challengeAnswer: challenge?.challengeAnswer,
+      }
+    )
+    this.apiKey = result.accessToken
+    return { ...result.user, token: result.accessToken }
+  }
+
+  /** 中风险挑战签发 */
+  async fetchLoginChallenge(): Promise<{
+    challengeId: string
+    prompt: string
+    expiresInSec: number
+    type: string
+  }> {
+    return await this.request<{
+      challengeId: string
+      prompt: string
+      expiresInSec: number
+      type: string
+    }>('GET', '/auth/challenge')
+  }
+
+  /**
+   * R2：个人令牌登录
+   */
+  async loginWithToken(token: string): Promise<User> {
+    const result = await this.request<{ accessToken: string; user: User }>(
+      'POST',
+      '/auth/login',
+      { token }
+    )
+    this.apiKey = result.accessToken
+    return { ...result.user, token: result.accessToken }
+  }
+
+  /** 账号恢复：取安全问题文案（不下发 hash） */
+  async recoverGetQuestion(username: string): Promise<{ question: string }> {
+    return await this.request<{ question: string }>('POST', '/auth/recover/question', {
+      username,
+    })
+  }
+
+  /** 账号恢复：校验密保答案 */
+  async recoverVerifyAnswer(
+    username: string,
+    answer: string
+  ): Promise<{ username: string; ok: boolean }> {
+    return await this.request<{ username: string; ok: boolean }>('POST', '/auth/recover/verify', {
+      username,
+      answer,
+    })
+  }
+
+  /** 账号恢复：令牌查用户名 */
+  async recoverByToken(token: string): Promise<{ username: string }> {
+    return await this.request<{ username: string }>('POST', '/auth/recover/by-token', { token })
+  }
+
+  /** 账号恢复：密保验证后重置密码 */
+  async recoverResetPassword(
+    username: string,
+    answer: string,
+    newPassword: string
+  ): Promise<void> {
+    await this.request<{ ok: boolean }>('POST', '/auth/recover/reset', {
+      username,
+      answer,
+      newPassword,
+    })
+  }
+
+  /** 账号恢复：令牌重置密码 */
+  async recoverResetPasswordByToken(token: string, newPassword: string): Promise<void> {
+    await this.request<{ ok: boolean }>('POST', '/auth/recover/reset-by-token', {
+      token,
+      newPassword,
+    })
+  }
+
+  /** 已登录用户修改密码（服务端校验当前密码） */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await this.request<{ changed: boolean }>('POST', '/auth/change-password', {
+      currentPassword,
+      newPassword,
+    })
   }
 
   async getUserById(id: string): Promise<User | undefined> {
@@ -178,11 +306,50 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     return await this.request<User[]>('GET', '/users')
   }
 
+  /** 按租户根过滤用户（对齐 server getUsersByTenantRootId） */
+  async getUsersByTenantRootId(tenantRootId: string): Promise<User[]> {
+    const all = await this.getAllUsers()
+    return all.filter((u) => u.tenantRootId === tenantRootId || u.id === tenantRootId)
+  }
+
   async getSubAccounts(parentUserId: string): Promise<User[]> {
     return await this.request<User[]>('GET', `/users/${parentUserId}/sub-accounts`)
   }
 
+  /**
+   * 本租户可见备忘录（十权 memo_manage + 租户数据范围 · RBAC权限矩阵 · 唯一入口 GET /memos）
+   */
+  async getMemos(): Promise<Memo[]> {
+    return await this.request<Memo[]>('GET', '/memos')
+  }
+
   async updateUser(id: string, updates: Partial<User>): Promise<number> {
+    const keys = Object.keys(updates)
+    const selfSafe = new Set([
+      'gender',
+      'email',
+      'birthDate',
+      'phone',
+      'address',
+      'position',
+      'company',
+      'bio',
+      'securityQuestion',
+      'lastLoginAt',
+      'rememberPassword',
+    ])
+    const onlySelfSafe =
+      keys.length > 0 &&
+      keys.every((k) => selfSafe.has(k)) &&
+      !('permissions' in updates) &&
+      !('role' in updates) &&
+      !('passwordHash' in updates)
+
+    if (onlySelfSafe) {
+      await this.request<User>('PATCH', '/me', updates)
+      return 1
+    }
+
     await this.request<void>('PATCH', `/users/${id}`, updates)
     return 1
   }
@@ -326,14 +493,114 @@ export class RemoteStorageAdapter implements IStorageAdapter {
   }
 
   async getStorageUsed(userId: string): Promise<number> {
-    const result = await this.request<{ used: number }>('GET', `/users/${userId}/storage`)
-    return result.used
+    const result = await this.request<{ accountUsed?: number }>(
+      'GET',
+      `/users/${userId}/storage`
+    )
+    // 仅本账号占用；禁止回退到卷 used（R-010）
+    return result.accountUsed ?? 0
+  }
+
+  async getStorageInfo(userId: string): Promise<StorageInfo> {
+    const result = await this.request<{
+      used: number
+      total: number
+      available: number
+      accountUsed: number
+    }>('GET', `/users/${userId}/storage`)
+    return {
+      used: result.used ?? 0,
+      total: result.total ?? 0,
+      available: result.available ?? 0,
+      accountUsed: result.accountUsed ?? 0,
+    }
   }
 
   // ========== 分享链接 ==========
   async createShare(share: ShareLink): Promise<string> {
     const result = await this.request<{ id: string }>('POST', '/shares', share)
     return result.id
+  }
+
+  /**
+   * 公开访问分享（无需登录）
+   * 对应 POST /api/public/shares/:id/access
+   */
+  async accessPublicShare(
+    shareId: string,
+    password?: string
+  ): Promise<{
+    success: boolean
+    memo?: Memo
+    requiresPassword?: boolean
+    error?: string
+  }> {
+    return await this.request('POST', `/public/shares/${encodeURIComponent(shareId)}/access`, {
+      password: password || undefined,
+    })
+  }
+
+  /**
+   * 公开列出分享评论
+   * GET /api/public/shares/:id/comments
+   */
+  async listPublicShareComments(
+    shareId: string,
+    password?: string
+  ): Promise<{
+    success: boolean
+    comments?: Array<{
+      id: string
+      shareId: string
+      authorName: string
+      content: string
+      feedback: 'helpful' | 'neutral' | 'improve'
+      createdAt: string
+    }>
+    requiresPassword?: boolean
+    error?: string
+  }> {
+    const q =
+      password && password.length > 0
+        ? `?password=${encodeURIComponent(password)}`
+        : ''
+    return await this.request(
+      'GET',
+      `/public/shares/${encodeURIComponent(shareId)}/comments${q}`
+    )
+  }
+
+  /**
+   * 公开发表分享评论
+   * POST /api/public/shares/:id/comments
+   */
+  async createPublicShareComment(
+    shareId: string,
+    input: {
+      content: string
+      feedback: 'helpful' | 'neutral' | 'improve'
+      authorName?: string
+      password?: string
+    }
+  ): Promise<{
+    success: boolean
+    comment?: {
+      id: string
+      shareId: string
+      authorName: string
+      content: string
+      feedback: 'helpful' | 'neutral' | 'improve'
+      createdAt: string
+    }
+    requiresPassword?: boolean
+    error?: string
+  }> {
+    return await this.request('POST', `/public/shares/${encodeURIComponent(shareId)}/comments`, {
+      content: input.content,
+      feedback: input.feedback,
+      authorName: input.authorName,
+      password: input.password || undefined,
+    })
   }
 
   async getShareById(id: string): Promise<ShareLink | undefined> {
@@ -346,6 +613,110 @@ export class RemoteStorageAdapter implements IStorageAdapter {
 
   async getSharesByUserId(userId: string): Promise<ShareLink[]> {
     return await this.request<ShareLink[]>('GET', `/users/${userId}/shares`)
+  }
+
+  /**
+   * 分享主人收件：该用户名下全部分享的访客评论
+   * GET /api/users/:userId/share-comments
+   */
+  async listOwnerShareComments(userId: string): Promise<
+    Array<{
+      id: string
+      shareId: string
+      authorName: string
+      content: string
+      feedback: 'helpful' | 'neutral' | 'improve'
+      createdAt: string
+      replyContent?: string | null
+      replyAt?: string | null
+      replyBy?: string | null
+    }>
+  > {
+    return await this.request('GET', `/users/${encodeURIComponent(userId)}/share-comments`)
+  }
+
+  async replyShareComment(
+    shareId: string,
+    commentId: string,
+    content: string
+  ): Promise<{
+    id: string
+    shareId: string
+    authorName: string
+    content: string
+    feedback: 'helpful' | 'neutral' | 'improve'
+    createdAt: string
+    replyContent?: string | null
+    replyAt?: string | null
+    replyBy?: string | null
+  }> {
+    return await this.request(
+      'POST',
+      `/shares/${encodeURIComponent(shareId)}/comments/${encodeURIComponent(commentId)}/reply`,
+      { content }
+    )
+  }
+
+  async listNotifications(
+    userId: string,
+    unreadOnly = false
+  ): Promise<{
+    items: Array<{
+      id: string
+      channel: string
+      templateId: string
+      userId: string
+      title: string
+      body: string
+      link?: string
+      at: string
+      readAt?: string | null
+    }>
+    unreadCount: number
+  }> {
+    const q = unreadOnly ? '?unreadOnly=1' : ''
+    return await this.request('GET', `/users/${encodeURIComponent(userId)}/notifications${q}`)
+  }
+
+  /** 长轮询：有新通知立即返回 */
+  async waitNotifications(
+    userId: string,
+    since: string,
+    timeoutMs = 25000
+  ): Promise<{
+    items: Array<{
+      id: string
+      channel: string
+      templateId: string
+      userId: string
+      title: string
+      body: string
+      link?: string
+      at: string
+      readAt?: string | null
+    }>
+    unreadCount: number
+  }> {
+    const q = `?since=${encodeURIComponent(since)}&timeoutMs=${encodeURIComponent(String(timeoutMs))}`
+    return await this.request(
+      'GET',
+      `/users/${encodeURIComponent(userId)}/notifications/wait${q}`
+    )
+  }
+
+  async markNotificationRead(userId: string, notificationId: string): Promise<void> {
+    await this.request(
+      'POST',
+      `/users/${encodeURIComponent(userId)}/notifications/${encodeURIComponent(notificationId)}/read`
+    )
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<number> {
+    const result = await this.request<{ marked: number }>(
+      'POST',
+      `/users/${encodeURIComponent(userId)}/notifications/read-all`
+    )
+    return result.marked
   }
 
   async getSharesByMemoId(memoId: string): Promise<ShareLink[]> {
@@ -405,11 +776,12 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     return result.id
   }
 
-  async getLogs(options?: QueryOptions): Promise<LogEntry[]> {
+  async getLogs(options?: QueryOptions & { traceId?: string }): Promise<LogEntry[]> {
     const params = new URLSearchParams()
     if (options?.limit) params.set('limit', String(options.limit))
     if (options?.offset) params.set('offset', String(options.offset))
-    
+    if (options?.traceId) params.set('traceId', options.traceId)
+
     const query = params.toString()
     return await this.request<LogEntry[]>('GET', `/logs${query ? `?${query}` : ''}`)
   }
@@ -453,7 +825,7 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     return await this.request<string>('GET', '/data/export')
   }
 
-  async importData(jsonData: string): Promise<void> {
+  async importData(jsonData: string, _options?: { merge?: boolean }): Promise<void> {
     await this.request<void>('POST', '/data/import', { data: jsonData })
   }
 

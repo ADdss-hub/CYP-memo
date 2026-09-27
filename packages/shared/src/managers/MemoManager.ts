@@ -1,14 +1,19 @@
-﻿/**
+/**
  * CYP-memo 备忘录管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
 import { memoDAO } from '../database/MemoDAO'
+import { fileDAO } from '../database/FileDAO'
 import { userDAO } from '../database/UserDAO'
 import { validateTagName } from '../utils/validation'
 import { logManager } from './LogManager'
+import { fileManager } from './FileManager'
 import { generateUUID } from '../utils/crypto'
-import type { Memo, MemoHistory } from '../types'
+import { storageManager } from '../storage/StorageManager'
+import type { RemoteStorageAdapter } from '../storage/RemoteStorageAdapter'
+import type { FileMetadata, Memo, MemoHistory } from '../types'
+import { resolveTenantRootId } from '../types'
 
 /**
  * 本地存储键名
@@ -41,7 +46,8 @@ export class MemoManager {
     userId: string,
     title: string,
     content: string,
-    tags: string[] = []
+    tags: string[] = [],
+    opts?: { id?: string; attachments?: string[] }
   ): Promise<Memo> {
     // 验证标签
     const invalidTags = tags.filter((tag) => !validateTagName(tag))
@@ -53,14 +59,14 @@ export class MemoManager {
     const user = await userDAO.getById(userId)
     const creatorName = user?.username || '未知用户'
 
-    // 创建备忘录对象
+    // 创建备忘录对象（可选预分配 id / 附件，避免 create→update 双写）
     const memo: Memo = {
-      id: generateUUID(),
+      id: opts?.id || generateUUID(),
       userId,
       title: title.trim(),
       content,
       tags,
-      attachments: [],
+      attachments: opts?.attachments ? [...opts.attachments] : [],
       createdAt: new Date(),
       updatedAt: new Date(),
       creatorName,
@@ -69,13 +75,22 @@ export class MemoManager {
     // 保存到数据库
     await memoDAO.create(memo)
 
-    // 记录日志
-    await logManager.info('备忘录创建成功', {
-      userId,
-      memoId: memo.id,
-      action: 'memo_create',
-      creatorName,
-    })
+    const remote = storageManager.getMode() === 'remote'
+    if (remote) {
+      void logManager.info('备忘录创建成功', {
+        userId,
+        memoId: memo.id,
+        action: 'memo_create',
+        creatorName,
+      })
+    } else {
+      await logManager.info('备忘录创建成功', {
+        userId,
+        memoId: memo.id,
+        action: 'memo_create',
+        creatorName,
+      })
+    }
 
     return memo
   }
@@ -97,49 +112,59 @@ export class MemoManager {
     tags: string[] = [],
     attachments?: string[]
   ): Promise<Memo> {
-    // 获取现有备忘录
-    const existingMemo = await memoDAO.getById(memoId)
-    if (!existingMemo) {
-      throw new Error('备忘录不存在')
-    }
-
-    // 验证标签
     const invalidTags = tags.filter((tag) => !validateTagName(tag))
     if (invalidTags.length > 0) {
       throw new Error(`标签名称无效: ${invalidTags.join(', ')}`)
     }
 
-    // 保存历史记录
-    const history: MemoHistory = {
-      id: generateUUID(),
-      memoId,
-      content: existingMemo.content,
-      timestamp: new Date(),
-    }
-    await memoDAO.createHistory(history)
-
-    // 构建更新数据
     const updateData: Partial<Memo> = {
       title: title.trim(),
       content,
       tags,
     }
-    
-    // 如果提供了附件列表，则更新
     if (attachments !== undefined) {
       updateData.attachments = attachments
     }
 
-    // 更新备忘录
+    const remote = storageManager.getMode() === 'remote'
+    if (!remote) {
+      const existingMemo = await memoDAO.getById(memoId)
+      if (!existingMemo) {
+        throw new Error('备忘录不存在')
+      }
+      await memoDAO.createHistory({
+        id: generateUUID(),
+        memoId,
+        content: existingMemo.content,
+        timestamp: new Date(),
+      })
+    }
+
     await memoDAO.update(memoId, updateData)
 
-    // 获取更新后的备忘录
+    if (remote) {
+      void logManager.info('备忘录更新成功', {
+        memoId,
+        action: 'memo_update',
+      })
+      const now = new Date()
+      return {
+        id: memoId,
+        userId: '',
+        title: updateData.title || '',
+        content,
+        tags,
+        attachments: attachments ?? [],
+        createdAt: now,
+        updatedAt: now,
+      }
+    }
+
     const updatedMemo = await memoDAO.getById(memoId)
     if (!updatedMemo) {
       throw new Error('更新后无法获取备忘录')
     }
 
-    // 记录日志
     await logManager.info('备忘录更新成功', {
       userId: updatedMemo.userId,
       memoId,
@@ -161,15 +186,101 @@ export class MemoManager {
       throw new Error('备忘录不存在')
     }
 
+    // 先清理关联附件，再软删除（附件管理页同步消失）
+    await this.deleteMemoAttachments(memo)
+
     // 软删除备忘录
     await memoDAO.softDelete(memoId)
 
-    // 记录日志
-    await logManager.info('备忘录删除成功', {
-      userId: memo.userId,
-      memoId,
-      action: 'memo_delete',
-    })
+    if (storageManager.getMode() === 'remote') {
+      void logManager.info('备忘录删除成功', {
+        userId: memo.userId,
+        memoId,
+        action: 'memo_delete',
+      })
+    } else {
+      await logManager.info('备忘录删除成功', {
+        userId: memo.userId,
+        memoId,
+        action: 'memo_delete',
+      })
+    }
+  }
+
+  /**
+   * 删除备忘录关联附件（attachments 列表 + memoId 反查）
+   */
+  private async deleteMemoAttachments(memo: Memo): Promise<void> {
+    const fileIds = new Set<string>(memo.attachments || [])
+    try {
+      const linked = await fileDAO.getByMemoId(memo.id)
+      for (const file of linked) {
+        fileIds.add(file.id)
+      }
+    } catch (err) {
+      await logManager.warn('按 memoId 查找附件失败', {
+        memoId: memo.id,
+        error: err instanceof Error ? err.message : String(err),
+        action: 'memo_attachments_lookup_failed',
+      })
+    }
+
+    if (fileIds.size === 0) return
+
+    let others: Memo[] = []
+    try {
+      others = (await memoDAO.getByUserId(memo.userId)).filter(
+        (item) => item.id !== memo.id && !item.deletedAt
+      )
+    } catch (err) {
+      await logManager.warn('查找其它备忘录失败', {
+        memoId: memo.id,
+        error: err instanceof Error ? err.message : String(err),
+        action: 'memo_attachments_lookup_failed',
+      })
+    }
+
+    const exclusive: string[] = []
+    for (const fileId of fileIds) {
+      let meta: FileMetadata | undefined
+      try {
+        meta = await fileDAO.getMetadata(fileId)
+      } catch {
+        meta = undefined
+      }
+      const usedElsewhere = others.some((item) => (item.attachments || []).includes(fileId))
+      const pointedElsewhere = !!(meta?.memoId && meta.memoId !== memo.id)
+      if (usedElsewhere || pointedElsewhere) {
+        if (meta?.memoId === memo.id) {
+          const fallback = others.find((item) => (item.attachments || []).includes(fileId))
+          try {
+            await fileDAO.updateMetadata(fileId, { memoId: fallback?.id ?? null })
+          } catch (err) {
+            await logManager.warn('改写共用文件主关联失败', {
+              memoId: memo.id,
+              fileId,
+              error: err instanceof Error ? err.message : String(err),
+              action: 'memo_shared_file_reassign_failed',
+            })
+          }
+        }
+        continue
+      }
+      exclusive.push(fileId)
+    }
+
+    if (exclusive.length === 0) return
+
+    try {
+      await fileManager.deleteFiles(exclusive)
+    } catch (err) {
+      await logManager.warn('删除备忘录附件失败', {
+        memoId: memo.id,
+        fileCount: fileIds.size,
+        error: err instanceof Error ? err.message : String(err),
+        action: 'memo_attachments_delete_failed',
+      })
+    }
   }
 
   /**
@@ -186,7 +297,34 @@ export class MemoManager {
     if (memo.deletedAt) {
       throw new Error('备忘录已被删除')
     }
-    return memo
+    const [enriched] = await this.withCreatorNames([memo])
+    return enriched
+  }
+
+  /**
+   * 为备忘录回填创建人用户名（多子用户共享列表可见）
+   */
+  private async withCreatorNames(memos: Memo[]): Promise<Memo[]> {
+    const nameByUserId = new Map<string, string>()
+    const out: Memo[] = []
+
+    for (const memo of memos) {
+      let name = memo.creatorName?.trim()
+      if (!name) {
+        if (!nameByUserId.has(memo.userId)) {
+          try {
+            const user = await userDAO.getById(memo.userId)
+            nameByUserId.set(memo.userId, user?.username || '未知用户')
+          } catch {
+            nameByUserId.set(memo.userId, '未知用户')
+          }
+        }
+        name = nameByUserId.get(memo.userId) || '未知用户'
+      }
+      out.push({ ...memo, creatorName: name })
+    }
+
+    return out
   }
 
   /**
@@ -199,51 +337,42 @@ export class MemoManager {
    * @returns Promise<Memo[]> 备忘录列表
    */
   async getAllMemos(userId: string): Promise<Memo[]> {
-    // 获取当前用户信息
+    // 远程：唯一列表 GET /memos（十权 memo_manage + 租户数据范围）
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      try {
+        const adapter = storageManager.getAdapter() as RemoteStorageAdapter
+        const remote = await adapter.getMemos()
+        return remote.sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )
+      } catch (err) {
+        await logManager.error(
+          err instanceof Error ? err : new Error(String(err)),
+          { action: 'getAllMemos_tenant', userId }
+        )
+        throw err instanceof Error ? err : new Error('加载备忘录失败')
+      }
+    }
+
     const currentUser = await userDAO.getById(userId)
     if (!currentUser) {
-      return await memoDAO.getByUserId(userId)
+      return this.withCreatorNames(await memoDAO.getByUserId(userId))
     }
+
+    const rootId = resolveTenantRootId(currentUser)
+    const members = await userDAO.listByTenantRootId(rootId)
+    const memberIds =
+      members.length > 0 ? members.map((m) => m.id) : [currentUser.id]
 
     let allMemos: Memo[] = []
-
-    if (currentUser.isMainAccount) {
-      // 主账号：获取自己的备忘录
-      const ownMemos = await memoDAO.getByUserId(userId)
-      allMemos = [...ownMemos]
-
-      // 获取所有子账号的备忘录
-      const subAccounts = await userDAO.getSubAccounts(userId)
-      for (const subAccount of subAccounts) {
-        const subMemos = await memoDAO.getByUserId(subAccount.id)
-        allMemos = [...allMemos, ...subMemos]
-      }
-    } else if (currentUser.parentUserId) {
-      // 子账号：获取自己的备忘录
-      const ownMemos = await memoDAO.getByUserId(userId)
-      allMemos = [...ownMemos]
-
-      // 获取主账号的备忘录
-      const parentMemos = await memoDAO.getByUserId(currentUser.parentUserId)
-      allMemos = [...allMemos, ...parentMemos]
-
-      // 获取同一主账号下其他子账号的备忘录
-      const siblingAccounts = await userDAO.getSubAccounts(currentUser.parentUserId)
-      for (const sibling of siblingAccounts) {
-        // 排除自己，避免重复
-        if (sibling.id !== userId) {
-          const siblingMemos = await memoDAO.getByUserId(sibling.id)
-          allMemos = [...allMemos, ...siblingMemos]
-        }
-      }
-    } else {
-      // 普通用户（没有主账号也没有子账号）：只获取自己的备忘录
-      allMemos = await memoDAO.getByUserId(userId)
+    for (const mid of memberIds) {
+      const memos = await memoDAO.getByUserId(mid)
+      allMemos = [...allMemos, ...memos]
     }
 
-    // 按更新时间排序（最新的在前）
-    return allMemos.sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    const enriched = await this.withCreatorNames(allMemos)
+    return enriched.sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     )
   }
 
@@ -262,23 +391,25 @@ export class MemoManager {
       // 如果还有关键词搜索，进一步筛选
       if (query && query.trim().length > 0) {
         const lowerQuery = query.toLowerCase()
-        return memosByTags.filter(
-          (memo) =>
-            memo.title.toLowerCase().includes(lowerQuery) ||
-            memo.content.toLowerCase().includes(lowerQuery)
+        return this.withCreatorNames(
+          memosByTags.filter(
+            (memo) =>
+              memo.title.toLowerCase().includes(lowerQuery) ||
+              memo.content.toLowerCase().includes(lowerQuery)
+          )
         )
       }
 
-      return memosByTags
+      return this.withCreatorNames(memosByTags)
     }
 
     // 如果只有关键词搜索
     if (query && query.trim().length > 0) {
-      return await memoDAO.search(userId, query)
+      return this.withCreatorNames(await memoDAO.search(userId, query))
     }
 
-    // 如果没有任何筛选条件，返回所有备忘录
-    return await memoDAO.getByUserId(userId)
+    // 如果没有任何筛选条件，返回本租户可见备忘录（与 getAllMemos 同源）
+    return this.getAllMemos(userId)
   }
 
   /**
@@ -363,7 +494,7 @@ export class MemoManager {
    * @returns Promise<Memo[]> 备忘录列表
    */
   async getMemosByTag(userId: string, tag: string): Promise<Memo[]> {
-    return await memoDAO.getByTag(userId, tag)
+    return this.withCreatorNames(await memoDAO.getByTag(userId, tag))
   }
 
   /**
@@ -376,6 +507,9 @@ export class MemoManager {
     if (!memo) {
       throw new Error('备忘录不存在')
     }
+
+    // 永久删除前清理附件
+    await this.deleteMemoAttachments(memo)
 
     // 删除历史记录
     await memoDAO.deleteHistory(memoId)

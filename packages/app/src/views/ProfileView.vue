@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   用户资料界面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -85,7 +85,7 @@
               :key="permission"
               class="permission-item"
             >
-              <el-icon class="permission-icon" color="#67c23a">
+              <el-icon class="permission-icon" color="var(--cyp-success)">
                 <Check />
               </el-icon>
               <span>{{ getPermissionLabel(permission) }}</span>
@@ -188,16 +188,16 @@
       </section>
 
       <!-- 账号安全 -->
-      <section v-if="authStore.currentUser?.passwordHash" class="profile-section">
+      <section v-if="authStore.currentUser?.hasPassword || authStore.currentUser?.passwordHash" class="profile-section">
         <h2 class="section-title">账号安全</h2>
         <el-card shadow="hover">
           <div class="info-item">
             <label class="info-label">登录方式</label>
             <div class="info-value">
-              {{ authStore.currentUser.passwordHash ? '账号密码' : '个人令牌' }}
+              {{ authStore.currentUser.hasPassword || authStore.currentUser.passwordHash ? '账号密码' : '个人令牌' }}
             </div>
           </div>
-          <div v-if="authStore.currentUser.passwordHash" class="info-item">
+          <div v-if="authStore.currentUser.hasPassword || authStore.currentUser.passwordHash" class="info-item">
             <label class="info-label">密码</label>
             <div class="info-value">••••••••</div>
           </div>
@@ -407,7 +407,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { Permission, hashPassword } from '@cyp-memo/shared'
+import { Permission, PERMISSION_LABELS, hashPassword } from '@cyp-memo/shared'
 import { ElMessage } from 'element-plus'
 import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/Button.vue'
@@ -483,15 +483,8 @@ async function copyToken() {
 /**
  * 获取权限标签
  */
-function getPermissionLabel(permission: Permission): string {
-  const labels: Record<Permission, string> = {
-    [Permission.MEMO_MANAGE]: '备忘录管理',
-    [Permission.STATISTICS_VIEW]: '数据统计查看',
-    [Permission.ATTACHMENT_MANAGE]: '附件管理',
-    [Permission.SETTINGS_MANAGE]: '系统设置',
-    [Permission.ACCOUNT_MANAGE]: '账号管理',
-  }
-  return labels[permission] || permission
+function getPermissionLabel(permission: Permission | string): string {
+  return PERMISSION_LABELS[permission as Permission] || String(permission)
 }
 
 /**
@@ -625,31 +618,26 @@ async function handleChangePassword() {
   isChangingPassword.value = true
 
   try {
-    const { verifyPassword: verify } = await import('@cyp-memo/shared')
-
-    // 验证当前密码
-    if (!authStore.currentUser.passwordHash) {
+    const { authManager } = await import('@cyp-memo/shared')
+    const hasPw =
+      Boolean(authStore.currentUser.hasPassword) || Boolean(authStore.currentUser.passwordHash)
+    if (!hasPw) {
       ElMessage.error('该账号不支持密码登录')
       return
     }
 
-    const isValid = await verify(passwordForm.value.currentPassword, authStore.currentUser.passwordHash)
-    if (!isValid) {
-      ElMessage.error('当前密码错误')
-      return
-    }
+    // 服务端校验当前密码；前端禁止依赖 passwordHash
+    await authManager.changePassword(
+      passwordForm.value.currentPassword,
+      passwordForm.value.newPassword
+    )
 
-    // 更新密码
-    const newPasswordHash = await hashPassword(passwordForm.value.newPassword)
-    const { userDAO } = await import('@cyp-memo/shared')
-    await userDAO.update(authStore.currentUser.id, {
-      passwordHash: newPasswordHash,
-    })
-
-    // 重新获取用户信息
-    const updatedUser = await userDAO.getById(authStore.currentUser.id)
-    if (updatedUser) {
-      authStore.currentUser = updatedUser
+    if (authStore.currentUser) {
+      authStore.currentUser = {
+        ...authStore.currentUser,
+        hasPassword: true,
+        passwordHash: undefined,
+      }
     }
 
     ElMessage.success('密码修改成功')
@@ -745,7 +733,7 @@ onMounted(() => {
 .page-title {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
 }
 
@@ -756,7 +744,7 @@ onMounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 16px 0;
 }
 
@@ -772,11 +760,11 @@ onMounted(() => {
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--cyp-bg-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--cyp-text);
   flex-shrink: 0;
 }
 
@@ -787,15 +775,15 @@ onMounted(() => {
 .profile-name {
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 12px 0;
 }
 
 .profile-type {
   display: inline-block;
   padding: 6px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text);
   border-radius: 16px;
   font-size: 14px;
   font-weight: 500;
@@ -806,7 +794,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .info-item:last-child {
@@ -816,12 +804,12 @@ onMounted(() => {
 .info-label {
   flex: 0 0 120px;
   font-weight: 500;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .info-value {
   flex: 1;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .info-control {
@@ -834,11 +822,11 @@ onMounted(() => {
 .token-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
-  background: #f5f7fa;
-  color: #303133;
-  font-family: monospace;
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
+  font-family: var(--cyp-font-mono);
   font-size: 14px;
 }
 
@@ -861,10 +849,10 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: #f0f9ff;
+  background: var(--cyp-brand-tint);
   border-radius: 8px;
   font-size: 14px;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .permission-icon {
@@ -910,56 +898,9 @@ onMounted(() => {
   }
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .page-title,
-[data-theme='dark'] .section-title,
-[data-theme='dark'] .profile-name,
-[data-theme='dark'] .info-value {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .info-label {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .info-item {
-  border-bottom-color: #414243;
-}
-
-[data-theme='dark'] .token-input {
-  background: #262727;
-  border-color: #414243;
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .permission-item {
-  background: #1a3a52;
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .empty-value {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .stat-item {
-  background: #262727;
-}
-
-[data-theme='dark'] .stat-label {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .stat-value {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .stat-value.active {
-  color: #67c23a;
-}
-
 /* 空值样式 */
 .empty-value {
-  color: #909399;
+  color: var(--cyp-text-muted);
   font-style: italic;
 }
 
@@ -974,23 +915,23 @@ onMounted(() => {
 .stat-item {
   text-align: center;
   padding: 16px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   border-radius: 8px;
 }
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin-bottom: 8px;
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .stat-value.active {
-  color: #67c23a;
+  color: var(--cyp-success);
 }
 </style>

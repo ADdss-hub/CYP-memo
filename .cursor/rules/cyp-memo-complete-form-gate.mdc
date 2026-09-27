@@ -1,0 +1,22 @@
+# CYP-memo · 完整形态交付门禁（强制 · R-011）
+
+权威：军械库《文档管理条例》规则 24.13 · AI 条例 X15 · 核心原则 12.3#13 · 反例 R-011。
+
+## 何时适用
+
+- 核验或宣称运行底座 / 基础设施六组件「已完成」
+- 改配置热变更、版本回滚、系统缓存与防重、告警处置闭环
+
+## 强制做法
+
+1. 嵌入式只改载体，不减合格条件。缺口只能记「未完成」，禁止「非阻断 / 可深化」后仍宣称完成。
+2. 配置管控须可核验：版本、审计、回滚；热变更面至少含 `logLevel`、`infoSamplePercent`、`retentionDays`、`riskThresholds`（`port` / `dataDir` / `appEnv` 进程绑定）。
+3. 防重响应只进系统缓存（`getSystemCache`），禁止平行 `Map` 当第二套缓存。
+4. 风险告警处置须可核验：分级拨号后 **指派、关闭** 闭环（`assignAlertTicket` / `closeAlertTicket`），并回链全链路日志；禁止仅 `alerts/test` 冒充完成。
+5. 规则阈值须经配置管控注入（`setRiskThresholds`）；数据处理核算须可 `pipeline/replay` 回放对账指针。
+6. `/healthz/ready` 的 `runtimeBase.completeForm` 仅在闭集 35 与配置/告警/阈值门同时成立时为真；宣称前跑 `pnpm verify:runtime-base`。
+
+## 反例（本仓已发生）
+
+- 探针全绿后把「配置只有启动注入、缓存偏薄」标成残余非阻断，同时宣称底座已完善。
+- 告警仅拨号/测试而无指派关闭，却把 `风险告警处置` ready 布尔当完成。

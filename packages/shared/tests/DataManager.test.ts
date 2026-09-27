@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 数据持久化管理器单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -51,7 +51,7 @@ describe('DataManager', () => {
       // 验证
       expect(jsonString).toBeTruthy()
       const data = JSON.parse(jsonString)
-      expect(data.version).toBe('1.0.0')
+      expect(data.version).toBe('2.0.0')
       expect(data.users).toHaveLength(1)
       expect(data.memos).toHaveLength(1)
       expect(data.users[0].username).toBe('testuser')
@@ -110,7 +110,7 @@ describe('DataManager', () => {
 
       // 准备导入数据
       const importData = {
-        version: '1.0.0',
+        version: '2.0.0',
         exportedAt: '2025-01-01T00:00:00.000Z',
         users: [
           {
@@ -155,7 +155,7 @@ describe('DataManager', () => {
 
       // 准备导入数据
       const importData = {
-        version: '1.0.0',
+        version: '2.0.0',
         exportedAt: '2025-01-01T00:00:00.000Z',
         users: [
           {
@@ -185,7 +185,7 @@ describe('DataManager', () => {
 
     it('应该正确反序列化日期对象', async () => {
       const importData = {
-        version: '1.0.0',
+        version: '2.0.0',
         exportedAt: '2025-01-03T00:00:00.000Z',
         users: [
           {
@@ -226,14 +226,14 @@ describe('DataManager', () => {
 
       await expect(
         dataManager.importFromJSON(JSON.stringify(invalidData), false)
-      ).rejects.toThrow('无效的数据格式')
+      ).rejects.toThrow(/缺少版本信息|无效的数据格式/)
     })
   })
 
   describe('recoverData', () => {
     it('应该恢复数据', async () => {
       const importData = {
-        version: '1.0.0',
+        version: '2.0.0',
         exportedAt: '2025-01-01T00:00:00.000Z',
         users: [
           {

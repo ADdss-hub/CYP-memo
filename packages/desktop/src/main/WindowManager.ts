@@ -39,7 +39,7 @@ export class WindowManager {
   /**
    * 创建主窗口
    */
-  createMainWindow(preloadPath: string, isDev: boolean, devServerUrl?: string): BrowserWindow {
+  createMainWindow(preloadPath: string, isLocalTooling: boolean, localServerUrl?: string): BrowserWindow {
     // 恢复窗口状态
     const savedState = this.restoreWindowState()
     if (savedState) {
@@ -88,8 +88,8 @@ export class WindowManager {
     this.setupWindowStateListeners()
 
     // 加载应用
-    if (isDev && devServerUrl) {
-      this.mainWindow.loadURL(devServerUrl)
+    if (isLocalTooling && localServerUrl) {
+      this.mainWindow.loadURL(localServerUrl)
       this.mainWindow.webContents.openDevTools()
     } else {
       // 生产环境：从 dist/main/main/ 到 dist/renderer/index.html

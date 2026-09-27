@@ -1,0 +1,26 @@
+---
+description: CYP-memo 全屏须走浏览器 Fullscreen API + 无障碍语义（禁伪全屏冒充 · R-023）
+alwaysApply: true
+---
+
+# CYP-memo · 全屏与无障碍门禁（强制 · R-023）
+
+权威：军械库《文档管理条例》规则 **24.26** · AI 条例 **X29** · 核心原则 12.3#27 · ANTI-84 · `cyp-browser-a11y` R09。
+
+## 设计口径（不可分叉）
+
+- 产品「全屏 / 沉浸编辑」**优先**浏览器 Fullscreen API：`requestFullscreen` / `exitFullscreen`，以 `fullscreenchange` 为状态源；宜 `navigationUI: 'show'`。
+- 全屏态须 `role="dialog"` + `aria-modal="true"` + 可访问名称；按钮 `aria-pressed` + 明确 `aria-label`；进出须 `aria-live` 告知。
+- 焦点：进入落到全屏面；退出回到触发控件。原生 Esc 交浏览器；仅 CSS 回退路径自管 Esc。
+- **禁止**仅用 `position:fixed` / `Teleport` / 高 `z-index` 伪全屏却宣称已全屏或已无障碍。
+- 伪全屏**仅允许**作 API 不可用或被拒绝时的回退，且回退仍须满足上述 ARIA/焦点/Esc。
+
+## 强制做法
+
+1. 改全屏相关代码时先核 `MemoEditor`（或同等组件）是否走原生 API。
+2. 宣称全屏可用前：核对进全屏后 `document.fullscreenElement`（或 webkit 等价）指向全屏根，并核 ARIA/焦点。
+3. 单测须覆盖原生路径与 API 失败回退路径。
+
+## 反例（本仓已发生）
+
+- 编辑器全屏仅 CSS fixed，背景透明透出壳层；后补 Teleport 仍未走 Fullscreen API，用户指出未按浏览器做无障碍优化。

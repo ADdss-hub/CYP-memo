@@ -70,13 +70,13 @@ export class TrayManager {
     // Windows 使用 ico，其他平台使用 png
     const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
     
-    // 开发模式和生产模式的路径不同
-    const isDev = !app.isPackaged
-    if (isDev) {
-      // 开发模式：从 dist/main/main/ 到 resources/
+    // 未打包联调与已打包路径不同（工具链判定，非独立配置环境）
+    const isLocalTooling = !app.isPackaged
+    if (isLocalTooling) {
+      // 未打包：从 dist/main/main/ 到 resources/
       return path.join(__dirname, '../../../resources', iconName)
     }
-    // 生产模式：从 resources/resources/ 目录加载
+    // 已打包：从 resources/resources/ 目录加载
     return path.join(process.resourcesPath || '', 'resources', iconName)
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "cyp-memo",
-  "version": "1.9.2",
+  "version": "2.0.0",
   "type": "module",
   "private": true,
   "description": "CYP-memo 容器备忘录系统",
@@ -12,9 +12,8 @@
   "license": "MIT",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "dev": "node scripts/dev.js",
-    "dev:server": "pnpm --filter @cyp-memo/server dev",
-    "dev:all": "concurrently \"pnpm dev:server\" \"pnpm dev\"",
+    "local:all": "concurrently \"pnpm local:server\" \"pnpm --filter @cyp-memo/app local\"",
+    "local:server": "pnpm --filter @cyp-memo/server local",
     "build": "node scripts/build.js",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
@@ -23,10 +22,26 @@
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
     "release:major": "node scripts/release.js major",
-    "version:info": "node scripts/verify-version.js"
+    "version:info": "node scripts/verify-version.js",
+    "version:bump": "node scripts/version-bump.js",
+    "verify:encoding": "python scripts/verify/verify-encoding-clean.py .",
+    "verify:ci02": "python scripts/verify/verify-ci02-prod-baseline.py .",
+    "verify:storage-ssot": "node scripts/verify/verify-server-storage-ssot.mjs",
+    "verify:complete-form": "node scripts/verify/verify-complete-form.mjs",
+    "verify:automation-matrix": "node scripts/verify/verify-automation-matrix.mjs",
+    "verify:runtime-base": "node scripts/verify/verify-runtime-base.mjs",
+    "verify:gateway-center-naming": "node scripts/verify/verify-gateway-center-naming.mjs",
+    "verify:font-glyph": "node scripts/verify/verify-font-glyph.mjs",
+    "verify:gates": "pnpm verify:encoding && pnpm verify:ci02 && pnpm verify:font-glyph && pnpm verify:gateway-center-naming",
+    "verify:support-desktop": "node scripts/verify/verify-support-desktop.mjs",
+    "verify:electron-embed": "node scripts/verify/verify-electron-embed.mjs",
+    "verify:perf-upgrade": "pnpm --filter @cyp-memo/server exec tsx scripts/perf-upgrade-verify.ts",
+    "verify:perf-coverage": "pnpm --filter @cyp-memo/server exec tsx scripts/perf-coverage-verify.ts",
+    "local": "node scripts/local.js"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "playwright": "1.49.1"
   },
   "engines": {
     "node": ">=20.19.6",

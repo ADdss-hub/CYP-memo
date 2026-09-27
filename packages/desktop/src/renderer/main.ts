@@ -4,6 +4,8 @@
  *
  * 需求 10.1: 桌面客户端应在每个平台上提供原生外观和体验
  * 需求 7: 桌面应用与网页应用功能一致，需要服务器登录后使用
+ *
+ * INIT-SYS-10：禁止本地建管理员；只注入 readyProbe 问服务端 /healthz/ready
  */
 
 import { createApp } from 'vue'
@@ -12,9 +14,20 @@ import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
+import '@app/styles/theme.css'
 import App from './App.vue'
 import router from './router'
-import { logManager, cleanupManager, storageManager } from '@cyp-memo/shared'
+import {
+  logManager,
+  cleanupManager,
+  storageManager,
+  initManager,
+  resolveApiBaseUrl,
+  resolveReadyProbeUrl,
+  installClientErrorReporting,
+  reportVueError,
+  type SystemReadyStatus,
+} from '@cyp-memo/shared'
 import { ElMessage } from 'element-plus'
 import { getElectronAPI } from './composables'
 
@@ -40,34 +53,77 @@ app.use(pinia)
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })
 
+/** SIX-LOG：渲染进程错误上报（基址在 getApiUrl 后刷新） */
+let desktopApiBase = resolveApiBaseUrl({
+  VITE_API_BASE: import.meta.env.VITE_API_BASE as string | undefined,
+  PROD: import.meta.env.PROD,
+})
+installClientErrorReporting({
+  getApiBase: () => desktopApiBase,
+  source: 'desktop-renderer',
+})
+
 /**
  * 获取服务器 API 地址
- * 根据连接模式返回正确的 API 地址
+ * embedded/remote 消费主进程运行时配置；默认走相对 /api（CFG-SYS-07）
  */
 async function getApiUrl(): Promise<string> {
   const api = getElectronAPI()
-  
+
   if (api) {
     try {
       const config = await api.server.getConfig()
-      
+
       if (config.connectionMode === 'embedded') {
-        // 内置服务器模式
         const status = await api.server.getStatus()
-        return `http://localhost:${status.port}/api`
+        // 运行时端口来自 EmbeddedServer（系统注入），非前端硬编码真相
+        return `http://127.0.0.1:${status.port}/api`
       } else if (config.serverUrl) {
-        // 远程服务器模式
-        return `${config.serverUrl}/api`
+        return `${config.serverUrl.replace(/\/+$/, '')}/api`
       }
     } catch (err) {
       console.error('获取服务器配置失败:', err)
     }
   }
-  
-  // 默认使用开发模式地址
-  return import.meta.env.PROD 
-    ? '/api'
-    : 'http://localhost:5170/api'
+
+  return resolveApiBaseUrl({
+    VITE_API_BASE: import.meta.env.VITE_API_BASE as string | undefined,
+    PROD: import.meta.env.PROD,
+  })
+}
+
+/** INIT-SYS-10：注入只读 ready 探针（不建种子） */
+function installReadyProbe(apiUrl: string): void {
+  const readyUrl = resolveReadyProbeUrl(apiUrl)
+  initManager.setReadyProbe(async (): Promise<SystemReadyStatus> => {
+    const res = await fetch(readyUrl, { method: 'GET', credentials: 'omit' })
+    const json = (await res.json()) as {
+      success?: boolean
+      data?: {
+        ready?: boolean
+        trace_id?: string
+        phases?: Array<{ phase: string; name: string; status: string }>
+        error?: string | null
+      }
+    }
+    const data = json.data
+    const ready = Boolean(data?.ready)
+    const lastPhase =
+      data?.phases && data.phases.length > 0
+        ? data.phases[data.phases.length - 1]
+        : undefined
+    return {
+      ready,
+      source: 'server_probe',
+      message:
+        (typeof data?.error === 'string' && data.error) ||
+        (ready ? '服务端 bootstrap 已就绪' : `服务端未就绪 (HTTP ${res.status})`),
+      hasOwnerSeed: ready,
+      phase: lastPhase?.name ?? lastPhase?.phase,
+      traceId: data?.trace_id,
+    }
+  })
+  console.log('📍 ready 探针:', readyUrl)
 }
 
 /**
@@ -76,7 +132,9 @@ async function getApiUrl(): Promise<string> {
 async function initializeStorage(): Promise<boolean> {
   try {
     const apiUrl = await getApiUrl()
-    
+    desktopApiBase = apiUrl
+    installReadyProbe(apiUrl)
+
     await storageManager.initialize({
       mode: 'remote',
       apiUrl
@@ -106,6 +164,15 @@ async function initializeApp() {
     }
   }
   
+  // 首次启动也可能已有 serverUrl / 内置端口：尽量先挂 ready 探针
+  try {
+    const earlyApi = await getApiUrl()
+    desktopApiBase = earlyApi
+    installReadyProbe(earlyApi)
+  } catch (err) {
+    console.warn('ready 探针预注入跳过:', err)
+  }
+
   // 如果不是首次启动，尝试初始化存储
   if (!isFirstLaunch) {
     const storageReady = await initializeStorage()
@@ -134,13 +201,19 @@ async function initializeApp() {
     console.error('[Component]', instance?.$options.name || 'Unknown')
     console.error('[Info]', info)
 
+    reportVueError(
+      err,
+      info,
+      instance?.$options.name || instance?.$options.__name
+    )
+
     logManager
       .error(err as Error, {
         component: instance?.$options.name || instance?.$options.__name,
         info,
         type: 'vue_error',
       })
-      .catch(console.error)
+      .catch(() => undefined)
 
     ElMessage.error({
       message: '应用发生错误，请刷新页面重试',
@@ -148,8 +221,8 @@ async function initializeApp() {
     })
   }
 
-  // Vue 警告处理（开发环境）
-  if (import.meta.env.DEV) {
+  // Vue 警告处理（Vite 未打包联调工具链；配置仍为 prod）
+  if (!import.meta.env.PROD) {
     app.config.warnHandler = (msg, instance, trace) => {
       console.warn('[Vue Warning]', msg)
       if (trace) {

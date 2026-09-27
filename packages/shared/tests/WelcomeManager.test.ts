@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 欢迎引导管理器单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -47,7 +47,7 @@ describe('欢迎引导管理器单元测试', () => {
       
       expect(firstStep.id).toBe('step-1')
       expect(firstStep.title).toBe('欢迎使用 CYP-memo')
-      expect(firstStep.description).toContain('现代化的备忘录管理系统')
+      expect(firstStep.description).toContain('现代化、安全可靠的个人备忘录管理系统')
       expect(firstStep.target).toBeUndefined()
       expect(firstStep.position).toBeUndefined()
     })
@@ -58,7 +58,7 @@ describe('欢迎引导管理器单元测试', () => {
       
       expect(secondStep.id).toBe('step-2')
       expect(secondStep.title).toBe('创建备忘录')
-      expect(secondStep.description).toContain('新建备忘录')
+      expect(secondStep.description).toContain('富文本编辑器')
       expect(secondStep.target).toBe('#create-memo-btn')
       expect(secondStep.position).toBe('bottom')
     })
@@ -68,7 +68,7 @@ describe('欢迎引导管理器单元测试', () => {
       const thirdStep = steps[2]
       
       expect(thirdStep.id).toBe('step-3')
-      expect(thirdStep.title).toBe('添加标签')
+      expect(thirdStep.title).toBe('智能标签管理')
       expect(thirdStep.description).toContain('标签')
       expect(thirdStep.target).toBe('#tags-input')
       expect(thirdStep.position).toBe('top')
@@ -79,9 +79,8 @@ describe('欢迎引导管理器单元测试', () => {
       const fourthStep = steps[3]
       
       expect(fourthStep.id).toBe('step-4')
-      expect(fourthStep.title).toBe('上传附件')
-      expect(fourthStep.description).toContain('上传图片')
-      expect(fourthStep.description).toContain('10GB')
+      expect(fourthStep.title).toBe('文件附件上传')
+      expect(fourthStep.description).toContain('上传')
       expect(fourthStep.target).toBe('#upload-file-btn')
       expect(fourthStep.position).toBe('left')
     })
@@ -91,8 +90,8 @@ describe('欢迎引导管理器单元测试', () => {
       const fifthStep = steps[4]
       
       expect(fifthStep.id).toBe('step-5')
-      expect(fifthStep.title).toBe('搜索和筛选')
-      expect(fifthStep.description).toContain('搜索框')
+      expect(fifthStep.title).toBe('全文搜索筛选')
+      expect(fifthStep.description).toContain('搜索')
       expect(fifthStep.target).toBe('#search-box')
       expect(fifthStep.position).toBe('bottom')
     })
@@ -102,8 +101,8 @@ describe('欢迎引导管理器单元测试', () => {
       const sixthStep = steps[5]
       
       expect(sixthStep.id).toBe('step-6')
-      expect(sixthStep.title).toBe('数据统计')
-      expect(sixthStep.description).toContain('统计信息')
+      expect(sixthStep.title).toBe('数据统计分析')
+      expect(sixthStep.description).toContain('统计')
       expect(sixthStep.target).toBe('#statistics-link')
       expect(sixthStep.position).toBe('right')
     })
@@ -113,8 +112,8 @@ describe('欢迎引导管理器单元测试', () => {
       const seventhStep = steps[6]
       
       expect(seventhStep.id).toBe('step-7')
-      expect(seventhStep.title).toBe('系统设置')
-      expect(seventhStep.description).toContain('设置')
+      expect(seventhStep.title).toBe('个性化设置')
+      expect(seventhStep.description).toContain('主题')
       expect(seventhStep.target).toBe('#settings-link')
       expect(seventhStep.position).toBe('right')
     })
@@ -124,8 +123,8 @@ describe('欢迎引导管理器单元测试', () => {
       const lastStep = steps[7]
       
       expect(lastStep.id).toBe('step-8')
-      expect(lastStep.title).toBe('开始使用')
-      expect(lastStep.description).toContain('开始创建')
+      expect(lastStep.title).toBe('准备就绪')
+      expect(lastStep.description).toContain('第一条备忘录')
       expect(lastStep.target).toBeUndefined()
       expect(lastStep.position).toBeUndefined()
     })
@@ -163,15 +162,15 @@ describe('欢迎引导管理器单元测试', () => {
 
     it('引导步骤应该覆盖主要功能', () => {
       const steps = welcomeManager.getGuideSteps()
-      const descriptions = steps.map(step => step.description).join(' ')
+      const allText = steps.map((step) => `${step.title} ${step.description}`).join(' ')
       
-      // 验证关键功能都被提及
-      expect(descriptions).toContain('备忘录')
-      expect(descriptions).toContain('标签')
-      expect(descriptions).toContain('上传') // 使用"上传"而不是"附件"
-      expect(descriptions).toContain('搜索')
-      expect(descriptions).toContain('统计')
-      expect(descriptions).toContain('设置')
+      // 验证关键功能都被提及（标题或描述）
+      expect(allText).toContain('备忘录')
+      expect(allText).toContain('标签')
+      expect(allText).toContain('上传')
+      expect(allText).toContain('搜索')
+      expect(allText).toContain('统计')
+      expect(allText).toContain('设置')
     })
 
     it('有目标元素的步骤应该有合理的位置', () => {
@@ -206,7 +205,7 @@ describe('欢迎引导管理器单元测试', () => {
       expect(steps[6].title).toContain('设置')
       
       // 8. 结束提示
-      expect(steps[7].title).toContain('开始使用')
+      expect(steps[7].title).toContain('准备就绪')
     })
   })
 

@@ -12,14 +12,14 @@ CYP-memo 桌面客户端，基于 Electron 构建的跨平台桌面应用。
 - 🔄 自动更新
 - 🔒 安全凭证存储
 
-## 开发
+## 本机联调（生产配置基准）
 
 ```bash
 # 安装依赖
 pnpm install
 
-# 开发模式
-pnpm dev
+# 本机联调（HMR 工具链；APP_ENV 仍为 prod）
+pnpm local
 
 # 构建
 pnpm build

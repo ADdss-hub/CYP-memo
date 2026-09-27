@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证验证器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -6,6 +6,7 @@
 import { userDAO } from '../../database/UserDAO'
 import { validatePasswordStrength } from '../../utils/validation'
 import type { User } from '../../types'
+import { storageManager } from '../../storage/StorageManager'
 
 /**
  * 认证验证器
@@ -19,6 +20,11 @@ export class AuthValidator {
   async validateUsername(username: string): Promise<void> {
     if (!username || username.trim().length === 0) {
       throw new Error('用户名不能为空')
+    }
+
+    // A12-E：远程禁止依赖匿名 exists 探测；重复名由 POST /auth/register 统一返回
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      return
     }
 
     const exists = await userDAO.usernameExists(username)
@@ -46,8 +52,29 @@ export class AuthValidator {
 
     // 检查是否输入了其他主账号的用户名
     const existingUser = await userDAO.getByUsername(username)
-    if (existingUser && existingUser.isMainAccount) {
-      throw new Error('该用户名已被其他主账号使用，请使用其他用户名')
+    if (existingUser && (existingUser.isMainAccount || existingUser.role === 'owner')) {
+      throw new Error(`用户名「${username}」已被主账户占用，请更换用户名`)
+    }
+
+    // 已被其他主账户下的子账户占用（全局用户名唯一）
+    if (
+      existingUser &&
+      existingUser.id &&
+      (existingUser.role === 'member' || Boolean(existingUser.parentUserId)) &&
+      existingUser.parentUserId !== parentUserId
+    ) {
+      const owner = existingUser.parentUserId
+        ? await userDAO.getById(existingUser.parentUserId)
+        : undefined
+      const ownerName = owner?.username
+      if (ownerName) {
+        throw new Error(
+          `用户名「${username}」已被主账户「${ownerName}」下的子账户占用，请联系该主账户处理，或更换用户名`
+        )
+      }
+      throw new Error(
+        `用户名「${username}」已被其他主账户下的子账户占用，请联系对应主账户处理，或更换用户名`
+      )
     }
 
     // 获取该主账号下的所有子账号

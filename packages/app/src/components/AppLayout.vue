@@ -1,5 +1,6 @@
-﻿<!--
+<!--
   主布局组件 (Header + Sidebar + Content + Footer)
+  主侧栏可整栏收纳（桌面窄轨 / 移动端滑出），状态走 UI store 持久化
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
@@ -7,9 +8,19 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <button class="menu-toggle" @click="toggleSidebar">
-          <Menu />
+        <button
+          type="button"
+          class="menu-toggle"
+          :aria-label="sidebarCollapsed ? '展开侧边栏' : '收纳侧边栏'"
+          :title="sidebarCollapsed ? '展开侧边栏' : '收纳侧边栏'"
+          @click="toggleSidebar"
+        >
+          <el-icon :size="20">
+            <Expand v-if="sidebarCollapsed" />
+            <Fold v-else />
+          </el-icon>
         </button>
+        <BrandMark size="sm" class="header-logo" />
         <h1 class="app-title">CYP-memo</h1>
       </div>
       <div class="header-center">
@@ -17,7 +28,7 @@
       </div>
       <div class="header-right">
         <slot name="header-right">
-          <!-- 默认头部右侧内容 -->
+          <NotifyBell />
           <div v-if="authStore.isAuthenticated" class="user-info">
             <el-dropdown trigger="click">
               <div class="user-dropdown-trigger">
@@ -49,50 +60,92 @@
 
     <!-- Main Content Area -->
     <div class="app-main">
-      <!-- Sidebar -->
-      <aside :class="['app-sidebar', { collapsed: sidebarCollapsed }]">
-        <nav class="sidebar-nav">
+      <aside
+        :class="[
+          'app-sidebar',
+          {
+            collapsed: sidebarCollapsed,
+            rail: sidebarCollapsed && !isMobile,
+          },
+        ]"
+      >
+        <div class="sidebar-scroll">
           <slot name="sidebar">
-            <!-- 默认侧边栏内容 -->
-            <AppSidebar />
+            <AppSidebar :compact="sidebarCollapsed && !isMobile" />
           </slot>
-        </nav>
+        </div>
+        <button
+          v-if="!isMobile"
+          type="button"
+          class="sidebar-fold-btn"
+          :aria-label="sidebarCollapsed ? '展开侧边栏' : '收纳侧边栏'"
+          :title="sidebarCollapsed ? '展开侧边栏' : '收纳侧边栏'"
+          @click="toggleSidebar"
+        >
+          <el-icon :size="16">
+            <DArrowRight v-if="sidebarCollapsed" />
+            <DArrowLeft v-else />
+          </el-icon>
+          <span v-if="!sidebarCollapsed" class="sidebar-fold-label">收纳侧栏</span>
+        </button>
       </aside>
 
-      <!-- Content -->
+      <!-- 移动端展开时的遮罩 -->
+      <div
+        v-if="isMobile && !sidebarCollapsed"
+        class="sidebar-backdrop"
+        aria-hidden="true"
+        @click="toggleSidebar"
+      />
+
       <main class="app-content">
         <slot />
       </main>
     </div>
 
-    <!-- Footer -->
     <AppFooter />
 
-    <!-- Mobile Bottom Navigation -->
     <MobileBottomNav v-if="isMobile" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
-import { Menu, User, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
+import {
+  User,
+  ArrowDown,
+  SwitchButton,
+  Fold,
+  Expand,
+  DArrowLeft,
+  DArrowRight,
+} from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
+import { useUIStore } from '../stores/ui'
 import AppFooter from './AppFooter.vue'
 import MobileBottomNav from './MobileBottomNav.vue'
 import AppSidebar from './AppSidebar.vue'
+import NotifyBell from './NotifyBell.vue'
+import BrandMark from './BrandMark.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const uiStore = useUIStore()
+const { sidebarCollapsed } = storeToRefs(uiStore)
 
-const sidebarCollapsed = ref(false)
-const windowWidth = ref(window.innerWidth)
-
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
 const isMobile = computed(() => windowWidth.value < 768)
+/** 进入移动端前的桌面折叠偏好，返回桌面时恢复 */
+const desktopCollapsedPref = ref(sidebarCollapsed.value)
 
 const toggleSidebar = () => {
-  sidebarCollapsed.value = !sidebarCollapsed.value
+  uiStore.toggleSidebar()
+  if (!isMobile.value) {
+    desktopCollapsedPref.value = sidebarCollapsed.value
+  }
 }
 
 const goToProfile = () => {
@@ -109,22 +162,35 @@ const handleLogout = async () => {
 
     await authStore.logout()
     router.push('/login')
-  } catch (error) {
+  } catch {
     // 用户取消退出
   }
 }
 
 const handleResize = () => {
+  const wasMobile = isMobile.value
   windowWidth.value = window.innerWidth
-  // 自动折叠侧边栏在移动设备上
-  if (isMobile.value) {
-    sidebarCollapsed.value = true
+  const nowMobile = windowWidth.value < 768
+
+  if (!wasMobile && nowMobile) {
+    desktopCollapsedPref.value = sidebarCollapsed.value
+    uiStore.setSidebarCollapsed(true)
+  } else if (wasMobile && !nowMobile) {
+    uiStore.setSidebarCollapsed(desktopCollapsedPref.value)
   }
 }
 
+watch(isMobile, (mobile) => {
+  uiStore.setMobile(mobile)
+})
+
 onMounted(() => {
   window.addEventListener('resize', handleResize)
-  handleResize()
+  if (isMobile.value) {
+    desktopCollapsedPref.value = sidebarCollapsed.value
+    uiStore.setSidebarCollapsed(true)
+  }
+  uiStore.setMobile(isMobile.value)
 })
 
 onUnmounted(() => {
@@ -136,14 +202,18 @@ onUnmounted(() => {
 .app-layout {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  background: #f5f7fa;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--cyp-bg-page);
 }
 
 .app-header {
   height: 60px;
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
+  flex-shrink: 0;
+  background: var(--cyp-bg-card);
+  border-bottom: 1px solid var(--cyp-border);
   display: flex;
   align-items: center;
   padding: 0 20px;
@@ -155,6 +225,7 @@ onUnmounted(() => {
 
 .header-left {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 12px;
 }
@@ -164,8 +235,7 @@ onUnmounted(() => {
   border: none;
   cursor: pointer;
   padding: 8px;
-  font-size: 20px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -174,15 +244,15 @@ onUnmounted(() => {
 }
 
 .menu-toggle:hover {
-  background: #f5f7fa;
-  color: #409eff;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-brand);
 }
 
 .app-title {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .header-center {
@@ -214,18 +284,18 @@ onUnmounted(() => {
 }
 
 .user-dropdown-trigger:hover {
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
 }
 
 .user-icon {
   font-size: 20px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .username {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -234,39 +304,92 @@ onUnmounted(() => {
 
 .dropdown-icon {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .app-main {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .app-sidebar {
   width: 240px;
-  background: white;
-  border-right: 1px solid #e4e7ed;
+  flex-shrink: 0;
+  background: var(--cyp-bg-card);
+  border-right: 1px solid var(--cyp-border);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease;
+  overflow: hidden;
+}
+
+.app-sidebar.rail {
+  width: 64px;
+}
+
+.sidebar-scroll {
+  flex: 1;
+  overflow-x: hidden;
   overflow-y: auto;
-  transition: all 0.3s;
+  min-height: 0;
 }
 
-.app-sidebar.collapsed {
-  width: 0;
-  border-right: none;
+.sidebar-fold-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 8px;
+  border: none;
+  border-top: 1px solid var(--cyp-border);
+  background: transparent;
+  color: var(--cyp-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
 }
 
-.sidebar-nav {
-  padding: 16px 0;
+.sidebar-fold-btn:hover {
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-brand);
+}
+
+.sidebar-fold-label {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sidebar-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 98;
 }
 
 .app-content {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--cyp-bg-page);
 }
 
-/* 移动端适配 */
+.app-content > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
 @media (max-width: 768px) {
   .app-header {
     padding: 0 12px;
@@ -285,58 +408,33 @@ onUnmounted(() => {
     left: 0;
     top: 60px;
     bottom: 60px;
+    width: 240px;
     z-index: 99;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.12);
+    transition: transform 0.25s ease;
   }
 
   .app-sidebar.collapsed {
     transform: translateX(-100%);
+    width: 240px;
+    box-shadow: none;
+  }
+
+  .app-sidebar.rail {
+    width: 240px;
+  }
+
+  .sidebar-fold-btn {
+    display: none;
   }
 
   .app-content {
     padding: 12px;
-    padding-bottom: 72px; /* 为底部导航栏留空间 */
+    padding-bottom: 72px;
   }
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .app-layout {
-  background: #0a0a0a;
-}
-
-[data-theme='dark'] .app-header {
-  background: #1d1e1f;
-  border-bottom-color: #414243;
-}
-
-[data-theme='dark'] .app-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .menu-toggle {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .menu-toggle:hover {
-  background: #262727;
-  color: #409eff;
-}
-
-[data-theme='dark'] .user-dropdown-trigger:hover {
-  background: #262727;
-}
-
-[data-theme='dark'] .user-icon,
-[data-theme='dark'] .username {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .app-sidebar {
-  background: #1d1e1f;
-  border-right-color: #414243;
-}
-
-[data-theme='dark'] .app-content {
-  background: #0a0a0a;
+.header-logo {
+  margin-right: 4px;
 }
 </style>

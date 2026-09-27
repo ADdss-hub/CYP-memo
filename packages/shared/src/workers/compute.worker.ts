@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 计算密集型任务 Worker
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

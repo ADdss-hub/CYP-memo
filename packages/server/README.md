@@ -1,4 +1,4 @@
-﻿# CYP-memo 服务器端
+# CYP-memo 服务器端
 
 高性能 REST API 服务器，使用 SQLite 数据库。
 
@@ -18,13 +18,13 @@
 pnpm install
 ```
 
-### 开发模式
+### 本机联调（生产配置基准）
 
 ```bash
-pnpm dev
+pnpm local
 ```
 
-服务器将运行在 `http://localhost:5170`
+进程仍强制 `APP_ENV=prod` / `NODE_ENV=production`。服务器：`http://localhost:5170`
 
 ### 生产构建
 
@@ -154,7 +154,7 @@ transaction() // 原子执行
 
 ```bash
 PORT=5170                    # 服务器端口
-NODE_ENV=production          # 环境模式
+NODE_ENV=production          # 与生产一致（CI02）
 DB_PATH=./data/database.sqlite  # 数据库路径（可选）
 ```
 

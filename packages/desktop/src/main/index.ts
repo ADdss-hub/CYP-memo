@@ -24,20 +24,19 @@ import { getEmbeddedServer } from './EmbeddedServer.js'
 import { getSecurityManager } from './SecurityManager.js'
 import { IPC_CHANNELS } from '../shared/ipc-channels.js'
 import type { ShortcutConfig, CachedMemo, SyncOperation, NotificationOptions, NotificationPreferences, ServerConnectionConfig, ConnectionMode } from '../shared/types.js'
+import { installMainProcessErrorLogging, mainLog } from './mainLog.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// 开发模式标志 - 通过多种方式检测
-// 1. 检查 NODE_ENV 环境变量
-// 2. 检查是否有 VITE_DEV_SERVER_URL（开发服务器）
-// 3. 检查 app.isPackaged（打包后为 true）
-const isDev = process.env.NODE_ENV === 'development' || 
-              !!process.env.VITE_DEV_SERVER_URL || 
-              !app.isPackaged
-const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174'
+/** SIX-LOG：主进程未捕获异常走统一前缀 + 脱敏控制台 */
+installMainProcessErrorLogging()
 
-// 是否为生产环境（打包后的应用）
+// CI02：进程配置恒为 production；本机联调仅由 HMR URL / 未打包判定（非独立配置面）
+const isLocalTooling = !!process.env.VITE_LOCAL_SERVER_URL || !app.isPackaged
+const VITE_LOCAL_SERVER_URL = process.env.VITE_LOCAL_SERVER_URL || 'http://localhost:5173'
+
+// 生产交付形态：仅打包态
 const isProduction = app.isPackaged
 
 /**
@@ -401,9 +400,9 @@ function initializeNotifications(): void {
  * 需求 7.7: 定时检查更新
  */
 function initializeAutoUpdate(): void {
-  // 开发模式下不检查更新
-  if (isDev) {
-    console.log('[Main] Skipping auto-update in development mode')
+  // 未打包 / 本机联调不检查更新（打包生产态才启用）
+  if (!app.isPackaged || isLocalTooling) {
+    console.log('[Main] Skipping auto-update outside packaged production')
     return
   }
 
@@ -487,7 +486,7 @@ function initializeSecurity(): void {
 
   // 配置内容安全策略（需求 9.4）
   securityManager.configureCSP({
-    isDev,
+    isLocalTooling,
     remoteServerUrl,
   })
 
@@ -529,7 +528,7 @@ async function initialize(): Promise<void> {
 
   // 创建主窗口
   const preloadPath = path.join(__dirname, '../preload/index.js')
-  const mainWindow = windowManager.createMainWindow(preloadPath, isDev, VITE_DEV_SERVER_URL)
+  const mainWindow = windowManager.createMainWindow(preloadPath, isLocalTooling, VITE_LOCAL_SERVER_URL)
 
   // 创建中文菜单
   menuManager.setMainWindow(mainWindow)
@@ -550,7 +549,7 @@ async function initialize(): Promise<void> {
   // macOS: 点击 dock 图标时显示窗口
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      windowManager.createMainWindow(preloadPath, isDev, VITE_DEV_SERVER_URL)
+      windowManager.createMainWindow(preloadPath, isLocalTooling, VITE_LOCAL_SERVER_URL)
     } else {
       windowManager.show()
     }
@@ -575,4 +574,9 @@ app.on('window-all-closed', () => {
 })
 
 // 启动应用
-initialize().catch(console.error)
+initialize().catch((err) => {
+  mainLog('error', err instanceof Error ? err.message : String(err), {
+    type: 'initialize_failed',
+    stack: err instanceof Error ? err.stack : undefined,
+  })
+})

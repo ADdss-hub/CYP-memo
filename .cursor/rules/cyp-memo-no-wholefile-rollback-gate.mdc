@@ -1,0 +1,34 @@
+---
+description: CYP-memo 禁止整文件 git 回滚门禁（防未提交修复被 checkout 清盘 · R-024）
+alwaysApply: true
+---
+
+# CYP-memo · 禁止整文件回滚门禁（强制 · R-024）
+
+权威：本仓反例（2026-09）· 字体/图标收口时对 `ShareView` / `ShareManageView` / `TermsDialog` / `MemoDetailView` 等执行 `git checkout HEAD -- <file>`，把未提交的 2.0.0 产品修复整文件打回旧版；版本史仍写「已修好」→ 文档与代码脱节。
+
+## 设计口径（不可分叉）
+
+- **产品源码的工作区改动 = 现行真相**（在用户明示以某 git 提交为准之前）。
+- **禁止**用整文件回滚手段「收回误改」：`git checkout -- <path>`、`git checkout HEAD -- <path>`、`git restore <path>`、`git restore --source=HEAD -- <path>`、等价的 `checkout`/`restore` 整文件覆盖。
+- **禁止**对未跟踪产品文件（`??`）执行删除式「还原」来代替定点编辑。
+- 收图标 / 清字形 / 救误改：**只允许**对目标节点做定点 Edit/StrReplace；**禁止**整文件打回 HEAD。
+
+## 强制做法
+
+1. 发现误改（如图标被换）：只改回误改的那几行/那个节点；不得整文件 checkout。
+2. 需要对照旧版：用 `git show HEAD:path` / `git diff` **只读**取片段，再手工合并进当前工作区。
+3. 用户未明示「提交 / commit」前：仍须保护工作区产品改动，不得自行整文件回滚。
+4. 用户明示「放弃某文件未提交改动」时：须先列出将丢失的能力要点，获确认后再操作；默认拒绝。
+5. 宣称产品修复完成前：关键路径须在**当前工作区**可核验；不得仅以 CHANGELOG 旧条目代替。
+
+## 明确允许
+
+- 用户明确要求的 `git revert`（生成新提交撤销某次已提交变更）
+- 用户明确要求的分支切换 / 重置（须复述风险）
+- 只读：`git show` / `git diff` / `git log`
+
+## 反例（本仓已发生 · 禁止再犯）
+
+- 字形治理误改铃铛后：`git checkout HEAD -- ShareManageView.vue ShareView.vue TermsDialog.vue …` → 分享评论 UI、2.0.0 协议文案等一并消失
+- 为救 favicon：`git checkout` 认证页 → 未提交主题/BrandMark 改动被清盘

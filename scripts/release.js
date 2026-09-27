@@ -30,7 +30,6 @@ const VERSION_FILES = [
   { path: 'VERSION', type: 'text' },
   { path: 'package.json', type: 'json' },
   { path: 'packages/app/package.json', type: 'json' },
-  { path: 'packages/admin/package.json', type: 'json' },
   { path: 'packages/server/package.json', type: 'json' },
   { path: 'packages/shared/package.json', type: 'json' },
   { path: 'packages/desktop/package.json', type: 'json' },

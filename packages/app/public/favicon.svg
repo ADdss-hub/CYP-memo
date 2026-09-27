@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="CYP-memo logo">
+  <title>logo-cyp-memo</title>
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <rect x="48" y="40" width="160" height="176" rx="16" fill="none" stroke="#0099FF" stroke-width="1.5"/>
+  <line x1="72" y1="88" x2="184" y2="88" stroke="#E0E0E0" stroke-width="1.5"/>
+  <line x1="72" y1="120" x2="184" y2="120" stroke="#E0E0E0" stroke-width="1.5"/>
+  <line x1="72" y1="152" x2="152" y2="152" stroke="#E0E0E0" stroke-width="1.5"/>
+  <circle cx="176" cy="176" r="20" fill="#FFFFFF" stroke="#0099FF" stroke-width="1.5"/>
+  <text x="128" y="236" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="18" fill="#0099FF">CYP-memo</text>
+</svg>

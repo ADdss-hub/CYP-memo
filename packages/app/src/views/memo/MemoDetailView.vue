@@ -291,7 +291,8 @@ const handleGenerateShareLink = async () => {
     toast.success('分享链接已生成')
   } catch (err) {
     console.error('生成分享链接失败:', err)
-    toast.error('生成失败，请重试')
+    const msg = err instanceof Error && err.message ? err.message : '生成失败，请重试'
+    toast.error(msg)
   } finally {
     isGeneratingShare.value = false
   }
@@ -518,7 +519,7 @@ onMounted(async () => {
   padding: 2px 6px;
   background: #f5f7fa;
   border-radius: 4px;
-  font-family: 'Courier New', monospace;
+  font-family: var(--cyp-font-mono);
   font-size: 14px;
   color: #e83e8c;
 }
@@ -572,6 +573,57 @@ onMounted(async () => {
 
 .memo-body :deep(a:hover) {
   border-bottom-color: #409eff;
+}
+
+.memo-body :deep(ul[data-type='taskList']) {
+  list-style: none;
+  padding-left: 0;
+  margin: 16px 0;
+}
+
+.memo-body :deep(ul[data-type='taskList'] li) {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.memo-body :deep(ul[data-type='taskList'] li > label) {
+  flex-shrink: 0;
+  margin-top: 0.2em;
+}
+
+.memo-body :deep(ul[data-type='taskList'] li > div) {
+  flex: 1;
+  min-width: 0;
+}
+
+.memo-body :deep(ul[data-type='taskList'] li[data-checked='true'] > div) {
+  color: var(--cyp-text-muted, #909399);
+  text-decoration: line-through;
+}
+
+.memo-body :deep(mark) {
+  border-radius: 2px;
+  padding: 0 2px;
+  background: var(--cyp-brand-tint, rgba(0, 153, 255, 0.16));
+  color: inherit;
+}
+
+.memo-body :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--cyp-border, #e4e7ed);
+  margin: 24px 0;
+}
+
+.memo-body :deep(sub) {
+  font-size: 0.75em;
+  vertical-align: sub;
+}
+
+.memo-body :deep(sup) {
+  font-size: 0.75em;
+  vertical-align: super;
 }
 
 .attachments-section {
@@ -695,7 +747,7 @@ onMounted(async () => {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   font-size: 14px;
-  font-family: 'Courier New', monospace;
+  font-family: var(--cyp-font-mono);
   background: #f5f7fa;
   cursor: pointer;
 }

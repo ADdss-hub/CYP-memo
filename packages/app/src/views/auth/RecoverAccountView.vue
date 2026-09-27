@@ -1,11 +1,12 @@
-﻿<!--
+<!--
   账号找回页面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
-  <div class="recover-page">
-    <div class="recover-container">
+  <div class="auth-shell">
+    <div class="auth-card recover-card">
       <div class="recover-header">
+        <BrandMark size="xl" class="recover-brand" />
         <h1 class="recover-title">找回账号</h1>
         <p class="recover-subtitle">选择您需要的找回方式</p>
       </div>
@@ -182,8 +183,10 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '../../composables/useToast'
-import { userDAO, VERSION } from '@cyp-memo/shared'
+import { storageManager, VERSION } from '@cyp-memo/shared'
+import type { RemoteStorageAdapter } from '@cyp-memo/shared'
 import Button from '../../components/Button.vue'
+import BrandMark from '../../components/BrandMark.vue'
 import { InfoFilled, SuccessFilled } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -217,6 +220,10 @@ const loading = ref(false)
 // 错误信息
 const error = ref('')
 
+function getRemoteAdapter(): RemoteStorageAdapter {
+  return storageManager.getAdapter() as RemoteStorageAdapter
+}
+
 /**
  * 选择找回方式
  */
@@ -230,7 +237,7 @@ const handleRecoveryMethod = () => {
 }
 
 /**
- * 使用令牌找回账号
+ * 使用令牌找回账号（服务端 API，禁止本地 userDAO）
  */
 const handleRecoveryByToken = async () => {
   error.value = ''
@@ -241,12 +248,8 @@ const handleRecoveryByToken = async () => {
 
   loading.value = true
   try {
-    const user = await userDAO.getByToken(form.value.token.trim())
-    if (!user) {
-      error.value = '令牌无效或不存在'
-      return
-    }
-    recoveredUsername.value = user.username
+    const result = await getRemoteAdapter().recoverByToken(form.value.token.trim())
+    recoveredUsername.value = result.username
     step.value = 4
     toast.success('账号找回成功')
   } catch (err) {
@@ -257,7 +260,7 @@ const handleRecoveryByToken = async () => {
 }
 
 /**
- * 验证用户名
+ * 验证用户名并拉取安全问题文案
  */
 const handleVerifyUsername = async () => {
   error.value = ''
@@ -268,16 +271,8 @@ const handleVerifyUsername = async () => {
 
   loading.value = true
   try {
-    const user = await userDAO.getByUsername(form.value.username)
-    if (!user) {
-      error.value = '用户不存在'
-      return
-    }
-    if (!user.securityQuestion) {
-      error.value = '该用户未设置安全问题，请联系管理员'
-      return
-    }
-    securityQuestion.value = user.securityQuestion.question
+    const result = await getRemoteAdapter().recoverGetQuestion(form.value.username)
+    securityQuestion.value = result.question
     step.value = 3
   } catch (err) {
     error.value = err instanceof Error ? err.message : '验证失败'
@@ -287,7 +282,7 @@ const handleVerifyUsername = async () => {
 }
 
 /**
- * 验证安全问题答案
+ * 验证安全问题答案（服务端比对 answerHash）
  */
 const handleVerifyAnswer = async () => {
   error.value = ''
@@ -298,20 +293,11 @@ const handleVerifyAnswer = async () => {
 
   loading.value = true
   try {
-    const user = await userDAO.getByUsername(form.value.username)
-    if (!user || !user.securityQuestion) {
-      error.value = '用户信息不存在'
-      return
-    }
-
-    const { verifyPassword } = await import('@cyp-memo/shared')
-    const isValid = await verifyPassword(form.value.securityAnswer, user.securityQuestion.answerHash)
-    if (!isValid) {
-      error.value = '安全问题答案错误'
-      return
-    }
-
-    recoveredUsername.value = user.username
+    const result = await getRemoteAdapter().recoverVerifyAnswer(
+      form.value.username,
+      form.value.securityAnswer
+    )
+    recoveredUsername.value = result.username
     step.value = 4
     toast.success('账号找回成功')
   } catch (err) {
@@ -335,16 +321,17 @@ const goToLogin = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--cyp-bg-page);
   padding: 20px;
 }
 
 .recover-container {
   width: 100%;
   max-width: 480px;
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--cyp-border);
   padding: 40px;
 }
 
@@ -353,16 +340,20 @@ const goToLogin = () => {
   margin-bottom: 32px;
 }
 
+.recover-brand {
+  margin: 0 auto 16px;
+}
+
 .recover-title {
   font-size: 32px;
   font-weight: 700;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 8px 0;
 }
 
 .recover-subtitle {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
@@ -381,15 +372,17 @@ const goToLogin = () => {
 .form-label {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .form-input,
 .form-textarea {
+  color: var(--cyp-text);
+  background: var(--cyp-bg-input);
   width: 100%;
   padding: 12px 16px;
   font-size: 14px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 6px;
   transition: all 0.2s;
   box-sizing: border-box;
@@ -398,28 +391,28 @@ const goToLogin = () => {
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+  border-color: var(--cyp-brand);
+  box-shadow: 0 0 0 2px rgba(0, 153, 255, 0.1);
 }
 
 .form-textarea {
   resize: vertical;
-  font-family: 'Courier New', monospace;
+  font-family: var(--cyp-font-mono);
 }
 
 .form-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
 .question-display {
   padding: 12px 16px;
-  background: #f5f7fa;
-  border: 1px solid #dcdfe6;
+  background: var(--cyp-bg-muted);
+  border: 1px solid var(--cyp-border);
   border-radius: 6px;
   font-size: 14px;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .info-box,
@@ -433,15 +426,15 @@ const goToLogin = () => {
 }
 
 .info-box {
-  background: #ecf5ff;
+  background: rgba(0, 153, 255, 0.12);
   border: 1px solid #d9ecff;
-  color: #409eff;
+  color: var(--cyp-brand);
 }
 
 .success-box {
-  background: #f0f9ff;
+  background: var(--cyp-brand-tint);
   border: 1px solid #d1f2eb;
-  color: #67c23a;
+  color: var(--cyp-success);
 }
 
 .info-box svg,
@@ -457,10 +450,10 @@ const goToLogin = () => {
 
 .error-message {
   padding: 12px 16px;
-  background: #fef0f0;
+  background: rgba(245, 108, 108, 0.12);
   border: 1px solid #fde2e2;
   border-radius: 6px;
-  color: #f56c6c;
+  color: var(--cyp-danger);
   font-size: 14px;
 }
 
@@ -481,13 +474,13 @@ const goToLogin = () => {
 
 .link {
   font-size: 14px;
-  color: #409eff;
+  color: var(--cyp-brand);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .link:hover {
-  color: #66b1ff;
+  color: var(--cyp-brand-soft);
   text-decoration: underline;
 }
 
@@ -503,15 +496,15 @@ const goToLogin = () => {
   align-items: flex-start;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .method-option:hover {
-  border-color: #409eff;
-  background: #f5f7fa;
+  border-color: var(--cyp-brand);
+  background: var(--cyp-bg-muted);
 }
 
 .radio-input {
@@ -533,18 +526,18 @@ const goToLogin = () => {
 .method-title {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .method-desc {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 /* 账号显示样式 */
 .account-display {
   padding: 16px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   border-radius: 8px;
 }
 
@@ -553,7 +546,7 @@ const goToLogin = () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-bottom: 1px solid #dcdfe6;
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .account-item:last-child {
@@ -563,20 +556,20 @@ const goToLogin = () => {
 .account-item .label {
   font-size: 14px;
   font-weight: 500;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .account-item .value {
   font-size: 14px;
-  color: #303133;
-  font-family: 'Courier New', monospace;
+  color: var(--cyp-text);
+  font-family: var(--cyp-font-mono);
 }
 
 /* 底部版权信息 */
 .recover-footer {
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--cyp-border);
   text-align: center;
 }
 
@@ -591,13 +584,13 @@ const goToLogin = () => {
 .brand-name {
   font-size: 14px;
   font-weight: 600;
-  color: #667eea;
+  color: var(--cyp-brand);
   letter-spacing: 0.5px;
 }
 
 .brand-author {
   font-size: 12px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .footer-copyright {
@@ -606,7 +599,7 @@ const goToLogin = () => {
   justify-content: center;
   gap: 6px;
   font-size: 11px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .separator {
@@ -614,113 +607,6 @@ const goToLogin = () => {
 }
 
 /* 深色主题支持 */
-[data-theme='dark'] .recover-container {
-  background: #1d1e1f;
-}
-
-[data-theme='dark'] .recover-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .recover-subtitle {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .form-label {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .form-input,
-[data-theme='dark'] .form-textarea {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .form-input:focus,
-[data-theme='dark'] .form-textarea:focus {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-}
-
-[data-theme='dark'] .form-hint {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .question-display {
-  background: #262727;
-  border-color: #414243;
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .info-box {
-  background: #1a2332;
-  border-color: #2d4a6e;
-}
-
-[data-theme='dark'] .success-box {
-  background: #1a2e1f;
-  border-color: #2d5c3a;
-}
-
-[data-theme='dark'] .error-message {
-  background: #2b1d1d;
-  border-color: #5c2929;
-}
-
-[data-theme='dark'] .method-option {
-  border-color: #414243;
-}
-
-[data-theme='dark'] .method-option:hover {
-  border-color: #409eff;
-  background: #262727;
-}
-
-[data-theme='dark'] .method-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .method-desc {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .account-display {
-  background: #262727;
-}
-
-[data-theme='dark'] .account-item {
-  border-bottom-color: #414243;
-}
-
-[data-theme='dark'] .account-item .label {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .account-item .value {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .recover-footer {
-  border-top-color: #414243;
-}
-
-[data-theme='dark'] .brand-name {
-  color: #a5b4fc;
-}
-
-[data-theme='dark'] .brand-author {
-  color: #a8abb2;
-}
-
-[data-theme='dark'] .footer-copyright {
-  color: #6b7280;
-}
-
-[data-theme='dark'] .separator {
-  color: #4b5563;
-}
-
 /* 响应式设计 */
 @media (max-width: 480px) {
   .recover-container {

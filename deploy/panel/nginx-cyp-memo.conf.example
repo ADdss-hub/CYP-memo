@@ -1,0 +1,21 @@
+# CYP-memo · 面板反代示例（nginx）
+# 宝塔 / 1Panel / aaPanel：将站点反代到本机 Node（闭集 35 · Server 进程）
+# 上游必须保留 JSON 信封字段，勿改写 /api 响应体
+
+server {
+    listen 80;
+    server_name memo.example.com;
+
+    client_max_body_size 10240m;
+
+    location / {
+        proxy_pass http://127.0.0.1:5170;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

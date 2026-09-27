@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证管理器
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -9,9 +9,11 @@ import { logManager } from './LogManager'
 import { authStorage } from './auth/AuthStorage'
 import { authValidator } from './auth/AuthValidator'
 import { subAccountManager } from './auth/SubAccountManager'
-import { Permission } from '../types'
+import { OWNER_DEFAULT_PERMISSIONS, Permission } from '../types'
 import type { User, SecurityQuestion } from '../types'
 import type { RememberInfo } from './auth/AuthStorage'
+import { storageManager } from '../storage/StorageManager'
+import type { RemoteStorageAdapter } from '../storage/RemoteStorageAdapter'
 
 /**
  * 认证管理器
@@ -29,8 +31,40 @@ export class AuthManager {
   async loginWithPassword(
     username: string,
     password: string,
-    remember: boolean = false
+    remember: boolean = false,
+    challenge?: { challengeId?: string; challengeAnswer?: string }
   ): Promise<User> {
+    // R2：远程模式走服务端验密 + Bearer（禁止拉 hash）
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      const adapter = storageManager.getAdapter() as RemoteStorageAdapter
+      const user = await adapter.loginWithPassword(username, password, challenge)
+      authStorage.saveAuthInfo({
+        userId: user.id,
+        username: user.username,
+        loginType: 'password',
+        timestamp: Date.now(),
+      })
+      // 持久化 Bearer，供刷新/截图会话恢复
+      try {
+        const cfg = storageManager.getConfig()
+        const token = adapter.getAccessToken?.() || user.token
+        if (token) {
+          localStorage.setItem(
+            'cyp-memo-storage-config',
+            JSON.stringify({ ...cfg, mode: 'remote', apiKey: token })
+          )
+        }
+      } catch {
+        /* ignore */
+      }
+      if (remember) {
+        authStorage.saveRememberInfo({ username, remember: true })
+      } else {
+        authStorage.clearRememberInfo()
+      }
+      return user
+    }
+
     // 查找用户
     const user = await userDAO.getByUsername(username)
 
@@ -62,9 +96,9 @@ export class AuthManager {
       timestamp: Date.now(),
     })
 
-    // 如果选择记住密码，保存到本地存储
+    // 仅记住用户名（禁止明文密码写入 localStorage）
     if (remember) {
-      authStorage.saveRememberInfo({ username, password })
+      authStorage.saveRememberInfo({ username, remember: true })
     } else {
       authStorage.clearRememberInfo()
     }
@@ -81,6 +115,18 @@ export class AuthManager {
    * @throws Error 登录失败时抛出错误
    */
   async loginWithToken(token: string): Promise<User> {
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      const adapter = storageManager.getAdapter() as RemoteStorageAdapter
+      const user = await adapter.loginWithToken(token)
+      authStorage.saveAuthInfo({
+        userId: user.id,
+        username: user.username,
+        loginType: 'token',
+        timestamp: Date.now(),
+      })
+      return user
+    }
+
     // 验证令牌格式
     if (!validateToken(token)) {
       throw new Error('令牌格式无效')
@@ -135,6 +181,39 @@ export class AuthManager {
       throw new Error('安全问题和答案不能为空')
     }
 
+    // R2：远程模式走统一注册（Owner 十权），禁止本地 DAO 绕过
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      const adapter = storageManager.getAdapter() as RemoteStorageAdapter
+      const user = await adapter.registerWithPassword(username, password, {
+        question: securityQuestion.question,
+        answerHash: securityQuestion.answerHash,
+      })
+      authStorage.saveAuthInfo({
+        userId: user.id,
+        username: user.username,
+        loginType: 'password',
+        timestamp: Date.now(),
+      })
+      try {
+        const cfg = storageManager.getConfig()
+        const token = adapter.getAccessToken?.() || user.token
+        if (token) {
+          localStorage.setItem(
+            'cyp-memo-storage-config',
+            JSON.stringify({ ...cfg, mode: 'remote', apiKey: token })
+          )
+        }
+      } catch {
+        /* ignore */
+      }
+      await logManager.info('远程 Owner 注册成功', {
+        userId: user.id,
+        username,
+        action: 'user_register_remote',
+      })
+      return user
+    }
+
     // 哈希密码
     const passwordHash = await hashPassword(password)
 
@@ -147,7 +226,7 @@ export class AuthManager {
       tokenExists = await userDAO.tokenExists(token)
     } while (tokenExists)
 
-    // 创建用户对象（包含自动生成的个人令牌）
+    // 创建用户对象（包含自动生成的个人令牌；Owner 十权）
     const user: User = {
       id: generateUUID(),
       username,
@@ -156,13 +235,7 @@ export class AuthManager {
       securityQuestion,
       rememberPassword: false,
       isMainAccount: true,
-      permissions: [
-        Permission.MEMO_MANAGE,
-        Permission.STATISTICS_VIEW,
-        Permission.ATTACHMENT_MANAGE,
-        Permission.SETTINGS_MANAGE,
-        Permission.ACCOUNT_MANAGE,
-      ],
+      permissions: [...OWNER_DEFAULT_PERMISSIONS],
       createdAt: new Date(),
       lastLoginAt: new Date(),
     }
@@ -210,13 +283,7 @@ export class AuthManager {
       token,
       rememberPassword: false,
       isMainAccount: true,
-      permissions: [
-        Permission.MEMO_MANAGE,
-        Permission.STATISTICS_VIEW,
-        Permission.ATTACHMENT_MANAGE,
-        Permission.SETTINGS_MANAGE,
-        Permission.ACCOUNT_MANAGE,
-      ],
+      permissions: [...OWNER_DEFAULT_PERMISSIONS],
       createdAt: new Date(),
       lastLoginAt: new Date(),
     }
@@ -272,10 +339,14 @@ export class AuthManager {
         return null
       }
 
-      // 更新最后登录时间
-      await userDAO.update(user.id, {
-        lastLoginAt: new Date(),
-      })
+      // 更新最后登录时间（失败不踢会话：子账号无 account_manage 时旧 PATCH 会 403）
+      try {
+        await userDAO.update(user.id, {
+          lastLoginAt: new Date(),
+        })
+      } catch (touchErr) {
+        console.warn('更新 lastLoginAt 失败（已忽略，保持会话）:', touchErr)
+      }
 
       return user
     } catch (error) {
@@ -317,7 +388,7 @@ export class AuthManager {
 
   /**
    * 密码找回
-   * 通过安全问题验证后重置密码
+   * 通过安全问题验证后重置密码（远程模式走服务端 API，禁止客户端比对 answerHash）
    * @param username 用户名
    * @param securityAnswer 安全问题答案
    * @param newPassword 新密码
@@ -328,6 +399,18 @@ export class AuthManager {
     securityAnswer: string,
     newPassword: string
   ): Promise<void> {
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      authValidator.validatePassword(newPassword)
+      const adapter = storageManager.getAdapter() as RemoteStorageAdapter
+      await adapter.recoverResetPassword(username, securityAnswer, newPassword)
+      await logManager.info('密码重置成功', {
+        username,
+        action: 'password_reset',
+        success: true,
+      })
+      return
+    }
+
     // 查找用户
     const user = await userDAO.getByUsername(username)
 
@@ -373,8 +456,41 @@ export class AuthManager {
   }
 
   /**
-   * 获取记住的密码信息
-   * @returns RememberInfo | null 记住的密码信息，如果没有则返回 null
+   * 已登录用户修改密码
+   * remote：服务端校验；local：本地校验后更新
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    authValidator.validatePassword(newPassword)
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      const adapter = storageManager.getAdapter() as RemoteStorageAdapter
+      await adapter.changePassword(currentPassword, newPassword)
+      await logManager.info('密码修改成功', { action: 'change_password', success: true })
+      return
+    }
+    const auth = authStorage.getAuthInfo()
+    if (!auth?.userId) {
+      throw new Error('用户未登录')
+    }
+    const user = await userDAO.getById(auth.userId)
+    if (!user?.passwordHash) {
+      throw new Error('该账号不支持密码登录')
+    }
+    const isValid = await verifyPassword(currentPassword, user.passwordHash)
+    if (!isValid) {
+      throw new Error('当前密码错误')
+    }
+    const passwordHash = await hashPassword(newPassword)
+    await userDAO.update(user.id, { passwordHash })
+    await logManager.info('密码修改成功', {
+      userId: user.id,
+      action: 'change_password',
+      success: true,
+    })
+  }
+
+  /**
+   * 获取记住的登录信息（仅用户名）
+   * @returns RememberInfo | null
    */
   getRememberInfo(): RememberInfo | null {
     return authStorage.getRememberInfo()

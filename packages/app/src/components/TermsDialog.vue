@@ -22,7 +22,7 @@
           </div>
         </div>
         <h2 class="header-title">使用协议</h2>
-        <p class="header-subtitle">请仔细阅读以下条款后继续使用</p>
+        <p class="header-subtitle">请仔细阅读以下条款后继续使用（生效 {{ legalEffective }}）</p>
       </div>
 
       <!-- 内容区域 -->
@@ -132,6 +132,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { VERSION } from '@cyp-memo/shared'
+import { TERMS_SECTIONS, LEGAL_EFFECTIVE_DATE } from '../content/legal'
 
 const visible = ref(false)
 const agreed = ref(false)
@@ -151,36 +152,9 @@ const isDarkMode = computed(() => {
   return document.documentElement.getAttribute('data-theme') === 'dark'
 })
 
-// 协议条款内容
-const sections = [
-  {
-    title: '免责声明',
-    content: '本软件按"原样"提供，不提供任何形式的明示或暗示保证，包括但不限于对适销性、特定用途的适用性和非侵权性的保证。在任何情况下，作者或版权持有人均不对任何索赔、损害或其他责任负责，无论这些追责来自合同、侵权或其它行为中，还是产生于、源于或有关于本软件以及本软件的使用或其它处置。'
-  },
-  {
-    title: '使用条款',
-    list: [
-      '本软件仅供学习和个人使用',
-      '禁止用于任何商业用途',
-      '用户应遵守所在地区的法律法规',
-      '用户对使用本软件产生的数据负责',
-      '作者保留随时修改本使用条款的权利'
-    ]
-  },
-  {
-    title: '数据隐私',
-    content: '本软件将所有数据存储在您的本地环境中，不会未经授权上传到任何第三方服务器。您的数据完全由您自己控制和管理，我们尊重并保护您的隐私权。'
-  },
-  {
-    title: '安全承诺',
-    list: [
-      '采用现代化加密技术保护数据安全',
-      '定期更新以修复潜在安全漏洞',
-      '不收集任何个人敏感信息',
-      '支持数据导出和备份功能'
-    ]
-  }
-]
+// 与 /terms、页脚协议同源（2.0.0 现行能力；禁止再内嵌过期「禁止商业用途」文案）
+const sections = TERMS_SECTIONS
+const legalEffective = LEGAL_EFFECTIVE_DATE
 
 // 处理滚动事件
 function handleScroll() {

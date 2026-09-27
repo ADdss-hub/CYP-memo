@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 验证工具属性测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

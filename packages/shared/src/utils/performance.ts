@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 性能优化工具
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -50,7 +50,7 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
 
   return function (...args: Parameters<T>) {
     if (!inThrottle) {
-      lastResult = func(...args)
+      lastResult = func(...args) as ReturnType<T>
       inThrottle = true
 
       setTimeout(() => {
@@ -217,7 +217,7 @@ export class MemoryCache<K, V> {
     // 如果缓存已满，删除最旧的项
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value
-      this.cache.delete(firstKey)
+      if (firstKey !== undefined) this.cache.delete(firstKey)
     }
 
     this.cache.set(key, {
@@ -355,7 +355,7 @@ export function requestIdleCallback(callback: () => void, options?: { timeout?: 
     return window.requestIdleCallback(callback, options)
   } else {
     // 降级方案
-    return window.setTimeout(callback, 1) as unknown as number
+    return globalThis.setTimeout(callback, 1) as unknown as number
   }
 }
 
@@ -366,6 +366,6 @@ export function cancelIdleCallback(id: number): void {
   if ('cancelIdleCallback' in window) {
     window.cancelIdleCallback(id)
   } else {
-    window.clearTimeout(id)
+    globalThis.clearTimeout(id)
   }
 }

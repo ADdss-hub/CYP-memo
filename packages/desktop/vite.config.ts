@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { createApiProxy } from '../shared/src/config/viteApiProxy'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -11,14 +12,10 @@ export default defineConfig({
   root: path.join(__dirname, 'src/renderer'),
   base: './',
   server: {
-    port: 5174,
+    port: 5175,
     strictPort: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5170',
-        changeOrigin: true,
-      },
-    },
+    // CFG-SYS-07：含 /healthz；目标来自 PORT / VITE_API_PROXY_TARGET
+    proxy: createApiProxy(),
   },
   build: {
     outDir: path.join(__dirname, 'dist/renderer'),
@@ -35,7 +32,6 @@ export default defineConfig({
       '@renderer': path.join(__dirname, 'src/renderer'),
       '@shared': path.join(__dirname, '../shared/src'),
       '@app': path.join(__dirname, '../app/src'),
-      // 复用 web app 的组件和模块
       '@app-components': path.join(__dirname, '../app/src/components'),
       '@app-views': path.join(__dirname, '../app/src/views'),
       '@app-stores': path.join(__dirname, '../app/src/stores'),
@@ -44,7 +40,6 @@ export default defineConfig({
     },
   },
   define: {
-    // 定义环境变量
     __IS_ELECTRON__: true,
   },
   optimizeDeps: {

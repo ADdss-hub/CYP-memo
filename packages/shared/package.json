@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/shared",
-  "version": "1.9.2",
+  "version": "2.0.0",
   "type": "module",
   "description": "CYP-memo 共享库（数据库、管理器、工具）",
   "author": {
@@ -10,7 +10,22 @@
   "license": "MIT",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "cyp-node": "./dist/index.js",
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.js.map",
+    "src",
+    "package.json"
+  ],
   "scripts": {
+    "build": "node scripts/build-node.mjs",
     "test": "vitest --run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
@@ -29,6 +44,7 @@
     "fake-indexeddb": "^6.2.5",
     "fast-check": "^3.15.0",
     "prettier": "^3.1.1",
+    "esbuild": "0.21.5",
     "typescript": "^5.3.3",
     "vitest": "^1.1.0"
   }

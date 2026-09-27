@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   备忘录编辑页面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -10,7 +10,7 @@
         <div class="left-actions">
           <Button type="text" @click="handleCancel"> ← 返回 </Button>
           <div v-if="lastSaved" class="save-status">
-            <span class="save-icon">✓</span>
+            <span class="save-icon"></span>
             <span class="save-text">{{ lastSaved }}</span>
           </div>
         </div>
@@ -106,33 +106,112 @@
           </div>
 
           <!-- 附件列表 -->
-          <div v-if="attachments.length > 0" class="form-group">
+          <div class="form-group">
             <div class="attachments-section">
-              <div class="attachments-label">附件 ({{ attachments.length }}):</div>
-              <div class="attachments-list">
-                <div v-for="(file, index) in attachments" :key="index" class="attachment-item">
-                  <span class="attachment-icon">📎</span>
-                  <span class="attachment-name">{{ file.name }}</span>
+              <div class="attachments-header">
+                <div class="attachments-label">
+                  文件 ({{ linkedAttachments.length + pendingFiles.length }})
+                </div>
+                <div class="attachments-actions">
+                  <Button type="default" @click="openLibraryPicker">从文件库选择</Button>
+                </div>
+              </div>
+
+              <div
+                v-if="linkedAttachments.length === 0 && pendingFiles.length === 0"
+                class="attachments-empty"
+              >
+                暂无文件。可从编辑器插入任意格式，或从文件库选择已有文件。
+              </div>
+
+              <div v-else class="attachments-list">
+                <div
+                  v-for="file in linkedAttachments"
+                  :key="file.id"
+                  class="attachment-item"
+                >
+                  <span class="attachment-icon"></span>
+                  <span class="attachment-name" :title="file.filename">{{ file.filename }}</span>
                   <span class="attachment-size">{{ formatFileSize(file.size) }}</span>
-                  <button class="attachment-remove" @click="removeAttachment(index)">×</button>
+                  <span class="attachment-badge">已入库</span>
+                  <button
+                    class="attachment-remove"
+                    title="取消关联（保留在文件库）"
+                    @click="unlinkLinkedAttachment(file.id)"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div
+                  v-for="(file, index) in pendingFiles"
+                  :key="'pending-' + index + '-' + file.name"
+                  class="attachment-item pending"
+                >
+                  <span class="attachment-icon"></span>
+                  <span class="attachment-name" :title="file.name">{{ file.name }}</span>
+                  <span class="attachment-size">{{ formatFileSize(file.size) }}</span>
+                  <span class="attachment-badge pending-badge">待上传</span>
+                  <button class="attachment-remove" @click="removePendingFile(index)">×</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <Modal
+        v-model="showLibraryPicker"
+        title="从文件库选择"
+        width="560px"
+        confirm-text="添加所选"
+        @confirm="confirmLibraryPick"
+        @cancel="showLibraryPicker = false"
+      >
+        <div class="library-picker">
+          <input
+            v-model="libraryFilter"
+            type="search"
+            class="library-filter"
+            placeholder="按文件名筛选..."
+          />
+          <div v-if="libraryLoading" class="library-loading">加载中...</div>
+          <div v-else-if="filteredLibraryFiles.length === 0" class="library-empty">
+            文件库暂无可用文件（支持全部格式）
+          </div>
+          <div v-else class="library-list">
+            <label
+              v-for="file in filteredLibraryFiles"
+              :key="file.id"
+              class="library-item"
+              :class="{ selected: librarySelectedIds.includes(file.id) }"
+            >
+              <input
+                type="checkbox"
+                :checked="librarySelectedIds.includes(file.id)"
+                @change="toggleLibrarySelect(file.id)"
+              />
+              <span class="library-name" :title="file.filename">{{ file.filename }}</span>
+              <span v-if="libraryUsageCount(file) > 0" class="library-used">
+                已被 {{ libraryUsageCount(file) }} 条备忘录使用
+              </span>
+              <span class="library-meta">{{ formatFileSize(file.size) }}</span>
+            </label>
+          </div>
+        </div>
+      </Modal>
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useMemoStore } from '../../stores/memo'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
-import { AppLayout, Button, Loading, MemoEditor } from '../../components'
-import { fileManager } from '@cyp-memo/shared'
+import { AppLayout, Button, Loading, MemoEditor, Modal } from '../../components'
+import { fileManager, generateUUID } from '@cyp-memo/shared'
+import type { FileMetadata } from '@cyp-memo/shared'
 
 const router = useRouter()
 const route = useRoute()
@@ -147,9 +226,19 @@ const title = ref('')
 const content = ref('')
 const tags = ref<string[]>([])
 const newTag = ref('')
-const attachments = ref<File[]>([])
+/** 已关联文件库的文件（编辑加载 / 库内选用） */
+const linkedAttachments = ref<FileMetadata[]>([])
+/** 本次待上传的本地文件（任意格式） */
+const pendingFiles = ref<File[]>([])
 const lastSaved = ref('')
 const hasUnsavedChanges = ref(false)
+
+// 文件库选择器
+const showLibraryPicker = ref(false)
+const libraryLoading = ref(false)
+const libraryFiles = ref<FileMetadata[]>([])
+const librarySelectedIds = ref<string[]>([])
+const libraryFilter = ref('')
 
 // 标签自动完成相关状态
 const tagInputRef = ref<HTMLInputElement>()
@@ -161,25 +250,38 @@ const databaseTags = ref<string[]>([])
 const isEditMode = computed(() => !!route.params.id)
 const memoId = computed(() => route.params.id as string)
 
+const filteredLibraryFiles = computed(() => {
+  const linkedIds = new Set(linkedAttachments.value.map((f) => f.id))
+  const q = libraryFilter.value.trim().toLowerCase()
+  return libraryFiles.value.filter((f) => {
+    if (linkedIds.has(f.id)) return false
+    if (!q) return true
+    return f.filename.toLowerCase().includes(q)
+  })
+})
+
+function libraryUsageCount(file: FileMetadata): number {
+  const ids = new Set<string>(file.linkedMemoIds || [])
+  if (file.memoId) ids.add(file.memoId)
+  for (const memo of memoStore.memos) {
+    if (memo.deletedAt) continue
+    if ((memo.attachments || []).includes(file.id)) ids.add(memo.id)
+  }
+  if (memoId.value) ids.delete(memoId.value)
+  return ids.size
+}
+
 // 从数据库加载的标签中过滤出匹配输入的标签
 const filteredDatabaseTags = computed(() => {
   const input = newTag.value.trim().toLowerCase()
   if (!input) {
-    // 输入为空时显示所有未使用的标签（最多10个）
-    return databaseTags.value
-      .filter(tag => !tags.value.includes(tag))
-      .slice(0, 10)
+    return databaseTags.value.filter((tag) => !tags.value.includes(tag)).slice(0, 10)
   }
-  // 输入不为空时过滤匹配的标签
   return databaseTags.value
-    .filter(tag => 
-      tag.toLowerCase().includes(input) && 
-      !tags.value.includes(tag)
-    )
+    .filter((tag) => tag.toLowerCase().includes(input) && !tags.value.includes(tag))
     .slice(0, 10)
 })
 
-// 标签建议（基于已有标签，排除已选择和下拉框中的）
 const suggestedTags = computed(() => {
   const allTags = memoStore.allTags
   return allTags
@@ -188,10 +290,8 @@ const suggestedTags = computed(() => {
     .slice(0, 5)
 })
 
-// 方法
 const loadMemo = async () => {
   if (!isEditMode.value) {
-    // 新建模式，尝试加载草稿
     const draft = await memoStore.getDraft()
     if (draft) {
       content.value = draft
@@ -200,7 +300,6 @@ const loadMemo = async () => {
     return
   }
 
-  // 编辑模式，加载备忘录
   isLoading.value = true
   try {
     const memo = await memoStore.getMemo(memoId.value)
@@ -208,7 +307,25 @@ const loadMemo = async () => {
       title.value = memo.title
       content.value = memo.content
       tags.value = [...memo.tags]
-      // TODO: 加载附件
+      try {
+        const files = await fileManager.getMemoAttachments(memoId.value)
+        // 合并 memo.attachments 中有但 getByMemoId 漏掉的（历史不一致）
+        const byId = new Map(files.map((f) => [f.id, f]))
+        for (const id of memo.attachments || []) {
+          if (!byId.has(id)) {
+            try {
+              const meta = await fileManager.getFileMetadata(id)
+              byId.set(id, meta)
+            } catch {
+              /* 附件已删 */
+            }
+          }
+        }
+        linkedAttachments.value = Array.from(byId.values())
+      } catch (attachErr) {
+        console.warn('加载附件失败:', attachErr)
+        linkedAttachments.value = []
+      }
     } else {
       toast.error('备忘录不存在')
       router.push('/memos')
@@ -221,19 +338,14 @@ const loadMemo = async () => {
   }
 }
 
-/**
- * 从数据库加载所有标签
- */
 const loadDatabaseTags = async () => {
   try {
     if (!authStore.currentUser) return
-    
-    // 加载用户的所有备忘录以获取标签
-    await memoStore.loadMemos(authStore.currentUser.id)
-    
-    // 从 memoStore 获取所有标签
+    // 已有列表则复用标签，避免编辑页再拉整租户备忘录
+    if (memoStore.memos.length === 0) {
+      await memoStore.loadMemos(authStore.currentUser.id)
+    }
     databaseTags.value = [...memoStore.allTags]
-    console.log('[MemoEdit] 已加载数据库标签:', databaseTags.value.length, '个')
   } catch (err) {
     console.error('加载数据库标签失败:', err)
   }
@@ -243,43 +355,30 @@ const handleTitleChange = () => {
   hasUnsavedChanges.value = true
 }
 
-/**
- * 处理标签输入
- */
 const handleTagInput = () => {
   showTagDropdown.value = true
   dropdownIndex.value = -1
 }
 
-/**
- * 处理标签输入框失焦
- */
 const handleTagInputBlur = () => {
-  // 延迟关闭下拉框，以便点击事件能够触发
   setTimeout(() => {
     showTagDropdown.value = false
     dropdownIndex.value = -1
   }, 200)
 }
 
-/**
- * 导航下拉框
- */
 const navigateDropdown = (direction: 'up' | 'down') => {
   if (!showTagDropdown.value || filteredDatabaseTags.value.length === 0) return
-  
   if (direction === 'down') {
     dropdownIndex.value = (dropdownIndex.value + 1) % filteredDatabaseTags.value.length
   } else {
-    dropdownIndex.value = dropdownIndex.value <= 0 
-      ? filteredDatabaseTags.value.length - 1 
-      : dropdownIndex.value - 1
+    dropdownIndex.value =
+      dropdownIndex.value <= 0
+        ? filteredDatabaseTags.value.length - 1
+        : dropdownIndex.value - 1
   }
 }
 
-/**
- * 选择下拉框中的标签
- */
 const selectDropdownTag = (tag: string) => {
   if (!tags.value.includes(tag)) {
     tags.value.push(tag)
@@ -292,31 +391,26 @@ const selectDropdownTag = (tag: string) => {
 }
 
 const addTag = (event?: KeyboardEvent) => {
-  if (event) {
-    event.preventDefault()
-  }
-
-  // 如果下拉框打开且有选中项，选择该项
-  if (showTagDropdown.value && dropdownIndex.value >= 0 && dropdownIndex.value < filteredDatabaseTags.value.length) {
+  if (event) event.preventDefault()
+  if (
+    showTagDropdown.value &&
+    dropdownIndex.value >= 0 &&
+    dropdownIndex.value < filteredDatabaseTags.value.length
+  ) {
     selectDropdownTag(filteredDatabaseTags.value[dropdownIndex.value])
     return
   }
-
   const tag = newTag.value.trim()
   if (!tag) return
-
-  // 验证标签名称
   if (tag.length > 20) {
     toast.error('标签名称不能超过 20 个字符')
     return
   }
-
   if (tags.value.includes(tag)) {
     toast.warning('标签已存在')
     newTag.value = ''
     return
   }
-
   tags.value.push(tag)
   newTag.value = ''
   showTagDropdown.value = false
@@ -338,25 +432,71 @@ const removeTag = (index: number) => {
 
 const handleFileUpload = async (file: File) => {
   try {
-    // 验证文件大小（10GB）
     const maxSize = 10 * 1024 * 1024 * 1024
     if (file.size > maxSize) {
       toast.error('文件大小不能超过 10GB')
       return
     }
-
-    attachments.value.push(file)
+    pendingFiles.value.push(file)
     hasUnsavedChanges.value = true
-    toast.success(`已添加附件: ${file.name}`)
+    toast.success(`已添加文件: ${file.name}`)
   } catch (err) {
-    console.error('文件上传失败:', err)
-    toast.error('文件上传失败')
+    console.error('添加文件失败:', err)
+    toast.error('添加文件失败')
   }
 }
 
-const removeAttachment = (index: number) => {
-  attachments.value.splice(index, 1)
+const unlinkLinkedAttachment = (fileId: string) => {
+  linkedAttachments.value = linkedAttachments.value.filter((f) => f.id !== fileId)
   hasUnsavedChanges.value = true
+}
+
+const removePendingFile = (index: number) => {
+  pendingFiles.value.splice(index, 1)
+  hasUnsavedChanges.value = true
+}
+
+const openLibraryPicker = async () => {
+  if (!authStore.currentUser) {
+    toast.error('请先登录')
+    return
+  }
+  showLibraryPicker.value = true
+  librarySelectedIds.value = []
+  libraryFilter.value = ''
+  libraryLoading.value = true
+  try {
+    libraryFiles.value = await fileManager.getFilesByUploadTime(authStore.currentUser.id, false)
+  } catch (err) {
+    console.error('加载文件库失败:', err)
+    toast.error('加载文件库失败')
+    libraryFiles.value = []
+  } finally {
+    libraryLoading.value = false
+  }
+}
+
+const toggleLibrarySelect = (fileId: string) => {
+  const idx = librarySelectedIds.value.indexOf(fileId)
+  if (idx >= 0) librarySelectedIds.value.splice(idx, 1)
+  else librarySelectedIds.value.push(fileId)
+}
+
+const confirmLibraryPick = () => {
+  const picked = libraryFiles.value.filter((f) => librarySelectedIds.value.includes(f.id))
+  const existing = new Set(linkedAttachments.value.map((f) => f.id))
+  let added = 0
+  for (const file of picked) {
+    if (existing.has(file.id)) continue
+    linkedAttachments.value.push(file)
+    existing.add(file.id)
+    added++
+  }
+  showLibraryPicker.value = false
+  if (added > 0) {
+    hasUnsavedChanges.value = true
+    toast.success(`已选择 ${added} 个文件库文件`)
+  }
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -369,14 +509,12 @@ const formatFileSize = (bytes: number): string => {
 
 const handleAutosave = async (html: string) => {
   if (!isEditMode.value) {
-    // 新建模式，保存草稿
     memoStore.saveDraft(html)
     lastSaved.value = '草稿已保存'
     setTimeout(() => {
       lastSaved.value = ''
     }, 3000)
   } else {
-    // 编辑模式，自动保存
     lastSaved.value = '自动保存中...'
     setTimeout(() => {
       lastSaved.value = '已自动保存'
@@ -387,75 +525,81 @@ const handleAutosave = async (html: string) => {
   }
 }
 
+/** 上传待传文件；返回成功的 fileId 列表。新建时可不传 memoId，由随后单次 create 挂接。 */
+const uploadPendingFiles = async (targetMemoId?: string): Promise<string[]> => {
+  if (!authStore.currentUser || pendingFiles.value.length === 0) return []
+  const uploaded: string[] = []
+  // 并行上传，缩短保存串行总耗时（R-008）
+  const results = await Promise.allSettled(
+    pendingFiles.value.map((file) =>
+      fileManager.uploadFile(
+        authStore.currentUser!.id,
+        file,
+        targetMemoId || undefined
+      )
+    )
+  )
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      uploaded.push(r.value.id)
+    } else {
+      const name = pendingFiles.value[i]?.name || '未知'
+      console.error('上传文件失败:', name, r.reason)
+      toast.warning(`文件 ${name} 上传失败`)
+    }
+  })
+  return uploaded
+}
+
 const handleSave = async () => {
   if (!authStore.currentUser) {
     toast.error('请先登录')
     return
   }
-
-  // 验证
   if (!title.value.trim()) {
     toast.error('请输入标题')
     return
   }
-
   if (!content.value.trim()) {
     toast.error('请输入内容')
     return
   }
 
   isSaving.value = true
+  await nextTick()
   try {
-    // 上传附件
-    const uploadedFileIds: string[] = []
-    for (const file of attachments.value) {
-      try {
-        // 编辑模式时传递 memoId，新建模式时先不传
-        const metadata = await fileManager.uploadFile(
-          authStore.currentUser.id, 
-          file, 
-          isEditMode.value ? memoId.value : undefined
-        )
-        uploadedFileIds.push(metadata.id)
-      } catch (err) {
-        console.error('上传附件失败:', file.name, err)
-        toast.warning(`附件 ${file.name} 上传失败`)
-      }
-    }
-
     if (isEditMode.value) {
-      // 更新备忘录
-      await memoStore.updateMemo(memoId.value, title.value, content.value, tags.value)
-      
-      // 如果有新上传的附件，更新备忘录的附件列表
-      if (uploadedFileIds.length > 0) {
-        const currentMemo = await memoStore.getMemo(memoId.value)
-        if (currentMemo) {
-          const newAttachments = [...(currentMemo.attachments || []), ...uploadedFileIds]
-          await memoStore.updateMemo(memoId.value, title.value, content.value, tags.value, newAttachments)
-        }
-      }
-      
+      const uploadedIds = await uploadPendingFiles(memoId.value)
+      // 一次 updateMemo 写 attachments；服务端反写 files.memoId（含库内选用/解绑）
+      const finalIds = [
+        ...linkedAttachments.value.map((f) => f.id),
+        ...uploadedIds,
+      ]
+      await memoStore.updateMemo(
+        memoId.value,
+        title.value,
+        content.value,
+        tags.value,
+        finalIds
+      )
       toast.success('保存成功')
     } else {
-      // 创建备忘录
-      const newMemo = await memoStore.createMemo(authStore.currentUser.id, title.value, content.value, tags.value)
-      
-      // 如果有上传的附件，更新文件的 memoId 并更新备忘录的附件列表
-      if (uploadedFileIds.length > 0 && newMemo) {
-        // 更新每个文件的 memoId
-        for (const fileId of uploadedFileIds) {
-          try {
-            await fileManager.updateFileMemo(fileId, newMemo.id)
-          } catch (err) {
-            console.error('更新文件关联失败:', fileId, err)
-          }
-        }
-        // 更新备忘录的附件列表
-        await memoStore.updateMemo(newMemo.id, title.value, content.value, tags.value, uploadedFileIds)
+      // 先并行上传（不绑 memo，避免预分配 id 触发 guardMemoAccess 404）
+      // → 单次 create（含 attachments）挂接，避免 create+PATCH 双写放大
+      const newId = generateUUID()
+      const uploadedIds = await uploadPendingFiles()
+      const libraryIds = linkedAttachments.value.map((f) => f.id)
+      const finalIds = [...libraryIds, ...uploadedIds]
+      const newMemo = await memoStore.createMemo(
+        authStore.currentUser.id,
+        title.value,
+        content.value,
+        tags.value,
+        { id: newId, attachments: finalIds }
+      )
+      if (!newMemo) {
+        throw new Error('创建失败')
       }
-      
-      // 清除草稿
       memoStore.clearDraft()
       toast.success('创建成功')
     }
@@ -472,14 +616,11 @@ const handleSave = async () => {
 
 const handleCancel = () => {
   if (hasUnsavedChanges.value) {
-    if (!confirm('有未保存的更改，确定要离开吗？')) {
-      return
-    }
+    if (!confirm('有未保存的更改，确定要离开吗？')) return
   }
   router.push('/memos')
 }
 
-// 监听内容变化
 watch(
   [title, content, tags],
   () => {
@@ -488,7 +629,6 @@ watch(
   { deep: true }
 )
 
-// 页面离开前提示
 const handleBeforeUnload = (event: BeforeUnloadEvent) => {
   if (hasUnsavedChanges.value) {
     event.preventDefault()
@@ -496,17 +636,13 @@ const handleBeforeUnload = (event: BeforeUnloadEvent) => {
   }
 }
 
-// 生命周期
 onMounted(async () => {
-  // 先加载数据库中的标签
   await loadDatabaseTags()
-  // 再加载备忘录
   await loadMemo()
+  hasUnsavedChanges.value = false
   window.addEventListener('beforeunload', handleBeforeUnload)
 })
 
-// 清理
-import { onBeforeUnmount } from 'vue'
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
 })
@@ -514,25 +650,44 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .memo-edit-view {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
+}
+
+.memo-edit-view *,
+.memo-edit-view *::before,
+.memo-edit-view *::after {
+  box-sizing: border-box;
 }
 
 .action-bar {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
+  gap: 8px 12px;
+  flex-shrink: 0;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-border);
+  border-radius: 10px;
+  margin-bottom: 12px;
 }
 
 .left-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .save-status {
@@ -540,7 +695,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  color: #67c23a;
+  color: var(--cyp-success);
 }
 
 .save-icon {
@@ -553,63 +708,106 @@ onBeforeUnmount(() => {
 
 .right-actions {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .edit-form {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .form-content {
-  max-width: 1200px;
-  margin: 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(280px, 1fr) auto;
+  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-border);
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 .form-group {
-  margin-bottom: 24px;
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.form-group.editor-group {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
 }
 
 .title-input {
+  display: block;
   width: 100%;
-  padding: 16px 20px;
-  font-size: 24px;
+  max-width: 100%;
+  padding: 14px 16px 10px;
+  font-size: 22px;
   font-weight: 600;
+  line-height: 1.3;
   border: none;
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s;
+  border-radius: 0;
+  background: transparent;
+  color: var(--cyp-text);
+  box-shadow: none;
 }
 
 .title-input:focus {
   outline: none;
-  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.2);
+  box-shadow: inset 0 -2px 0 var(--cyp-brand);
 }
 
 .title-input::placeholder {
-  color: #c0c4cc;
+  color: var(--cyp-text-muted);
+  font-weight: 500;
 }
 
 .tags-section {
-  background: white;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  width: auto;
+  max-width: 100%;
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  background: var(--cyp-bg-muted);
+  border: 1px solid var(--cyp-border);
   border-radius: 8px;
-  padding: 16px 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .tags-label {
-  font-size: 14px;
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 13px;
   font-weight: 600;
-  color: #303133;
-  margin-bottom: 12px;
+  color: var(--cyp-text-secondary);
 }
 
 .tags-container {
   display: flex;
+  flex: 1 1 200px;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .tag-chips {
@@ -624,8 +822,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #ecf5ff;
-  color: #409eff;
+  background: rgba(0, 153, 255, 0.12);
+  color: var(--cyp-brand);
   border-radius: 16px;
   font-size: 14px;
 }
@@ -633,7 +831,7 @@ onBeforeUnmount(() => {
 .tag-remove {
   background: none;
   border: none;
-  color: #409eff;
+  color: var(--cyp-brand);
   font-size: 18px;
   cursor: pointer;
   padding: 0;
@@ -647,26 +845,28 @@ onBeforeUnmount(() => {
 }
 
 .tag-remove:hover {
-  background: rgba(64, 158, 255, 0.2);
+  background: rgba(0, 153, 255, 0.2);
 }
 
 .tag-input {
   flex: 1;
   min-width: 120px;
   padding: 6px 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid transparent;
   border-radius: 16px;
   font-size: 14px;
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
 }
 
 .tag-input:focus {
   outline: none;
-  border-color: #409eff;
+  border-color: var(--cyp-brand);
 }
 
 .tag-input-wrapper {
   position: relative;
-  flex: 1;
+  flex: 0 1 180px;
   min-width: 120px;
 }
 
@@ -680,8 +880,8 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #dcdfe6;
+  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-border);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   max-height: 200px;
@@ -693,14 +893,14 @@ onBeforeUnmount(() => {
   padding: 8px 12px;
   cursor: pointer;
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   transition: all 0.2s;
 }
 
 .tag-dropdown-item:hover,
 .tag-dropdown-item.active {
-  background: #ecf5ff;
-  color: #409eff;
+  background: rgba(0, 153, 255, 0.12);
+  color: var(--cyp-brand);
 }
 
 .tag-dropdown-item:first-child {
@@ -720,45 +920,64 @@ onBeforeUnmount(() => {
 
 .suggestions-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .suggested-tag {
   padding: 4px 10px;
-  background: #f5f7fa;
-  border: 1px solid #dcdfe6;
+  background: var(--cyp-bg-muted);
+  border: 1px solid var(--cyp-border);
   border-radius: 12px;
   font-size: 12px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .suggested-tag:hover {
-  background: #ecf5ff;
-  border-color: #409eff;
-  color: #409eff;
+  background: rgba(0, 153, 255, 0.12);
+  border-color: var(--cyp-brand);
+  color: var(--cyp-brand);
 }
 
-.editor-group {
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+.form-content > .form-group:last-child {
+  margin-bottom: 0;
 }
 
 .attachments-section {
-  background: white;
+  margin: 0 14px 14px;
+  padding: 12px 14px;
+  background: var(--cyp-bg-muted);
+  border: 1px solid var(--cyp-border);
   border-radius: 8px;
-  padding: 16px 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
+}
+
+.attachments-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .attachments-label {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
-  margin-bottom: 12px;
+  color: var(--cyp-text);
+  margin: 0;
+}
+
+.attachments-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.attachments-empty {
+  font-size: 13px;
+  color: var(--cyp-text-muted);
+  padding: 8px 0;
 }
 
 .attachments-list {
@@ -772,13 +991,103 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-border);
   border-radius: 6px;
   transition: all 0.2s;
 }
 
+.attachment-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0, 153, 255, 0.12);
+  color: var(--cyp-brand);
+}
+
+.attachment-badge.pending-badge {
+  background: rgba(230, 162, 60, 0.15);
+  color: var(--cyp-warning);
+}
+
+.library-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+  max-height: 420px;
+}
+
+.library-filter {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--cyp-border);
+  border-radius: 8px;
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
+  font-size: 14px;
+}
+
+.library-filter:focus {
+  outline: none;
+  border-color: var(--cyp-brand);
+}
+
+.library-loading,
+.library-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--cyp-text-muted);
+  font-size: 14px;
+}
+
+.library-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+}
+
+.library-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.library-item:hover,
+.library-item.selected {
+  background: rgba(0, 153, 255, 0.08);
+  border-color: rgba(0, 153, 255, 0.25);
+}
+
+.library-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-used {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #0077cc;
+}
+
+.library-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--cyp-text-muted);
+}
+
 .attachment-item:hover {
-  background: #ecf5ff;
+  background: rgba(0, 153, 255, 0.12);
 }
 
 .attachment-icon {
@@ -788,7 +1097,7 @@ onBeforeUnmount(() => {
 .attachment-name {
   flex: 1;
   font-size: 14px;
-  color: #303133;
+  color: var(--cyp-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -796,13 +1105,13 @@ onBeforeUnmount(() => {
 
 .attachment-size {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .attachment-remove {
   background: none;
   border: none;
-  color: #f56c6c;
+  color: var(--cyp-danger);
   font-size: 20px;
   cursor: pointer;
   padding: 0;
@@ -819,102 +1128,25 @@ onBeforeUnmount(() => {
   background: rgba(245, 108, 108, 0.1);
 }
 
-/* 移动端适配 */
+/* 移动端：保持横排，只收紧间距；禁止整栏改纵向把布局打散 */
 @media (max-width: 768px) {
   .action-bar {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-
-  .left-actions,
-  .right-actions {
-    justify-content: space-between;
-  }
-
-  .edit-form {
-    padding: 16px;
+    padding: 10px 12px;
   }
 
   .title-input {
     font-size: 20px;
+    padding: 12px 14px 8px;
+  }
+
+  .tags-section {
+    margin: 0 10px 10px;
+  }
+
+  .form-content {
+    grid-template-rows: auto auto minmax(220px, 1fr) auto;
   }
 }
 
 /* 深色主题支持 */
-[data-theme='dark'] .memo-edit-view {
-  background: #141414;
-}
-
-[data-theme='dark'] .action-bar,
-[data-theme='dark'] .title-input,
-[data-theme='dark'] .tags-section,
-[data-theme='dark'] .editor-group,
-[data-theme='dark'] .attachments-section {
-  background: #1d1e1f;
-  border-color: #414243;
-}
-
-[data-theme='dark'] .title-input {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .title-input::placeholder {
-  color: #606266;
-}
-
-[data-theme='dark'] .tags-label,
-[data-theme='dark'] .attachments-label,
-[data-theme='dark'] .attachment-name {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tag-chip {
-  background: #337ecc;
-  color: white;
-}
-
-[data-theme='dark'] .tag-remove {
-  color: white;
-}
-
-[data-theme='dark'] .tag-input {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tag-dropdown {
-  background: #1d1e1f;
-  border-color: #414243;
-}
-
-[data-theme='dark'] .tag-dropdown-item {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tag-dropdown-item:hover,
-[data-theme='dark'] .tag-dropdown-item.active {
-  background: #337ecc;
-  color: white;
-}
-
-[data-theme='dark'] .suggested-tag {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .suggested-tag:hover {
-  background: #337ecc;
-  color: white;
-}
-
-[data-theme='dark'] .attachment-item {
-  background: #262727;
-}
-
-[data-theme='dark'] .attachment-item:hover {
-  background: #337ecc;
-}
 </style>

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   数据统计界面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -66,7 +66,7 @@
               <el-icon><Paperclip /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-label">附件总数</div>
+              <div class="stat-label">文件总数</div>
               <div class="stat-value">
                 {{ statistics.attachmentCount }}
               </div>
@@ -78,7 +78,7 @@
               <el-icon><FolderOpened /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-label">附件总大小</div>
+              <div class="stat-label">文件总大小</div>
               <div class="stat-value">
                 {{ formatFileSize(statistics.attachmentSize) }}
               </div>
@@ -136,15 +136,19 @@
             </div>
             <div class="storage-details">
               <div class="storage-item">
-                <span class="storage-label">已使用:</span>
+                <span class="storage-label">本账号文件:</span>
+                <span class="storage-value">{{ formatFileSize(statistics.attachmentSize) }}</span>
+              </div>
+              <div class="storage-item">
+                <span class="storage-label">存储空间已用:</span>
                 <span class="storage-value">{{ formatFileSize(statistics.storageUsed) }}</span>
               </div>
               <div class="storage-item">
-                <span class="storage-label">可用空间:</span>
+                <span class="storage-label">存储空间可用:</span>
                 <span class="storage-value">{{ formatFileSize(statistics.storageAvailable) }}</span>
               </div>
               <div class="storage-item">
-                <span class="storage-label">总容量:</span>
+                <span class="storage-label">存储空间总量:</span>
                 <span class="storage-value">{{ formatFileSize(statistics.storageTotal) }}</span>
               </div>
               <div class="storage-progress">
@@ -241,19 +245,28 @@ const storagePercentage = computed(() => {
 })
 
 // 趋势图数据
-const trendChartData = computed(() => ({
-  labels: statistics.value.trendData.map((item) => item.date),
-  datasets: [
-    {
-      label: '创建数量',
-      data: statistics.value.trendData.map((item) => item.count),
-      borderColor: '#409eff',
-      backgroundColor: 'rgba(64, 158, 255, 0.1)',
-      fill: true,
-      tension: 0.4,
-    },
-  ],
-}))
+const trendChartData = computed(() => {
+  const root = typeof document !== 'undefined' ? document.documentElement : null
+  const brand = root
+    ? getComputedStyle(root).getPropertyValue('--cyp-brand').trim() || 'var(--cyp-brand)'
+    : 'var(--cyp-brand)'
+  const tint = root
+    ? getComputedStyle(root).getPropertyValue('--cyp-brand-tint').trim() || 'rgba(0, 153, 255, 0.16)'
+    : 'rgba(0, 153, 255, 0.16)'
+  return {
+    labels: statistics.value.trendData.map((item) => item.date),
+    datasets: [
+      {
+        label: '创建数量',
+        data: statistics.value.trendData.map((item) => item.count),
+        borderColor: brand,
+        backgroundColor: tint,
+        fill: true,
+        tension: 0.4,
+      },
+    ],
+  }
+})
 
 // 趋势图配置
 const trendChartOptions = {
@@ -279,16 +292,25 @@ const trendChartOptions = {
 }
 
 // 存储空间图表数据
-const storageChartData = computed(() => ({
-  labels: ['已使用', '可用空间'],
-  datasets: [
-    {
-      data: [statistics.value.storageUsed, statistics.value.storageAvailable],
-      backgroundColor: ['#409eff', '#e4e7ed'],
-      borderWidth: 0,
-    },
-  ],
-}))
+const storageChartData = computed(() => {
+  const root = typeof document !== 'undefined' ? document.documentElement : null
+  const brand = root
+    ? getComputedStyle(root).getPropertyValue('--cyp-brand').trim() || 'var(--cyp-brand)'
+    : 'var(--cyp-brand)'
+  const muted = root
+    ? getComputedStyle(root).getPropertyValue('--cyp-border').trim() || '#3a3a3a'
+    : '#3a3a3a'
+  return {
+    labels: ['已使用', '可用空间'],
+    datasets: [
+      {
+        data: [statistics.value.storageUsed, statistics.value.storageAvailable],
+        backgroundColor: [brand, muted],
+        borderWidth: 0,
+      },
+    ],
+  }
+})
 
 // 存储空间图表配置
 const storageChartOptions = {
@@ -317,12 +339,15 @@ async function loadStatistics() {
   if (!authStore.currentUser) return
 
   try {
-    // 获取备忘录数据
-    const memos = await memoManager.getAllMemos(authStore.currentUser.id)
+    const userId = authStore.currentUser.id
+    // 并行拉取，缩短统计页首屏墙钟（业界 Promise.all 独立请求）
+    const [memos, allTags, files, storageInfo] = await Promise.all([
+      memoManager.getAllMemos(userId),
+      memoManager.getAllTags(userId),
+      fileManager.getAllFiles(userId),
+      fileManager.getStorageUsage(userId),
+    ])
     statistics.value.memoCount = memos.length
-
-    // 获取标签数据
-    const allTags = await memoManager.getAllTags(authStore.currentUser.id)
     statistics.value.tagCount = allTags.length
 
     // 计算标签排行
@@ -358,16 +383,16 @@ async function loadStatistics() {
     }
     statistics.value.trendData = trendData
 
-    // 获取附件数据
-    const files = await fileManager.getAllFiles(authStore.currentUser.id)
     statistics.value.attachmentCount = files.length
     statistics.value.attachmentSize = files.reduce((sum, file) => sum + file.size, 0)
 
-    // 获取存储空间数据
-    const storageInfo = await fileManager.getStorageUsage(authStore.currentUser.id)
+    // 存储空间（服务器 dataDir 唯一根 · 对外正式名「存储空间」）
     statistics.value.storageUsed = storageInfo.used
     statistics.value.storageAvailable = storageInfo.available
     statistics.value.storageTotal = storageInfo.total
+    if (typeof storageInfo.accountUsed === 'number') {
+      statistics.value.attachmentSize = storageInfo.accountUsed
+    }
   } catch (error) {
     console.error('加载统计数据失败:', error)
   }
@@ -395,9 +420,9 @@ function getTagBarWidth(count: number): string {
  * 获取存储空间颜色
  */
 function getStorageColor(percentage: number): string {
-  if (percentage < 50) return '#67c23a'
-  if (percentage < 80) return '#e6a23c'
-  return '#f56c6c'
+  if (percentage < 50) return 'var(--cyp-success)'
+  if (percentage < 80) return 'var(--cyp-warning)'
+  return 'var(--cyp-danger)'
 }
 
 /**
@@ -468,7 +493,7 @@ onMounted(() => {
 .page-title {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
 }
 
@@ -479,7 +504,7 @@ onMounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 16px 0;
 }
 
@@ -514,23 +539,23 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: white;
+  color: var(--cyp-text);
 }
 
 .memo-icon {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--cyp-bg-muted);
 }
 
 .tag-icon {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: var(--cyp-brand);
 }
 
 .file-icon {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: var(--cyp-brand-soft);
 }
 
 .storage-icon {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: var(--cyp-success);
 }
 
 .stat-content {
@@ -539,14 +564,14 @@ onMounted(() => {
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin-bottom: 8px;
 }
 
 .stat-value {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 /* 图表容器 */
@@ -571,7 +596,7 @@ onMounted(() => {
 }
 
 .tag-rank-item:hover {
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
 }
 
 .rank-number {
@@ -583,24 +608,24 @@ onMounted(() => {
   justify-content: center;
   font-size: 16px;
   font-weight: 600;
-  background: #e4e7ed;
-  color: #606266;
+  background: var(--cyp-border);
+  color: var(--cyp-text-secondary);
   flex-shrink: 0;
 }
 
 .rank-gold {
-  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-  color: #8b6914;
+  background: var(--cyp-brand);
+  color: var(--cyp-text);
 }
 
 .rank-silver {
-  background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
-  color: #606266;
+  background: var(--cyp-bg-elevated);
+  color: var(--cyp-text-secondary);
 }
 
 .rank-bronze {
-  background: linear-gradient(135deg, #cd7f32 0%, #e8a87c 100%);
-  color: #5c3d1f;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-muted);
 }
 
 .tag-info {
@@ -611,26 +636,26 @@ onMounted(() => {
 .tag-name {
   font-size: 16px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
   margin-bottom: 4px;
 }
 
 .tag-count {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .tag-bar {
   flex: 2;
   height: 8px;
-  background: #e4e7ed;
+  background: var(--cyp-border);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .tag-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #409eff 0%, #66b1ff 100%);
+  background: var(--cyp-brand);
   transition: width 0.3s;
 }
 
@@ -657,7 +682,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .storage-item:last-of-type {
@@ -666,13 +691,13 @@ onMounted(() => {
 
 .storage-label {
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .storage-value {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .storage-progress {
@@ -713,35 +738,4 @@ onMounted(() => {
   }
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .page-title,
-[data-theme='dark'] .section-title,
-[data-theme='dark'] .stat-value,
-[data-theme='dark'] .tag-name,
-[data-theme='dark'] .storage-value {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .stat-label,
-[data-theme='dark'] .tag-count,
-[data-theme='dark'] .storage-label {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tag-rank-item:hover {
-  background: #262727;
-}
-
-[data-theme='dark'] .rank-number {
-  background: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tag-bar {
-  background: #414243;
-}
-
-[data-theme='dark'] .storage-item {
-  border-bottom-color: #414243;
-}
 </style>

@@ -1,10 +1,10 @@
-﻿/**
+/**
  * CYP-memo 存储适配器接口
  * 支持多种存储后端：IndexedDB（本地）、REST API（容器/NAS）
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
-import type { User, Memo, MemoHistory, FileMetadata, ShareLink, LogEntry, Admin } from '../types'
+import type { User, Memo, MemoHistory, FileMetadata, ShareLink, LogEntry, StorageInfo } from '../types'
 
 /**
  * 存储模式
@@ -51,18 +51,7 @@ export interface IStorageAdapter {
   /** 获取存储模式 */
   getMode(): StorageMode
 
-  // ========== 管理员操作 ==========
-  createAdmin(admin: Admin): Promise<string>
-  getAdminById(id: string): Promise<Admin | undefined>
-  getAdminByUsername(username: string): Promise<Admin | undefined>
-  getAllAdmins(): Promise<Admin[]>
-  updateAdmin(id: string, updates: Partial<Admin>): Promise<number>
-  deleteAdmin(id: string): Promise<void>
-  adminUsernameExists(username: string): Promise<boolean>
-  countAdmins(): Promise<number>
-  adminLogin(username: string, password: string): Promise<Admin>
-
-  // ========== 用户操作 ==========
+  // ========== 用户操作（身份唯一 users · Owner/Member；admins* 已从适配器面删除）==========
   createUser(user: User): Promise<string>
   getUserById(id: string): Promise<User | undefined>
   getUserByUsername(username: string): Promise<User | undefined>
@@ -99,6 +88,8 @@ export interface IStorageAdapter {
   updateFile(id: string, updates: Partial<FileMetadata>): Promise<number>
   deleteFile(id: string): Promise<void>
   getStorageUsed(userId: string): Promise<number>
+  /** 存储空间：远程以服务器 dataDir 卷为准；本账号占用见 accountUsed */
+  getStorageInfo(userId: string): Promise<StorageInfo>
 
   // ========== 分享链接 ==========
   createShare(share: ShareLink): Promise<string>
@@ -123,7 +114,7 @@ export interface IStorageAdapter {
 
   // ========== 数据管理 ==========
   exportAllData(): Promise<string>
-  importData(jsonData: string): Promise<void>
+  importData(jsonData: string, options?: { merge?: boolean }): Promise<void>
   clearAllData(): Promise<void>
   getStatistics(): Promise<{
     userCount: number

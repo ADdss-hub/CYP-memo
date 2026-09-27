@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 备忘录管理器单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

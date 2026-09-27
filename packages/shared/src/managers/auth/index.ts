@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证模块导出
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */

@@ -1,4 +1,4 @@
-﻿# CYP-memo 通用组件
+# CYP-memo 通用组件
 
 本目录包含 CYP-memo 应用的所有通用组件。
 
@@ -265,7 +265,7 @@ const handleFileUpload = (file: File) => {
 
 所有组件都支持深色主题，会根据系统偏好自动切换。
 
-## 开发指南
+## 接入指南
 
 ### 添加新组件
 

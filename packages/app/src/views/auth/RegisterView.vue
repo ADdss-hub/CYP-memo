@@ -3,9 +3,10 @@
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
-  <div class="register-page">
-    <div class="register-container">
+  <div class="auth-shell">
+    <div class="auth-card register-card">
       <div class="register-header">
+        <BrandMark size="xl" class="register-brand" />
         <h1 class="register-title">注册账号</h1>
         <p class="register-subtitle">创建您的 CYP-memo 账号</p>
       </div>
@@ -158,18 +159,7 @@
         </div>
       </div>
 
-      <!-- 底部版权信息 -->
-      <div class="register-footer">
-        <div class="footer-brand">
-          <span class="brand-name">{{ copyrightLines.line1 }}</span>
-          <span class="brand-author">{{ copyrightLines.line2 }}</span>
-        </div>
-        <div class="footer-copyright">
-          <span>{{ copyrightLines.line3 }}</span>
-          <span class="separator">·</span>
-          <span>{{ copyrightLines.line4 }}</span>
-        </div>
-      </div>
+      <AppFooter />
     </div>
   </div>
 </template>
@@ -179,16 +169,15 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
-import { hashPassword, VERSION } from '@cyp-memo/shared'
+import { hashPassword } from '@cyp-memo/shared'
 import Button from '../../components/Button.vue'
+import BrandMark from '../../components/BrandMark.vue'
+import AppFooter from '../../components/AppFooter.vue'
 import { View, Hide, SuccessFilled, WarningFilled, DocumentCopy } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
-
-// 版权信息
-const copyrightLines = VERSION.copyrightLines
 
 // 注册类型已统一为账号密码注册
 
@@ -286,22 +275,8 @@ const goToWelcome = () => {
 </script>
 
 <style scoped>
-.register-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
-}
-
-.register-container {
-  width: 100%;
+.register-card {
   max-width: 480px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  padding: 40px;
 }
 
 .register-header {
@@ -309,16 +284,20 @@ const goToWelcome = () => {
   margin-bottom: 32px;
 }
 
+.register-brand {
+  margin: 0 auto 16px;
+}
+
 .register-title {
   font-size: 32px;
   font-weight: 700;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 8px 0;
 }
 
 .register-subtitle {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
@@ -326,7 +305,7 @@ const goToWelcome = () => {
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   padding: 4px;
   border-radius: 8px;
 }
@@ -339,18 +318,18 @@ const goToWelcome = () => {
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .tab-button:hover {
-  color: #409eff;
+  color: var(--cyp-brand);
 }
 
 .tab-button.active {
-  background: white;
-  color: #409eff;
+  background: var(--cyp-bg-card);
+  color: var(--cyp-brand);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
@@ -369,7 +348,7 @@ const goToWelcome = () => {
 .form-label {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .form-input,
@@ -377,7 +356,9 @@ const goToWelcome = () => {
   width: 100%;
   padding: 12px 16px;
   font-size: 14px;
-  border: 1px solid #dcdfe6;
+  color: var(--cyp-text);
+  background: var(--cyp-bg-input);
+  border: 1px solid var(--cyp-border);
   border-radius: 6px;
   transition: all 0.2s;
   box-sizing: border-box;
@@ -386,8 +367,8 @@ const goToWelcome = () => {
 .form-input:focus,
 .form-select:focus {
   outline: none;
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+  border-color: var(--cyp-brand);
+  box-shadow: 0 0 0 2px var(--cyp-brand-tint);
 }
 
 .form-select {
@@ -407,7 +388,7 @@ const goToWelcome = () => {
   border: none;
   cursor: pointer;
   padding: 8px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -420,23 +401,23 @@ const goToWelcome = () => {
 }
 
 .password-toggle:hover {
-  color: #409eff;
-  background: rgba(64, 158, 255, 0.1);
+  color: var(--cyp-brand);
+  background: var(--cyp-brand-tint);
   border-radius: 4px;
 }
 
 .form-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
 .error-message {
   padding: 12px 16px;
-  background: #fef0f0;
-  border: 1px solid #fde2e2;
+  background: color-mix(in srgb, var(--cyp-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-danger) 35%, transparent);
   border-radius: 6px;
-  color: #f56c6c;
+  color: var(--cyp-danger);
   font-size: 14px;
 }
 
@@ -450,22 +431,21 @@ const goToWelcome = () => {
 
 .link-text {
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .link {
   font-size: 14px;
-  color: #409eff;
+  color: var(--cyp-brand);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .link:hover {
-  color: #66b1ff;
+  color: var(--cyp-brand-soft);
   text-decoration: underline;
 }
 
-/* 令牌注册样式 */
 .token-info {
   display: flex;
   flex-direction: column;
@@ -474,17 +454,17 @@ const goToWelcome = () => {
 
 .info-text {
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   line-height: 1.6;
   margin: 0;
 }
 
 .info-text.warning {
   padding: 12px 16px;
-  background: #fdf6ec;
-  border: 1px solid #faecd8;
+  background: color-mix(in srgb, var(--cyp-warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-warning) 35%, transparent);
   border-radius: 6px;
-  color: #e6a23c;
+  color: var(--cyp-warning);
 }
 
 .token-result {
@@ -497,19 +477,19 @@ const goToWelcome = () => {
 
 .success-icon {
   font-size: 48px;
-  color: #67c23a;
+  color: var(--cyp-success);
 }
 
 .success-title {
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
 }
 
 .success-text {
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   margin: 0;
 }
 
@@ -519,19 +499,19 @@ const goToWelcome = () => {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   border-radius: 8px;
 }
 
 .token-text {
-  font-family: 'Courier New', monospace;
+  font-family: var(--cyp-font-mono);
   font-size: 14px;
-  color: #303133;
+  color: var(--cyp-text);
   word-break: break-all;
   padding: 12px;
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 6px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
 }
 
 .warning-box {
@@ -539,11 +519,11 @@ const goToWelcome = () => {
   display: flex;
   gap: 12px;
   padding: 12px 16px;
-  background: #fdf6ec;
-  border: 1px solid #faecd8;
+  background: color-mix(in srgb, var(--cyp-warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-warning) 35%, transparent);
   border-radius: 8px;
   text-align: left;
-  color: #e6a23c;
+  color: var(--cyp-warning);
   align-items: flex-start;
   box-sizing: border-box;
 }
@@ -578,114 +558,24 @@ const goToWelcome = () => {
   margin-bottom: 0;
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .register-container {
-  background: #1d1e1f;
-}
-
-[data-theme='dark'] .register-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .register-subtitle {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .register-tabs {
-  background: #262727;
-}
-
-[data-theme='dark'] .tab-button {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tab-button:hover {
-  color: #409eff;
-}
-
-[data-theme='dark'] .tab-button.active {
-  background: #1d1e1f;
-  color: #409eff;
-}
-
-[data-theme='dark'] .form-label {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .form-input,
-[data-theme='dark'] .form-select {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .form-input:focus,
-[data-theme='dark'] .form-select:focus {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-}
-
-[data-theme='dark'] .form-hint {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .error-message {
-  background: #2b1d1d;
-  border-color: #5c2929;
-}
-
-[data-theme='dark'] .link-text {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .info-text {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .info-text.warning {
-  background: #2b2111;
-  border-color: #594214;
-}
-
-[data-theme='dark'] .success-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .success-text {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .token-display {
-  background: #262727;
-}
-
-[data-theme='dark'] .token-text {
-  background: #1d1e1f;
-  border-color: #414243;
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .warning-box {
-  background: #2b2111;
-  border-color: #594214;
-}
-
-/* 响应式设计 */
 @media (max-width: 480px) {
-  .register-container {
+  .register-card {
     padding: 24px;
   }
 
   .register-title {
     font-size: 24px;
   }
+
+  .footer-copyright {
+    font-size: 10px;
+  }
 }
 
-/* 底部版权信息 */
 .register-footer {
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--cyp-border);
   text-align: center;
 }
 
@@ -700,13 +590,13 @@ const goToWelcome = () => {
 .brand-name {
   font-size: 14px;
   font-weight: 600;
-  color: #667eea;
+  color: var(--cyp-brand);
   letter-spacing: 0.5px;
 }
 
 .brand-author {
   font-size: 12px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .footer-copyright {
@@ -715,36 +605,10 @@ const goToWelcome = () => {
   justify-content: center;
   gap: 6px;
   font-size: 11px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .separator {
-  color: #c0c4cc;
-}
-
-[data-theme='dark'] .register-footer {
-  border-top-color: #414243;
-}
-
-[data-theme='dark'] .brand-name {
-  color: #a5b4fc;
-}
-
-[data-theme='dark'] .brand-author {
-  color: #a8abb2;
-}
-
-[data-theme='dark'] .footer-copyright {
-  color: #6b7280;
-}
-
-[data-theme='dark'] .separator {
-  color: #4b5563;
-}
-
-@media (max-width: 480px) {
-  .footer-copyright {
-    font-size: 10px;
-  }
+  color: var(--cyp-border);
 }
 </style>

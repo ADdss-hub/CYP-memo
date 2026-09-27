@@ -1,12 +1,12 @@
-# CYP-memo 容器备忘录系统
+# CYP-memo 备忘录系统
 
-一款现代化的容器备忘录管理系统，提供完整的中文界面和丰富的功能。
+一款现代化的备忘录管理系统，提供完整的中文界面和丰富的功能。
 
 ## 作者信息
 
 - **作者**: CYP
 - **邮箱**: nasDSSCYP@outlook.com
-- **版本**: 1.9.2
+- **版本**: 2.0.0
 
 ---
 
@@ -14,9 +14,8 @@
 
 CYP-memo 是一款基于浏览器的现代化备忘录管理系统，采用前后端分离架构：
 
-- **用户端应用** - 供普通用户使用，提供备忘录管理、标签、分享等功能
-- **管理端应用** - 供系统管理员使用，用于管理用户、数据库等系统操作
-- **API 服务器** - 提供 RESTful API，使用 SQLite 数据库存储
+- **统一壳（App）** - 备忘录 + Owner 租户运维（`/tenant*`）同一产品壳
+- **API 服务器** - 提供 RESTful API，使用 SQLite（sql.js）存储
 - **桌面客户端** - 基于 Electron 的跨平台桌面应用，支持 Windows/macOS/Linux
 
 ---
@@ -62,8 +61,8 @@ CYP-memo 是一款基于浏览器的现代化备忘录管理系统，采用前�
 
 ### 环境要求
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
+- Node.js >= 20.19.6
+- pnpm >= 10（仓库 `packageManager: pnpm@10.11.0`）
 
 ### 安装运行
 
@@ -75,29 +74,39 @@ cd cyp-memo
 # 安装依赖
 pnpm install
 
-# 启动开发服务
-pnpm dev
+# 启动本机联调（生产配置基准：APP_ENV=prod）
+pnpm local
 
 # 或使用 Windows 批处理
-dev.bat
+local.bat
 ```
+
+### 本机联调（scripts 一键）
+
+见 [LOCAL_DEV.md](LOCAL_DEV.md)（CI02：本机联调 = 生产配置基准）。Windows:
+
+```bat
+scripts\start\start-local.bat
+scripts\stop\stop-local.bat
+scripts\verify\verify-e2e.bat
+```
+
 
 ### 访问地址
 
 | 服务 | 地址 |
 |------|------|
-| 用户端 | http://localhost:5173 |
-| 管理端 | http://localhost:5174 |
+| 统一壳（App） | http://localhost:5173 |
 | API 服务器 | http://localhost:5170 |
+| 租户运维 | http://localhost:5173/tenant |
 
-### 默认管理员
+### 默认 Owner
 
-```
-用户名: admin
-密码: admin123
-```
+- 用户名：`admin`（空库首次 bootstrap）
+- 口令：通过环境变量 `CYP_BOOTSTRAP_OWNER_PASSWORD` 注入（见 `.env.example`）；**文档不写明文默认口令**
+- 首次登录后请立即修改
 
-> ⚠️ 首次登录后请立即修改密码！
+> ⚠️ 切勿把真实口令提交到版本控制。
 
 ---
 
@@ -114,8 +123,8 @@ cyp-memo/
 │   │   ├── types/       # TypeScript 类型定义
 │   │   ├── utils/       # 工具函数
 │   │   └── workers/     # Web Workers
-│   ├── app/             # 用户端应用
-│   ├── admin/           # 管理端应用
+│   ├── app/             # 统一产品壳（含 /tenant 运维）
+│   ├── admin/           # 已退役（勿启动；无 5174）
 │   ├── server/          # API 服务器
 │   └── desktop/         # 桌面客户端 (Electron)
 ├── scripts/             # 构建脚本
@@ -181,150 +190,50 @@ cyp-memo/
 
 ## 部署方式
 
-### Docker 部署（推荐）
+> **已取消容器部署**。权威：[`DEPLOY.md`](DEPLOY.md)（统一运行底座闭集 35）。
 
-#### 使用 Docker Hub 镜像（最简单）
-
-```bash
-docker run -d \
-  --name cyp-memo \
-  -p 5170:5170 \
-  -v cyp-memo-data:/app/data \
-  --restart unless-stopped \
-  cyp97/cyp-memo:latest
-```
-
-镜像地址：[cyp97/cyp-memo](https://hub.docker.com/r/cyp97/cyp-memo)
-
-#### 使用 Docker Compose
-
-```bash
-# 使用部署脚本（推荐）
-./scripts/deploy.sh -d
-
-# 或手动部署
-docker compose -f docker/docker-compose.yml up -d
-```
-
-#### 部署脚本选项
-
-| 选项 | 说明 |
+| 通道 | 入口 |
 |------|------|
-| `-d, --detach` | 后台运行容器 |
-| `--build-only` | 仅构建镜像，不启动容器 |
-| `--no-build` | 跳过构建，直接启动容器 |
-| `-h, --help` | 显示帮助信息 |
+| 服务器面板（宝塔/1Panel） | `scripts/install/install-panel.sh` |
+| NAS 原生（飞牛/群晖/威联） | `scripts/install/install-nas.sh` · `deploy/nas/README.md` |
+| Windows | `scripts/install/install-windows.ps1` |
+| Linux / macOS | `scripts/install/install-unix.sh` · `deploy/systemd/cyp-memo.service` |
+| 本机联调 | `scripts/start/start-local.*`（见 `LOCAL_DEV.md`） |
 
-#### 常用命令
+验收：`node scripts/verify/verify-runtime-base.mjs` 与 `node scripts/verify/verify-complete-form.mjs`，再加 `GET /healthz/ready`。闭集是 `data.runtimeBase.items` 的 35 个稳定 ID。质量门禁、生产 Mock、一键部署和通知不进闭集。
+SSOT：军械库统一运行底座架构 V1.8.3。
 
-```bash
-# 查看日志
-docker logs -f cyp-memo
+### 环境变量（配置管控注入）
 
-# 重启服务
-docker compose restart
-
-# 停止服务
-docker compose down
-
-# 清理所有资源
-./scripts/cleanup.sh -a
-```
-
-#### 数据备份与恢复
-
-```bash
-# 备份数据
-./scripts/backup.sh
-
-# 恢复数据
-./scripts/restore.sh backups/cyp-memo-backup-YYYYMMDD_HHMMSS.tar.gz
-```
-
-### 环境变量配置
+> 权威在配置管控；下表为键名说明。禁止以手工拼装代替配置管控生成/注入。
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `NODE_ENV` | production | 运行环境 |
+| `APP_ENV` | prod | 生产唯一基准 |
+| `NODE_ENV` | production | 与生产一致 |
 | `PORT` | 5170 | 服务端口 |
-| `DATA_DIR` | /app/data | 数据目录路径 |
-| `LOG_LEVEL` | info | 日志级别 (debug/info/warn/error) |
-| `TZ` | Asia/Shanghai | 时区设置 |
+| `DATA_DIR` | （本机默认 server/data） | 数据 / 日志 / 管控 / 调度目录根 |
+| `LOG_LEVEL` | info | 日志级别 |
+| `TZ` | Asia/Shanghai | 时区 |
+| `CYP_BOOTSTRAP_OWNER_PASSWORD` | （空） | 仅空库首次 Owner 种子 |
 
-自定义配置示例：
-
-```bash
-# 创建 .env 文件
-cat > .env << EOF
-NODE_ENV=production
-PORT=5170
-DATA_DIR=/app/data
-LOG_LEVEL=info
-TZ=Asia/Shanghai
-EOF
-
-# 使用自定义配置启动
-docker compose --env-file .env up -d
-```
-
-### 传统部署
+### 源码构建启动
 
 ```bash
-# 构建
 pnpm build
-
-# 启动服务器
-cd packages/server
-pnpm start
+cd packages/server && pnpm start
 ```
 
-### 桌面端部署
+### 桌面端
 
-桌面客户端支持 Windows、macOS、Linux 三大平台：
+支持 Windows / macOS / Linux（Electron）。构建：`pnpm --filter @cyp-memo/desktop build:win|mac|linux`。详见 Release 产物说明。
+
+### 数据备份与恢复
 
 ```bash
-# 进入桌面端目录
-cd packages/desktop
-
-# 构建所有平台
-pnpm build:all
-
-# 仅构建 Windows
-pnpm build:win
-
-# 仅构建 macOS
-pnpm build:mac
-
-# 仅构建 Linux
-pnpm build:linux
+./scripts/backup.sh
+./scripts/restore.sh backups/cyp-memo-backup-YYYYMMDD_HHMMSS.tar.gz
 ```
-
-构建输出：
-- Windows: NSIS 安装程序 (.exe)、便携版 (.exe)
-- macOS: DMG 安装包 (.dmg)、ZIP 压缩包
-- Linux: AppImage、deb、rpm 包
-
-详细说明见 [桌面端构建指南](packages/desktop/BUILD.md)。
-
-#### Windows 构建产物说明
-
-构建完成后，`packages/desktop/release/<版本号>/` 目录包含以下文件：
-
-| 文件/文件夹 | 说明 |
-|------------|------|
-| `win-unpacked/` | 64位 Windows 解压版，可直接运行 |
-| `win-ia32-unpacked/` | 32位 Windows 解压版，适用于老旧系统 |
-| `CYP-memo Setup x.x.x.exe` | 64位安装包，推荐普通用户使用 |
-| `CYP-memo-x.x.x-portable.exe` | 便携版，无需安装，可放U盘随身携带 |
-| `*.exe.blockmap` | 增量更新块映射文件，用于自动更新 |
-| `latest.yml` | 自动更新元数据（版本号、下载地址、SHA512校验和） |
-| `builder-debug.yml` | 构建调试日志，排查问题时使用 |
-| `builder-effective-config.yaml` | 实际生效的 electron-builder 配置 |
-
-分发建议：
-- 普通用户：提供 `Setup.exe` 安装包
-- 便携使用：提供 `portable.exe`
-- 自动更新服务器：需要 `latest.yml` + `Setup.exe` + `.blockmap` 文件
 
 ### PM2 部署
 
@@ -340,59 +249,45 @@ pm2 save
 
 ### 常见问题
 
-#### 1. 容器启动失败
+#### 1. 进程启动失败
 
 ```bash
-# 查看容器日志
-docker logs cyp-memo
+# 查看 DATA_DIR 下日志
+# Windows: packages\server\data\logs\
+# 或安装时指定的 DATA_DIR/logs/runtime/
 
-# 检查容器状态
-docker ps -a | grep cyp-memo
-
-# 检查健康状态
-docker inspect --format='{{.State.Health.Status}}' cyp-memo
+# 就绪探针
+curl http://localhost:5170/healthz/ready
+powershell -File scripts/verify/verify-five-centers.ps1 -DataDir packages/server/data
 ```
 
 #### 2. 端口被占用
 
 ```bash
-# 检查端口占用
-netstat -tlnp | grep 5170
-
-# 修改端口（在 docker-compose.yml 或 .env 中）
-# ports:
-#   - "8080:5170"  # 改为其他端口
+# 检查端口占用（Windows）
+netstat -ano | findstr :5170
+# 修改 .env 中 PORT=
 ```
 
-#### 3. 数据卷权限问题
+#### 3. 数据目录权限
 
 ```bash
-# 检查数据卷
-docker volume inspect cyp-memo_cyp-memo-data
-
-# 修复权限（进入容器）
-docker exec -u root cyp-memo chown -R nodejs:nodejs /app/data
+# 确保运行用户可写 DATA_DIR、logs、governance
+# 见 DEPLOY.md 与 deploy/nas/README.md
 ```
 
 #### 4. 健康检查失败
 
 ```bash
-# 手动测试健康检查
 curl http://localhost:5170/api/health
-
-# 查看详细健康信息
-docker inspect --format='{{json .State.Health}}' cyp-memo | jq
+curl http://localhost:5170/healthz/ready
 ```
 
 #### 5. 数据库初始化失败
 
 ```bash
-# 检查数据目录
-docker exec cyp-memo ls -la /app/data
-
-# 重新初始化（会清空数据！）
-docker compose down -v
-docker compose up -d
+# 检查 DATA_DIR 下 database.sqlite 与启动日志
+# 勿用容器 volume 方案；回滚用 scripts/rollback 或 restore.sh
 ```
 
 ### 日志级别说明
@@ -414,11 +309,11 @@ docker compose up -d
 
 ---
 
-## 开发命令
+## 本机联调命令
 
 ```bash
-# 开发模式
-pnpm dev
+# 本机联调（配置仍为 prod；脚本统一为 local）
+pnpm local
 
 # 构建生产版本
 pnpm build
@@ -461,13 +356,10 @@ pnpm format
 
 | 文档 | 说明 |
 |------|------|
-| [快速开始](docs/QUICK_START.md) | 5 分钟快速部署 |
-| [开发文档](docs/DEVELOPMENT.md) | 详细开发指南 |
-| [存储架构](docs/STORAGE_ARCHITECTURE.md) | 存储架构说明 |
-| [依赖列表](docs/DEPENDENCIES.md) | 开源依赖及许可证 |
-| [发布指南](docs/RELEASE.md) | 版本发布流程 |
-| [桌面端构建](packages/desktop/BUILD.md) | 桌面客户端构建指南 |
-| [项目文档](文档.md) | 完整中文文档 |
+| [部署](DEPLOY.md) | 面板/NAS/Windows/Unix 非容器部署 |
+| [本机联调](LOCAL_DEV.md) | 生产配置基准联调 |
+| [运维](ops/README.md) | 备份/回滚/探针 |
+| [产品版本化](docs/PRODUCT_VERSIONING.md) | 升版与发版纪律 |
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "@cyp-memo/desktop",
-  "version": "1.9.2",
+  "version": "2.0.0",
   "type": "module",
   "description": "CYP-memo 桌面客户端",
   "homepage": "https://github.com/ADdss-hub/CYP-memo",
@@ -11,7 +11,6 @@
   "license": "MIT",
   "main": "dist/main/main/index.js",
   "scripts": {
-    "dev": "node scripts/dev.js",
     "build": "tsc -p tsconfig.main.json && vite build",
     "build:server": "pnpm --filter @cyp-memo/server build",
     "build:electron": "electron-builder --config electron-builder.config.cjs",
@@ -28,7 +27,8 @@
     "test": "vitest --run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts,.vue --fix",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\"",
+    "local": "node scripts/local.js"
   },
   "dependencies": {
     "@cyp-memo/shared": "workspace:*",

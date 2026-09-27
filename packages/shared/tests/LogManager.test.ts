@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 日志管理器单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -324,7 +324,7 @@ describe('日志管理器单元测试', () => {
       // 清空之前的日志
       await logDAO.clear()
 
-      // 模拟全局错误
+      // mock 全局错误
       const error = new Error('全局错误')
       window.onerror?.('全局错误', 'app.ts', 42, 10, error)
 
@@ -350,10 +350,12 @@ describe('日志管理器单元测试', () => {
       // 清空之前的日志
       await logDAO.clear()
 
-      // 模拟 Promise 拒绝
+      // mock  Promise 拒绝（.catch 防止 Vitest 将其记为未处理 rejection）
       const error = new Error('Promise 拒绝错误')
+      const rejected = Promise.reject(error)
+      rejected.catch(() => {})
       const mockEvent = {
-        promise: Promise.reject(error),
+        promise: rejected,
         reason: error,
         preventDefault: vi.fn()
       } as PromiseRejectionEvent
@@ -388,8 +390,13 @@ describe('日志管理器单元测试', () => {
       expect(blob).toBeInstanceOf(Blob)
       expect(blob.type).toBe('application/json')
 
-      // 读取 Blob 内容
-      const text = await blob.text()
+      // 读取 Blob 内容（jsdom 下 Blob.text / Response(blob) 不可靠）
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result ?? ''))
+        reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'))
+        reader.readAsText(blob)
+      })
       const logs = JSON.parse(text)
 
       // 验证导出的日志

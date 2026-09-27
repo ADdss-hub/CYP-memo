@@ -1,9 +1,9 @@
-﻿/**
+/**
  * CYP-memo 日志数据访问对象
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
-import { getStorage } from '../storage'
+import { getStorage, storageManager } from '../storage'
 import type { LogEntry, LogLevel } from '../types'
 
 /**
@@ -105,7 +105,11 @@ export class LogDAO {
    * 删除日志
    */
   async delete(id: string): Promise<void> {
-    // 注意：远程存储适配器不支持单个日志删除
+    if (storageManager.isInitialized() && storageManager.getMode() === 'local') {
+      const { db } = await import('./db')
+      await db.logs.delete(id)
+      return
+    }
     throw new Error('不支持单个日志删除，请使用 deleteOlderThan 或 clear')
   }
 
@@ -113,7 +117,12 @@ export class LogDAO {
    * 批量删除日志
    */
   async bulkDelete(ids: string[]): Promise<void> {
-    // 注意：远程存储适配器不支持批量日志删除
+    if (storageManager.isInitialized() && storageManager.getMode() === 'local') {
+      for (const id of ids) {
+        await this.delete(id)
+      }
+      return
+    }
     throw new Error('不支持批量日志删除，请使用 deleteOlderThan 或 clear')
   }
 

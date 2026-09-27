@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 认证界面集成测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -408,10 +408,9 @@ describe('认证界面集成测试 - 注册流程', () => {
     expect(errorMessage.text()).toContain('用户名已存在')
   })
 
-  it('应该成功完成个人令牌注册流程', async () => {
+  it('应该在账号密码注册成功后展示自动生成的个人令牌', async () => {
     const authStore = useAuthStore()
 
-    // 挂载注册组件
     const wrapper = mount(RegisterView, {
       global: {
         plugins: [pinia, router]
@@ -419,16 +418,16 @@ describe('认证界面集成测试 - 注册流程', () => {
     })
     await flushPromises()
 
-    // 切换到个人令牌注册标签页
-    const tokenTab = wrapper.findAll('.tab-button')[1]
-    await tokenTab.trigger('click')
+    await wrapper.find('#username').setValue('tokenuser')
+    await wrapper.find('#password').setValue('Test1234')
+    await wrapper.find('#confirmPassword').setValue('Test1234')
+    await wrapper.find('#securityQuestion').setValue('您的出生地是？')
+    await wrapper.find('#securityAnswer').setValue('北京')
     await flushPromises()
 
-    // 调用令牌注册方法
-    await (wrapper.vm as any).handleTokenRegister()
+    await (wrapper.vm as any).handlePasswordRegister()
     await flushPromises()
 
-    // 验证注册成功并显示令牌
     expect(authStore.isAuthenticated).toBe(true)
     expect(wrapper.find('.token-result').exists()).toBe(true)
     expect(wrapper.find('.token-text').exists()).toBe(true)
@@ -436,7 +435,6 @@ describe('认证界面集成测试 - 注册流程', () => {
   })
 
   it('应该支持复制生成的令牌', async () => {
-    // Mock clipboard API
     const writeTextMock = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, {
       clipboard: {
@@ -451,51 +449,37 @@ describe('认证界面集成测试 - 注册流程', () => {
     })
     await flushPromises()
 
-    // 切换到个人令牌注册并生成令牌
-    const tokenTab = wrapper.findAll('.tab-button')[1]
-    await tokenTab.trigger('click')
+    await wrapper.find('#username').setValue('copyuser')
+    await wrapper.find('#password').setValue('Test1234')
+    await wrapper.find('#confirmPassword').setValue('Test1234')
+    await wrapper.find('#securityQuestion').setValue('您的出生地是？')
+    await wrapper.find('#securityAnswer').setValue('北京')
     await flushPromises()
 
-    await (wrapper.vm as any).handleTokenRegister()
+    await (wrapper.vm as any).handlePasswordRegister()
     await flushPromises()
 
-    // 点击复制按钮
+    const tokenText = wrapper.find('.token-text').text()
+    expect(tokenText).not.toBe('')
+
     const copyButton = wrapper.find('.btn-default')
     await copyButton.trigger('click')
     await flushPromises()
 
-    // 验证调用了 clipboard API
-    expect(writeTextMock).toHaveBeenCalled()
+    expect(writeTextMock).toHaveBeenCalledWith(tokenText)
   })
 
-  it('应该支持在注册类型之间切换', async () => {
+  it('注册页应仅提供账号密码注册（已统一，无类型切换）', async () => {
     const wrapper = mount(RegisterView, {
       global: {
         plugins: [pinia, router]
       }
     })
 
-    // 默认应该显示账号密码注册表单
     expect(wrapper.find('#username').exists()).toBe(true)
     expect(wrapper.find('#password').exists()).toBe(true)
-
-    // 切换到个人令牌注册
-    const tokenTab = wrapper.findAll('.tab-button')[1]
-    await tokenTab.trigger('click')
-    await flushPromises()
-
-    // 应该显示令牌注册信息
-    expect(wrapper.find('.token-info').exists()).toBe(true)
-    expect(wrapper.find('#username').exists()).toBe(false)
-
-    // 切换回账号密码注册
-    const passwordTab = wrapper.findAll('.tab-button')[0]
-    await passwordTab.trigger('click')
-    await flushPromises()
-
-    // 应该显示账号密码表单
-    expect(wrapper.find('#username').exists()).toBe(true)
-    expect(wrapper.find('#password').exists()).toBe(true)
+    expect(wrapper.findAll('.tab-button').length).toBe(0)
+    expect(wrapper.find('.token-info').exists()).toBe(false)
   })
 
   it('应该支持显示/隐藏密码', async () => {
@@ -637,10 +621,10 @@ describe('认证界面集成测试 - 端到端流程', () => {
     expect(authStore.username).toBe('testuser')
   })
 
-  it('应该完成令牌注册-登出-令牌登录流程', async () => {
+  it('应该完成密码注册-登出-令牌登录流程', async () => {
     const authStore = useAuthStore()
 
-    // 1. 令牌注册
+    // 1. 账号密码注册（自动生成令牌）
     await router.push('/register')
     const registerWrapper = mount(RegisterView, {
       global: {
@@ -649,25 +633,25 @@ describe('认证界面集成测试 - 端到端流程', () => {
     })
     await flushPromises()
 
-    const tokenTab = registerWrapper.findAll('.tab-button')[1]
-    await tokenTab.trigger('click')
+    await registerWrapper.find('#username').setValue('e2etoken')
+    await registerWrapper.find('#password').setValue('Test1234')
+    await registerWrapper.find('#confirmPassword').setValue('Test1234')
+    await registerWrapper.find('#securityQuestion').setValue('您的出生地是？')
+    await registerWrapper.find('#securityAnswer').setValue('北京')
     await flushPromises()
 
-    await (registerWrapper.vm as any).handleTokenRegister()
+    await (registerWrapper.vm as any).handlePasswordRegister()
     await flushPromises()
 
-    // 获取生成的令牌
     const tokenText = registerWrapper.find('.token-text').text()
     expect(tokenText).not.toBe('')
-
-    // 验证注册成功
     expect(authStore.isAuthenticated).toBe(true)
 
     // 2. 注销
     await authStore.logout()
     expect(authStore.isAuthenticated).toBe(false)
 
-    // 3. 使用令牌重新登录
+    // 3. 使用自动生成的令牌重新登录
     await router.push('/login')
     const loginWrapper = mount(LoginView, {
       global: {
@@ -686,7 +670,6 @@ describe('认证界面集成测试 - 端到端流程', () => {
     await (loginWrapper.vm as any).handleTokenLogin()
     await flushPromises()
 
-    // 验证登录成功
     expect(authStore.isAuthenticated).toBe(true)
   })
 

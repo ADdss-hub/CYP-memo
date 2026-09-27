@@ -69,6 +69,28 @@ declare module '@app-stores/ui' {
   export const useUIStore: any
 }
 
+declare module '@app/navigation/menu' {
+  import type { Component } from 'vue'
+  import type { Permission } from '@cyp-memo/shared'
+  export interface AppMenuItem {
+    path: string
+    label: string
+    icon: Component
+    permissions?: Permission[]
+  }
+  export interface AppMenuSection {
+    id: string
+    title: string
+    items: AppMenuItem[]
+  }
+  export const APP_MENU_SECTIONS: readonly AppMenuSection[]
+  export const DESKTOP_SETTINGS_ITEM: AppMenuItem
+  export function filterMenuByPermissions(
+    sections: readonly AppMenuSection[],
+    userPermissions: readonly string[]
+  ): AppMenuSection[]
+}
+
 // ============ @app-components 模块声明 ============
 
 declare module '@app-components/AppLayout.vue' {

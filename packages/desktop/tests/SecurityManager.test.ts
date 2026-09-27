@@ -250,7 +250,7 @@ describe('SecurityManager', () => {
       expect(csp).toContain("frame-ancestors 'none'")
     })
 
-    it('should allow unsafe-eval in dev mode', () => {
+    it('should allow unsafe-eval in local tooling', () => {
       const csp = securityManager.getCSPConfig(true)
       expect(csp).toContain("'unsafe-eval'")
     })
@@ -260,7 +260,7 @@ describe('SecurityManager', () => {
       expect(csp).not.toContain("'unsafe-eval'")
     })
 
-    it('should allow websocket in dev mode', () => {
+    it('should allow websocket in local tooling', () => {
       const csp = securityManager.getCSPConfig(true)
       expect(csp).toContain('ws://localhost:*')
     })
@@ -270,9 +270,9 @@ describe('SecurityManager', () => {
       expect(csp).toContain('https://api.example.com')
     })
 
-    it('should allow HTTPS connections', () => {
+    it('should not allow bare https: connect-src (AUD-S05 / 前端安全防护 SSOT)', () => {
       const csp = securityManager.getCSPConfig(false)
-      expect(csp).toContain('https:')
+      expect(csp).not.toMatch(/connect-src[^;]*https:(?:\s|;|$)/)
     })
   })
 

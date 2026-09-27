@@ -1,13 +1,14 @@
-﻿<!--
+<!--
   登录页面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
-  <div class="login-page">
-    <div class="login-container">
+  <div class="auth-shell">
+    <div class="auth-card">
       <div class="login-header">
+        <BrandMark size="xl" class="login-brand" />
         <h1 class="login-title">CYP-memo</h1>
-        <p class="login-subtitle">容器备忘录系统</p>
+        <p class="login-subtitle">备忘录系统</p>
       </div>
 
       <div class="login-tabs">
@@ -65,8 +66,42 @@
         <div class="form-group-checkbox">
           <label class="checkbox-label">
             <input v-model="passwordForm.remember" type="checkbox" class="checkbox-input" />
-            <span>记住密码</span>
+            <span>记住用户名</span>
           </label>
+        </div>
+
+        <div v-if="challengeNeeded" class="challenge-panel" role="group" aria-labelledby="challenge-title">
+          <div class="challenge-head">
+            <div class="challenge-title-row">
+              <el-icon class="challenge-icon" :size="18"><Lock /></el-icon>
+              <span id="challenge-title" class="challenge-title">安全验证</span>
+            </div>
+            <button
+              type="button"
+              class="challenge-refresh"
+              title="换一题"
+              aria-label="换一题"
+              @click="refreshChallenge"
+            >
+              <el-icon :size="16"><RefreshRight /></el-icon>
+              <span>换一题</span>
+            </button>
+          </div>
+          <div class="challenge-body">
+            <div class="challenge-prompt" aria-hidden="true">{{ challengePrompt || '…' }}</div>
+            <input
+              id="challenge"
+              v-model="challengeAnswer"
+              type="text"
+              class="form-input challenge-input"
+              placeholder="请输入答案"
+              required
+              autocomplete="off"
+              inputmode="numeric"
+              aria-label="安全验证答案"
+            />
+          </div>
+          <p class="challenge-hint">连续失败后需完成算术验证，防止暴力破解</p>
         </div>
 
         <div v-if="error" class="error-message">
@@ -119,18 +154,7 @@
         </div>
       </form>
 
-      <!-- 底部版权信息 -->
-      <div class="login-footer">
-        <div class="footer-brand">
-          <span class="brand-name">{{ copyrightLines.line1 }}</span>
-          <span class="brand-author">{{ copyrightLines.line2 }}</span>
-        </div>
-        <div class="footer-copyright">
-          <span>{{ copyrightLines.line3 }}</span>
-          <span class="separator">·</span>
-          <span>{{ copyrightLines.line4 }}</span>
-        </div>
-      </div>
+      <AppFooter />
     </div>
   </div>
 </template>
@@ -140,17 +164,16 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
-import { authManager, VERSION } from '@cyp-memo/shared'
+import { authManager, resolveLandingPath } from '@cyp-memo/shared'
 import Button from '../../components/Button.vue'
-import { View, Hide } from '@element-plus/icons-vue'
+import BrandMark from '../../components/BrandMark.vue'
+import AppFooter from '../../components/AppFooter.vue'
+import { View, Hide, Lock, RefreshRight } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
-
-// 版权信息
-const copyrightLines = VERSION.copyrightLines
 
 // 登录类型
 const loginType = ref<'password' | 'token'>('password')
@@ -179,6 +202,45 @@ const error = ref('')
 // 是否显示注册提示
 const showRegisterHint = ref(false)
 
+const challengeNeeded = ref(false)
+const challengeId = ref('')
+const challengePrompt = ref('')
+const challengeAnswer = ref('')
+
+async function refreshChallenge() {
+  try {
+    const { storageManager } = await import('@cyp-memo/shared')
+    if (storageManager.isInitialized() && storageManager.getMode() === 'remote') {
+      const adapter = storageManager.getAdapter() as {
+        fetchLoginChallenge?: () => Promise<{ challengeId: string; prompt: string }>
+      }
+      if (adapter.fetchLoginChallenge) {
+        const c = await adapter.fetchLoginChallenge()
+        challengeId.value = c.challengeId
+        challengePrompt.value = c.prompt
+        challengeAnswer.value = ''
+        challengeNeeded.value = true
+        return
+      }
+    }
+    const { resolveApiBaseUrl } = await import('@cyp-memo/shared')
+    const base = resolveApiBaseUrl({
+      VITE_API_BASE: import.meta.env.VITE_API_BASE as string | undefined,
+      PROD: import.meta.env.PROD,
+    })
+    const res = await fetch(`${base.replace(/\/$/, '')}/auth/challenge`)
+    const json = (await res.json()) as { success?: boolean; data?: { challengeId: string; prompt: string } }
+    if (json?.data?.challengeId) {
+      challengeId.value = json.data.challengeId
+      challengePrompt.value = json.data.prompt
+      challengeAnswer.value = ''
+      challengeNeeded.value = true
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * 账号密码登录
  */
@@ -190,6 +252,10 @@ const handlePasswordLogin = async () => {
     error.value = '请输入用户名和密码'
     return
   }
+  if (challengeNeeded.value && !challengeAnswer.value) {
+    error.value = '请完成安全验证'
+    return
+  }
 
   loading.value = true
 
@@ -197,15 +263,23 @@ const handlePasswordLogin = async () => {
     await authStore.loginWithPassword(
       passwordForm.value.username,
       passwordForm.value.password,
-      passwordForm.value.remember
+      passwordForm.value.remember,
+      challengeNeeded.value
+        ? { challengeId: challengeId.value, challengeAnswer: challengeAnswer.value }
+        : undefined
     )
 
     toast.success('登录成功')
+    challengeNeeded.value = false
+    challengeId.value = ''
+    challengeAnswer.value = ''
 
-    // 重定向到目标页面或首页，添加 refresh 参数强制刷新备忘录数据
+    // 按权限落地；无 memo 权时勿硬跳 /memos
     const redirect = route.query.redirect as string
-    const targetPath = redirect || '/memos'
-    // 使用 replace 并添加时间戳参数确保页面刷新数据
+    const targetPath =
+      redirect && !redirect.startsWith('/login')
+        ? redirect
+        : resolveLandingPath(authStore.permissions)
     router.replace({ path: targetPath, query: { refresh: Date.now().toString() } })
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : '登录失败'
@@ -213,6 +287,7 @@ const handlePasswordLogin = async () => {
     // 当登录失败时（用户名或密码错误），显示注册提示
     if (errorMessage.includes('用户名或密码错误') || errorMessage.includes('登录失败')) {
       showRegisterHint.value = true
+      await refreshChallenge()
     }
   } finally {
     loading.value = false
@@ -238,10 +313,12 @@ const handleTokenLogin = async () => {
 
     toast.success('登录成功')
 
-    // 重定向到目标页面或首页，添加 refresh 参数强制刷新备忘录数据
+    // 按权限落地；无 memo 权时勿硬跳 /memos
     const redirect = route.query.redirect as string
-    const targetPath = redirect || '/memos'
-    // 使用 replace 并添加时间戳参数确保页面刷新数据
+    const targetPath =
+      redirect && !redirect.startsWith('/login')
+        ? redirect
+        : resolveLandingPath(authStore.permissions)
     router.replace({ path: targetPath, query: { refresh: Date.now().toString() } })
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : '登录失败'
@@ -256,52 +333,38 @@ const handleTokenLogin = async () => {
 }
 
 /**
- * 加载记住的密码
+ * 加载记住的用户名（不回填密码）
  */
 onMounted(() => {
   const rememberInfo = authManager.getRememberInfo()
-  if (rememberInfo) {
+  if (rememberInfo?.username) {
     passwordForm.value.username = rememberInfo.username
-    passwordForm.value.password = rememberInfo.password
-    passwordForm.value.remember = true
+    passwordForm.value.password = ''
+    passwordForm.value.remember = rememberInfo.remember !== false
   }
 })
 </script>
 
 <style scoped>
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
-}
-
-.login-container {
-  width: 100%;
-  max-width: 420px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  padding: 40px;
-}
-
 .login-header {
   text-align: center;
   margin-bottom: 32px;
 }
 
+.login-brand {
+  margin: 0 auto 16px;
+}
+
 .login-title {
   font-size: 32px;
   font-weight: 700;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 8px 0;
 }
 
 .login-subtitle {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
@@ -309,7 +372,7 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   padding: 4px;
   border-radius: 8px;
 }
@@ -322,19 +385,29 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .tab-button:hover {
-  color: #409eff;
+  color: var(--cyp-brand);
 }
 
 .tab-button.active {
-  background: white;
-  color: #409eff;
+  background: var(--cyp-bg-card);
+  color: var(--cyp-brand);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.login-form :deep(.btn-primary) {
+  background: var(--cyp-brand);
+  border-color: var(--cyp-brand);
+}
+
+.login-form :deep(.btn-primary:hover:not(.btn-disabled):not(.btn-loading)) {
+  background: var(--cyp-brand-hover);
+  border-color: var(--cyp-brand-hover);
 }
 
 .login-form {
@@ -352,7 +425,7 @@ onMounted(() => {
 .form-label {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .form-input,
@@ -360,22 +433,29 @@ onMounted(() => {
   width: 100%;
   padding: 12px 16px;
   font-size: 14px;
-  border: 1px solid #dcdfe6;
+  color: var(--cyp-text);
+  background: var(--cyp-bg-input);
+  border: 1px solid var(--cyp-border);
   border-radius: 6px;
   transition: all 0.2s;
   box-sizing: border-box;
 }
 
+.form-input::placeholder,
+.form-textarea::placeholder {
+  color: var(--cyp-text-muted);
+}
+
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+  border-color: var(--cyp-brand);
+  box-shadow: 0 0 0 2px var(--cyp-brand-tint);
 }
 
 .form-textarea {
   resize: vertical;
-  font-family: 'Courier New', monospace;
+  font-family: var(--cyp-font-mono);
 }
 
 .password-input-wrapper {
@@ -391,7 +471,7 @@ onMounted(() => {
   border: none;
   cursor: pointer;
   padding: 8px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -404,8 +484,8 @@ onMounted(() => {
 }
 
 .password-toggle:hover {
-  color: #409eff;
-  background: rgba(64, 158, 255, 0.1);
+  color: var(--cyp-brand);
+  background: var(--cyp-brand-tint);
   border-radius: 4px;
 }
 
@@ -414,12 +494,128 @@ onMounted(() => {
   align-items: center;
 }
 
+.challenge-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--cyp-brand-tint-strong);
+  background: linear-gradient(
+    160deg,
+    var(--cyp-brand-tint) 0%,
+    transparent 100%
+  );
+}
+
+.challenge-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.challenge-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.challenge-icon {
+  color: var(--cyp-brand);
+  flex-shrink: 0;
+}
+
+.challenge-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cyp-text);
+}
+
+.challenge-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cyp-brand);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.challenge-refresh:hover {
+  background: var(--cyp-brand-tint);
+  color: var(--cyp-brand-soft);
+}
+
+.challenge-body {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.challenge-prompt {
+  flex: 0 0 auto;
+  min-width: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--cyp-bg-muted);
+  border: 1px solid var(--cyp-border);
+  color: var(--cyp-brand-soft);
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.challenge-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.challenge-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--cyp-text-muted);
+}
+
+@media (max-width: 480px) {
+  .challenge-body {
+    flex-direction: column;
+  }
+
+  .challenge-prompt {
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .auth-card {
+    padding: 24px;
+  }
+
+  .login-title {
+    font-size: 24px;
+  }
+}
+
 .checkbox-label {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   cursor: pointer;
   user-select: none;
 }
@@ -432,16 +628,16 @@ onMounted(() => {
 
 .form-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
 .error-message {
   padding: 12px 16px;
-  background: #fef0f0;
-  border: 1px solid #fde2e2;
+  background: color-mix(in srgb, var(--cyp-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-danger) 35%, transparent);
   border-radius: 6px;
-  color: #f56c6c;
+  color: var(--cyp-danger);
   font-size: 14px;
 }
 
@@ -452,13 +648,13 @@ onMounted(() => {
 .register-hint {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #fde2e2;
+  border-top: 1px solid color-mix(in srgb, var(--cyp-danger) 35%, transparent);
   font-size: 13px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .hint-link {
-  color: #409eff;
+  color: var(--cyp-brand);
   text-decoration: none;
   font-weight: 500;
 }
@@ -471,106 +667,27 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
 }
 
 .link {
   font-size: 14px;
-  color: #409eff;
+  color: var(--cyp-brand);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .link:hover {
-  color: #66b1ff;
+  color: var(--cyp-brand-soft);
   text-decoration: underline;
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .login-container {
-  background: #1d1e1f;
-}
-
-[data-theme='dark'] .login-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .login-subtitle {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .login-tabs {
-  background: #262727;
-}
-
-[data-theme='dark'] .tab-button {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tab-button:hover {
-  color: #409eff;
-}
-
-[data-theme='dark'] .tab-button.active {
-  background: #1d1e1f;
-  color: #409eff;
-}
-
-[data-theme='dark'] .form-label {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .form-input,
-[data-theme='dark'] .form-textarea {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .form-input:focus,
-[data-theme='dark'] .form-textarea:focus {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-}
-
-[data-theme='dark'] .checkbox-label {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .form-hint {
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .error-message {
-  background: #2b1d1d;
-  border-color: #5c2929;
-}
-
-[data-theme='dark'] .register-hint {
-  border-top-color: #5c2929;
-  color: #8a8f99;
-}
-
-[data-theme='dark'] .hint-link {
-  color: #409eff;
-}
-
-/* 响应式设计 */
-@media (max-width: 480px) {
-  .login-container {
-    padding: 24px;
-  }
-
-  .login-title {
-    font-size: 24px;
-  }
-}
-
-/* 底部版权信息 */
 .login-footer {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--cyp-border);
   text-align: center;
 }
 
@@ -585,13 +702,13 @@ onMounted(() => {
 .brand-name {
   font-size: 14px;
   font-weight: 600;
-  color: #667eea;
+  color: var(--cyp-brand);
   letter-spacing: 0.5px;
 }
 
 .brand-author {
   font-size: 12px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .footer-copyright {
@@ -600,31 +717,11 @@ onMounted(() => {
   justify-content: center;
   gap: 6px;
   font-size: 11px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .separator {
-  color: #c0c4cc;
-}
-
-[data-theme='dark'] .login-footer {
-  border-top-color: #414243;
-}
-
-[data-theme='dark'] .brand-name {
-  color: #a5b4fc;
-}
-
-[data-theme='dark'] .brand-author {
-  color: #a8abb2;
-}
-
-[data-theme='dark'] .footer-copyright {
-  color: #6b7280;
-}
-
-[data-theme='dark'] .separator {
-  color: #4b5563;
+  color: var(--cyp-border);
 }
 
 @media (max-width: 480px) {

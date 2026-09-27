@@ -1,0 +1,28 @@
+---
+description: CYP-memo 观测写路径与业务库隔离门禁（禁高频日志整库落盘）
+alwaysApply: true
+---
+
+# CYP-memo · 观测写路径与业务库隔离门禁（强制 · R-015）
+
+权威：军械库《文档管理条例》规则 24.18 · AI 条例 X20 · 核心原则 12.3#18 · ANTI-76 · 反例 R-015。
+
+## 设计口径（不可分叉）
+
+- **核心业务库**（`database.sqlite` / sql.js）：只承载账号、备忘录、文件元数据、分享及低频操作审计（`audit`）。
+- **独立观测库**（`{dataDir}/logs/observability.sqlite`）：runtime/error/business/security（告警拨号等）运维可检索流水；与业务库写路径分离。
+- **JSONL 分片**（`{dataDir}/logs/<type>/`）：全量追加真相；access/perf/领域事件观测等高频洪水只写 JSONL。
+- **对象存储 / uploads**：只存附件等大 blob，禁止作为秒级小日志主路径。
+- **缓存**：可丢弃；禁止冒充日志或审计 SSOT。
+
+## 强制做法
+
+1. 日志服务按 `resolveLogPersistTarget` 分流：business（仅 audit）/ observability / jsonl_only；禁止运维流水走业务库 `createLog → saveToFile`。
+2. 运维「运行日志」API 须合并业务审计 + 观测库，不得只读业务库冒充全量。
+3. 宣称首屏或接口「已快」前：须量同入口业务 API 链（往返次数 + 墙钟），并证明探测窗口内业务库文件未因观测写而整库落盘（mtime 未变或等价证据）。
+4. 禁止用单次 GET 毫秒数冒充体感通过（仍适用 R-008）。
+
+## 反例（本仓已发生）
+
+- 约 60MB sql.js 整库：每条 access/弹性/领域事件观测都触发 export，首屏卡住事件循环。
+- 领域事件默认可观测把 UserNotify/NotificationDelivered 写满 logs 表。

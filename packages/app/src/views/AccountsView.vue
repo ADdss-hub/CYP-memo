@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   账号管理界面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -22,7 +22,7 @@
         <Button type="text" @click="handleBack">
           <span class="back-icon">←</span> 返回
         </Button>
-        <h1 class="page-title">账号管理</h1>
+        <h1 class="page-title">子用户管理</h1>
       </div>
 
       <!-- 主账号信息 -->
@@ -92,21 +92,19 @@
             </el-form-item>
 
             <el-form-item label="权限设置" prop="permissions">
-              <el-checkbox-group v-model="createForm.permissions">
-                <el-checkbox :value="Permission.MEMO_MANAGE"> 备忘录管理 </el-checkbox>
-                <el-checkbox :value="Permission.STATISTICS_VIEW"> 数据统计查看 </el-checkbox>
-                <el-checkbox :value="Permission.ATTACHMENT_MANAGE"> 附件管理 </el-checkbox>
-                <el-checkbox :value="Permission.SETTINGS_MANAGE"> 系统设置 </el-checkbox>
+              <el-checkbox-group v-model="createForm.permissions" class="perm-grid">
+                <el-checkbox
+                  v-for="item in permissionItems"
+                  :key="item.permission"
+                  :value="item.permission"
+                  :disabled="item.permission === Permission.PROFILE_SELF"
+                >
+                  {{ PERMISSION_LABELS[item.permission] }}
+                  <span v-if="item.hint" class="perm-tag">{{ item.hint }}</span>
+                </el-checkbox>
               </el-checkbox-group>
+              <p class="form-tip">与侧栏入口一一对应；不可分配「子用户管理」。</p>
             </el-form-item>
-
-            <el-alert
-              title="注意：子账号不能拥有账号管理权限"
-              type="info"
-              :closable="false"
-              show-icon
-              style="margin-bottom: 20px"
-            />
 
             <el-form-item>
               <el-button 
@@ -130,13 +128,13 @@
         <el-card v-if="subAccounts.length > 0" shadow="hover">
           <el-table :data="subAccounts" style="width: 100%">
             <el-table-column prop="username" label="用户名" min-width="150" />
-            <el-table-column label="权限" min-width="200">
+            <el-table-column label="权限" min-width="220">
               <template #default="{ row }">
                 <el-tag
-                  v-for="permission in row.permissions"
+                  v-for="permission in visiblePermissions(row.permissions)"
                   :key="permission"
                   size="small"
-                  style="margin-right: 4px"
+                  style="margin-right: 4px; margin-bottom: 4px"
                 >
                   {{ getPermissionLabel(permission) }}
                 </el-tag>
@@ -168,25 +166,25 @@
     </div>
 
     <!-- 权限设置对话框 -->
-    <el-dialog v-model="permissionDialogVisible" title="设置权限" width="500px">
-      <el-form label-width="100px">
+    <el-dialog v-model="permissionDialogVisible" title="设置权限" width="640px">
+      <el-form label-width="88px">
         <el-form-item label="用户名">
           <span>{{ selectedAccount?.username }}</span>
         </el-form-item>
         <el-form-item label="权限设置">
-          <el-checkbox-group v-model="permissionForm.permissions">
-            <el-checkbox :value="Permission.MEMO_MANAGE"> 备忘录管理 </el-checkbox>
-            <el-checkbox :value="Permission.STATISTICS_VIEW"> 数据统计查看 </el-checkbox>
-            <el-checkbox :value="Permission.ATTACHMENT_MANAGE"> 附件管理 </el-checkbox>
-            <el-checkbox :value="Permission.SETTINGS_MANAGE"> 系统设置 </el-checkbox>
+          <el-checkbox-group v-model="permissionForm.permissions" class="perm-grid">
+            <el-checkbox
+              v-for="item in permissionItems"
+              :key="'dlg-' + item.permission"
+              :value="item.permission"
+              :disabled="item.permission === Permission.PROFILE_SELF"
+            >
+              {{ PERMISSION_LABELS[item.permission] }}
+              <span v-if="item.hint" class="perm-tag">{{ item.hint }}</span>
+            </el-checkbox>
           </el-checkbox-group>
+          <p class="form-tip">保存后按侧栏入口生效；可单独收回。</p>
         </el-form-item>
-        <el-alert
-          title="注意：子账号不能拥有账号管理权限"
-          type="info"
-          :closable="false"
-          show-icon
-        />
       </el-form>
       <template #footer>
         <el-button @click="permissionDialogVisible = false"> 取消 </el-button>
@@ -202,7 +200,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { authManager, Permission } from '@cyp-memo/shared'
+import { authManager, Permission, PERMISSION_LABELS, ASSIGNABLE_PERMISSION_ITEMS, normalizeMemberPermissions } from '@cyp-memo/shared'
 import type { User } from '@cyp-memo/shared'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -214,6 +212,12 @@ const router = useRouter()
 const authStore = useAuthStore()
 const activeMenu = ref('create')
 
+/** 扁平：一入口一权（不含子用户管理） */
+const permissionItems = ASSIGNABLE_PERMISSION_ITEMS
+
+const defaultMemberPermissions = (): Permission[] =>
+  normalizeMemberPermissions([Permission.MEMO_MANAGE, Permission.PROFILE_SELF])
+
 // 子账号列表
 const subAccounts = ref<User[]>([])
 
@@ -223,7 +227,7 @@ const createForm = ref({
   username: '',
   password: '',
   confirmPassword: '',
-  permissions: [Permission.MEMO_MANAGE] as Permission[],
+  permissions: defaultMemberPermissions(),
 })
 const isCreating = ref(false)
 
@@ -332,7 +336,7 @@ async function handleCreate() {
       authStore.currentUser.id,
       createForm.value.username,
       createForm.value.password,
-      createForm.value.permissions
+      normalizeMemberPermissions(createForm.value.permissions)
     )
 
     console.log('子账号创建成功')
@@ -363,7 +367,7 @@ function resetCreateForm() {
     username: '',
     password: '',
     confirmPassword: '',
-    permissions: [Permission.MEMO_MANAGE],
+    permissions: defaultMemberPermissions(),
   }
 }
 
@@ -372,7 +376,7 @@ function resetCreateForm() {
  */
 function openPermissionDialog(account: User) {
   selectedAccount.value = account
-  permissionForm.value.permissions = [...account.permissions]
+  permissionForm.value.permissions = normalizeMemberPermissions(account.permissions || [])
   permissionDialogVisible.value = true
 }
 
@@ -393,7 +397,7 @@ async function handleUpdatePermission() {
     await authManager.updateSubAccountPermissions(
       authStore.currentUser.id,
       selectedAccount.value.id,
-      permissionForm.value.permissions
+      normalizeMemberPermissions(permissionForm.value.permissions)
     )
 
     ElMessage.success('权限更新成功')
@@ -445,18 +449,17 @@ async function handleDelete(account: User) {
   }
 }
 
+function visiblePermissions(permissions: readonly string[] | undefined): string[] {
+  return (permissions || []).filter(
+    (p) => p !== Permission.TENANT_USERS && p !== Permission.ACCOUNT_MANAGE
+  )
+}
+
 /**
  * 获取权限标签
  */
-function getPermissionLabel(permission: Permission): string {
-  const labels: Record<Permission, string> = {
-    [Permission.MEMO_MANAGE]: '备忘录管理',
-    [Permission.STATISTICS_VIEW]: '数据统计',
-    [Permission.ATTACHMENT_MANAGE]: '附件管理',
-    [Permission.SETTINGS_MANAGE]: '系统设置',
-    [Permission.ACCOUNT_MANAGE]: '账号管理',
-  }
-  return labels[permission] || permission
+function getPermissionLabel(permission: Permission | string): string {
+  return PERMISSION_LABELS[permission as Permission] || String(permission)
 }
 
 /**
@@ -518,7 +521,7 @@ onMounted(() => {
 .page-title {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
 }
 
@@ -529,7 +532,7 @@ onMounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 16px 0;
 }
 
@@ -545,11 +548,11 @@ onMounted(() => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--cyp-brand);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--cyp-text);
   flex-shrink: 0;
 }
 
@@ -560,15 +563,15 @@ onMounted(() => {
 .account-name {
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin-bottom: 8px;
 }
 
 .account-type {
   display: inline-block;
   padding: 4px 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--cyp-brand);
+  color: var(--cyp-text);
   border-radius: 12px;
   font-size: 14px;
   margin-bottom: 12px;
@@ -578,19 +581,39 @@ onMounted(() => {
   display: flex;
   gap: 24px;
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 /* 表单提示 */
 .form-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin-top: 8px;
 }
 
 /* 侧边栏菜单 */
 .sidebar-menu {
   border-right: none;
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 6px 12px;
+  width: 100%;
+}
+
+.perm-grid :deep(.el-checkbox) {
+  height: auto;
+  margin-right: 0;
+  white-space: nowrap;
+}
+
+.perm-tag {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--cyp-text-muted);
+  font-weight: 400;
 }
 
 /* 移动端适配 */
@@ -618,15 +641,4 @@ onMounted(() => {
   }
 }
 
-/* 深色主题支持 */
-[data-theme='dark'] .page-title,
-[data-theme='dark'] .section-title,
-[data-theme='dark'] .account-name {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .account-meta,
-[data-theme='dark'] .form-tip {
-  color: #cfd3dc;
-}
 </style>

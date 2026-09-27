@@ -1,12 +1,12 @@
-﻿/**
- * CYP-memo 用户端路由配置
+/**
+ * CYP-memo 统一产品壳路由（VIEW-* / LAW-04：唯一壳，无双端叙事）
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSettingsStore } from '../stores/settings'
-import { Permission } from '@cyp-memo/shared'
+import { Permission, resolveLandingPath } from '@cyp-memo/shared'
 
 /**
  * 扩展 Vue Router 的 RouteMeta 类型
@@ -16,6 +16,8 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     requiresGuest?: boolean
     requiredPermissions?: Permission[]
+    /** 任一满足即可（与 requiredPermissions 同时存在时先检查本项） */
+    anyOfPermissions?: Permission[]
     title?: string
   }
 }
@@ -86,7 +88,10 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
-    redirect: '/memos',
+    redirect: () => {
+      const authStore = useAuthStore()
+      return resolveLandingPath(authStore.permissions)
+    },
     meta: {
       requiresAuth: true,
     },
@@ -144,7 +149,7 @@ const routes: RouteRecordRaw[] = [
     },
   },
 
-  // 附件管理
+  // 文件库
   {
     path: '/attachments',
     name: 'attachments',
@@ -152,7 +157,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiredPermissions: [Permission.ATTACHMENT_MANAGE],
-      title: '附件管理',
+      title: '文件库',
     },
   },
 
@@ -163,7 +168,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/share/ShareManageView.vue'),
     meta: {
       requiresAuth: true,
-      requiredPermissions: [Permission.MEMO_MANAGE],
+      requiredPermissions: [Permission.SHARE_MANAGE],
       title: '分享管理',
     },
   },
@@ -183,7 +188,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/MemoDataView.vue'),
     meta: {
       requiresAuth: true,
-      requiredPermissions: [Permission.MEMO_MANAGE],
+      requiredPermissions: [Permission.MEMO_DATA],
       title: '备忘录数据管理',
     },
   },
@@ -219,7 +224,78 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/ProfileView.vue'),
     meta: {
       requiresAuth: true,
+      requiredPermissions: [Permission.PROFILE_SELF],
       title: '个人资料',
+    },
+  },
+
+  // 运维域（独立页面 · 军械库页面级拆分；成员 CRUD 仅走 /accounts）
+  {
+    path: '/tenant',
+    name: 'tenant',
+    component: () => import('../views/tenant/TenantDashboardView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiredPermissions: [Permission.TENANT_DASHBOARD],
+      title: '运维概览',
+    },
+  },
+  {
+    path: '/tenant/database',
+    name: 'tenant-database',
+    component: () => import('../views/tenant/TenantDatabaseView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiredPermissions: [Permission.TENANT_DATABASE],
+      title: '数据维护',
+    },
+  },
+  {
+    path: '/tenant/monitor',
+    name: 'tenant-monitor',
+    component: () => import('../views/tenant/TenantMonitorView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiredPermissions: [Permission.TENANT_MONITOR],
+      title: '运行监控',
+    },
+  },
+  {
+    path: '/tenant/logs',
+    name: 'tenant-logs',
+    component: () => import('../views/tenant/TenantLogsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiredPermissions: [Permission.TENANT_LOGS],
+      title: '运行日志',
+    },
+  },
+  // 旧「用户列表」与子用户管理重叠 → 成员业务唯一入口
+  { path: '/tenant/users', redirect: '/accounts' },
+
+  // 旧 admin 路径 → 对应独立运维页
+  { path: '/admin', redirect: '/tenant' },
+  { path: '/admin/login', redirect: '/login' },
+  { path: '/admin/users', redirect: '/accounts' },
+  { path: '/admin/dashboard', redirect: '/tenant' },
+  { path: '/admin/database', redirect: '/tenant/database' },
+  { path: '/admin/monitor', redirect: '/tenant/monitor' },
+
+  // 法律文案（页脚公开可访问，无需登录）
+  {
+    path: '/terms',
+    name: 'terms',
+    component: () => import('../views/legal/TermsView.vue'),
+    meta: {
+      title: '服务条款',
+    },
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('../views/legal/PrivacyView.vue'),
+    meta: {
+      title: '隐私政策',
     },
   },
 
@@ -286,7 +362,10 @@ router.beforeEach(async (to, from, next) => {
     to.name !== 'login' &&
     to.name !== 'register' &&
     to.name !== 'reset-password' &&
-    to.name !== 'share-view'
+    to.name !== 'share-view' &&
+    to.name !== 'terms' &&
+    to.name !== 'privacy' &&
+    to.name !== 'not-found'
   ) {
     // 加载设置以获取最新的首次使用状态
     await settingsStore.loadSettings()
@@ -298,21 +377,27 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 检查权限
-  if (to.meta.requiredPermissions && to.meta.requiredPermissions.length > 0) {
-    const hasPermission = to.meta.requiredPermissions.every((permission) =>
-      authStore.permissions.includes(permission)
-    )
-
-    if (!hasPermission) {
-      // 权限不足，重定向到首页或显示错误
-      console.warn(`权限不足，无法访问 ${to.path}`)
-      next({
-        name: 'memos',
-        query: { error: 'permission_denied' },
-      })
+  // 检查权限（anyOf 优先；否则 required 全部满足）
+  const anyOf = to.meta.anyOfPermissions
+  const allOf = to.meta.requiredPermissions
+  let permissionDenied = false
+  if (anyOf && anyOf.length > 0) {
+    permissionDenied = !anyOf.some((p) => authStore.permissions.includes(p))
+  } else if (allOf && allOf.length > 0) {
+    permissionDenied = !allOf.every((p) => authStore.permissions.includes(p))
+  }
+  if (permissionDenied) {
+    console.warn(`权限不足，无法访问 ${to.path}`)
+    const fallback = resolveLandingPath(authStore.permissions)
+    if (fallback === to.path) {
+      next({ name: 'not-found', query: { error: 'permission_denied' } })
       return
     }
+    next({
+      path: fallback,
+      query: { error: 'permission_denied' },
+    })
+    return
   }
 
   // 所有检查通过，允许导航

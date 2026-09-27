@@ -1,0 +1,29 @@
+# CYP-memo: normalize text to UTF-8 in Git
+* text=auto eol=lf
+
+*.ps1 text eol=lf working-tree-encoding=UTF-8
+*.md  text eol=lf working-tree-encoding=UTF-8
+*.json text eol=lf
+*.jsonl text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.vue text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.node binary
+*.sqlite binary
+*.db binary

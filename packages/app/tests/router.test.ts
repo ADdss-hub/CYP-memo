@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CYP-memo 路由守卫单元测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -82,7 +82,7 @@ function createTestRouter(): Router {
       meta: {
         requiresAuth: true,
         requiredPermissions: [Permission.ATTACHMENT_MANAGE],
-        title: '附件管理',
+        title: '文件库',
       },
     },
     {
@@ -238,7 +238,7 @@ describe('Router Guards - 认证重定向', () => {
   })
 
   it('应该将已认证用户从登录页重定向到首页', async () => {
-    // 模拟已登录用户
+    // mock 已登录用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -264,7 +264,7 @@ describe('Router Guards - 认证重定向', () => {
   })
 
   it('应该将已认证用户从注册页重定向到首页', async () => {
-    // 模拟已登录用户
+    // mock 已登录用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -290,7 +290,7 @@ describe('Router Guards - 认证重定向', () => {
   })
 
   it('应该允许已认证用户访问需要认证的页面', async () => {
-    // 模拟已登录用户
+    // mock 已登录用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -313,7 +313,7 @@ describe('Router Guards - 认证重定向', () => {
   })
 
   it('应该在首次使用时重定向到欢迎页', async () => {
-    // 模拟已登录用户
+    // mock 已登录用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -339,7 +339,7 @@ describe('Router Guards - 认证重定向', () => {
   })
 
   it('应该在完成欢迎后允许访问其他页面', async () => {
-    // 模拟已登录用户
+    // mock 已登录用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -393,7 +393,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该允许有权限的用户访问备忘录页面', async () => {
-    // 模拟有备忘录管理权限的用户
+    // mock 有备忘录管理权限的用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -413,7 +413,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该阻止无权限的用户访问统计页面', async () => {
-    // 模拟只有备忘录管理权限的用户（无统计查看权限）
+    // mock 只有备忘录管理权限的用户（无统计查看权限）
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -434,7 +434,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该允许有权限的用户访问统计页面', async () => {
-    // 模拟有统计查看权限的用户
+    // mock 有统计查看权限的用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -453,8 +453,8 @@ describe('Router Guards - 权限检查', () => {
     expect(router.currentRoute.value.name).toBe('statistics')
   })
 
-  it('应该阻止无权限的用户访问附件管理页面', async () => {
-    // 模拟只有备忘录管理权限的用户（无附件管理权限）
+  it('应该阻止无权限的用户访问文件库页面', async () => {
+    // mock 只有备忘录管理权限的用户（无文件库权限）
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -465,7 +465,7 @@ describe('Router Guards - 权限检查', () => {
       rememberPassword: false,
     }
 
-    // 尝试访问附件管理页面
+    // 尝试访问文件库页面
     await router.push('/attachments')
     await router.isReady()
 
@@ -474,8 +474,8 @@ describe('Router Guards - 权限检查', () => {
     expect(router.currentRoute.value.query.error).toBe('permission_denied')
   })
 
-  it('应该允许有权限的用户访问附件管理页面', async () => {
-    // 模拟有附件管理权限的用户
+  it('应该允许有权限的用户访问文件库页面', async () => {
+    // mock 有文件库权限的用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -486,7 +486,7 @@ describe('Router Guards - 权限检查', () => {
       rememberPassword: false,
     }
 
-    // 访问附件管理页面
+    // 访问文件库页面
     await router.push('/attachments')
     await router.isReady()
 
@@ -495,7 +495,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该阻止子账号访问账号管理页面', async () => {
-    // 模拟子账号用户（无账号管理权限）
+    // mock 子账号用户（无账号管理权限）
     authStore.currentUser = {
       id: 'user1',
       username: 'subuser',
@@ -516,7 +516,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该允许主账号访问账号管理页面', async () => {
-    // 模拟主账号用户
+    // mock 主账号用户
     authStore.currentUser = {
       id: 'user1',
       username: 'mainuser',
@@ -536,7 +536,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该阻止无权限的用户访问系统设置页面', async () => {
-    // 模拟只有备忘录管理权限的用户（无系统设置权限）
+    // mock 只有备忘录管理权限的用户（无系统设置权限）
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -557,7 +557,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该允许有权限的用户访问系统设置页面', async () => {
-    // 模拟有系统设置权限的用户
+    // mock 有系统设置权限的用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',
@@ -577,7 +577,7 @@ describe('Router Guards - 权限检查', () => {
   })
 
   it('应该允许有多个权限的用户访问所有对应页面', async () => {
-    // 模拟有多个权限的用户
+    // mock 有多个权限的用户
     authStore.currentUser = {
       id: 'user1',
       username: 'testuser',

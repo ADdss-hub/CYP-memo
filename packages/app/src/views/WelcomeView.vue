@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   CYP-memo 欢迎引导页面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
   全面更新版本 - 现代化设计
@@ -59,7 +59,7 @@
               <div class="welcome-hero">
                 <div class="hero-logo">
                   <div class="logo-wrapper">
-                    <span class="logo-emoji">📝</span>
+                    <BrandMark size="xl" class="logo-mark" />
                     <div class="logo-glow"></div>
                   </div>
                 </div>
@@ -69,9 +69,9 @@
                 </h1>
                 <p class="hero-subtitle">{{ currentStep.description }}</p>
                 <div class="hero-badges">
-                  <span class="badge">🔒 安全可靠</span>
-                  <span class="badge">⚡ 快速高效</span>
-                  <span class="badge">🎨 简洁美观</span>
+                  <span class="badge">安全可靠</span>
+                  <span class="badge">快速高效</span>
+                  <span class="badge">简洁美观</span>
                 </div>
               </div>
             </template>
@@ -79,7 +79,9 @@
             <!-- 最后一步：开始使用 -->
             <template v-else-if="currentStepIndex === steps.length - 1">
               <div class="final-step">
-                <div class="final-icon">🎉</div>
+                <div class="final-icon" aria-hidden="true">
+                  <el-icon :size="64"><CircleCheckFilled /></el-icon>
+                </div>
                 <h1 class="final-title">准备就绪！</h1>
                 <p class="final-subtitle">{{ currentStep.description }}</p>
                 
@@ -90,7 +92,9 @@
                     class="feature-card"
                     :style="{ animationDelay: `${index * 0.1}s` }"
                   >
-                    <span class="feature-icon">{{ feature.icon }}</span>
+                    <span class="feature-icon" aria-hidden="true">
+                      <el-icon :size="32"><component :is="feature.icon" /></el-icon>
+                    </span>
                     <span class="feature-name">{{ feature.name }}</span>
                     <span class="feature-desc">{{ feature.desc }}</span>
                   </div>
@@ -103,7 +107,9 @@
               <div class="guide-step">
                 <div class="guide-illustration">
                   <div class="illustration-wrapper">
-                    <span class="illustration-icon">{{ getStepIcon(currentStepIndex) }}</span>
+                    <span class="illustration-icon" aria-hidden="true">
+                      <el-icon :size="64"><component :is="getStepIcon(currentStepIndex)" /></el-icon>
+                    </span>
                   </div>
                 </div>
                 <h1 class="guide-title">{{ currentStep.title }}</h1>
@@ -116,7 +122,9 @@
                     :key="index"
                     class="tip-item"
                   >
-                    <span class="tip-icon">💡</span>
+                    <span class="tip-icon" aria-hidden="true">
+                      <el-icon :size="18"><InfoFilled /></el-icon>
+                    </span>
                     <span class="tip-text">{{ tip }}</span>
                   </div>
                 </div>
@@ -169,7 +177,7 @@
             :disabled="isCompleting"
             @click="completeGuide"
           >
-            <span v-if="!isCompleting">🚀 开始使用</span>
+            <span v-if="!isCompleting">开始使用</span>
             <span v-else class="loading-text">
               <span class="loading-spinner"></span>
               正在准备...
@@ -178,19 +186,35 @@
         </div>
       </div>
     </div>
+    <AppFooter />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { welcomeManager, type GuideStep } from '@cyp-memo/shared'
 import { useSettingsStore } from '../stores/settings'
 import { useToast } from '../composables/useToast'
+import BrandMark from '../components/BrandMark.vue'
+import AppFooter from '../components/AppFooter.vue'
+import {
+  EditPen,
+  CollectionTag,
+  Paperclip,
+  Search,
+  DataAnalysis,
+  Setting,
+  CircleCheckFilled,
+  InfoFilled,
+  Document,
+  Upload,
+  TrendCharts,
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
-const { showSuccess, showError } = useToast()
+const toast = useToast()
 
 // 状态
 const currentStepIndex = ref(0)
@@ -205,26 +229,35 @@ const isDarkMode = computed(() => {
   return document.documentElement.getAttribute('data-theme') === 'dark'
 })
 
-// 功能特性列表
-const features = [
-  { icon: '✍️', name: '富文本编辑', desc: '支持 Markdown' },
-  { icon: '🏷️', name: '标签管理', desc: '智能分类' },
-  { icon: '📎', name: '文件上传', desc: '多格式支持' },
-  { icon: '🔍', name: '快速搜索', desc: '全文检索' },
-  { icon: '📊', name: '数据统计', desc: '可视化分析' },
-  { icon: '⚙️', name: '个性设置', desc: '自定义体验' },
+// 功能特性列表（SVG 图标，避免 emoji 被编码剥离）
+const features: Array<{ icon: Component; name: string; desc: string }> = [
+  { icon: EditPen, name: '富文本编辑', desc: '支持 Markdown' },
+  { icon: CollectionTag, name: '标签管理', desc: '智能分类' },
+  { icon: Upload, name: '文件上传', desc: '多格式支持' },
+  { icon: Search, name: '快速搜索', desc: '全文检索' },
+  { icon: TrendCharts, name: '数据统计', desc: '可视化分析' },
+  { icon: Setting, name: '个性设置', desc: '自定义体验' },
 ]
 
 // 获取步骤标签
 function getStepLabel(index: number): string {
-  const labels = ['欢迎', '创建', '标签', '附件', '搜索', '统计', '设置', '开始']
+  const labels = ['欢迎', '创建', '标签', '文件', '搜索', '统计', '设置', '开始']
   return labels[index] || ''
 }
 
-// 获取步骤图标
-function getStepIcon(index: number): string {
-  const icons = ['📝', '✏️', '🏷️', '📎', '🔍', '📊', '⚙️', '🎉']
-  return icons[index] || '📝'
+// 获取步骤图标（与引导步骤语义对齐）
+function getStepIcon(index: number): Component {
+  const icons: Component[] = [
+    Document,
+    EditPen,
+    CollectionTag,
+    Paperclip,
+    Search,
+    DataAnalysis,
+    Setting,
+    CircleCheckFilled,
+  ]
+  return icons[index] || Document
 }
 
 // 获取步骤提示
@@ -289,7 +322,7 @@ async function skipGuide() {
     router.push({ name: 'memos' })
   } catch (error) {
     console.error('跳过引导失败:', error)
-    showError('跳过引导失败，请重试')
+    toast.error('跳过引导失败，请重试')
   } finally {
     isCompleting.value = false
   }
@@ -311,11 +344,11 @@ async function completeGuide() {
       console.warn('服务器端设置更新失败，但本地设置已更新:', serverError)
     }
     
-    showSuccess('欢迎使用 CYP-memo！开始您的备忘之旅吧 🎉')
+    toast.success('欢迎使用 CYP-memo！开始您的备忘之旅吧')
     router.push({ name: 'memos' })
   } catch (error) {
     console.error('完成引导失败:', error)
-    showError('完成引导失败，请重试')
+    toast.error('完成引导失败，请重试')
   } finally {
     isCompleting.value = false
   }
@@ -334,12 +367,12 @@ onMounted(() => {
 .welcome-view {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 1.5rem;
+  background: var(--cyp-bg-page);
+  padding: 1.5rem 1.5rem 0;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 /* 背景装饰 */
@@ -393,7 +426,7 @@ onMounted(() => {
 .welcome-container {
   max-width: 900px;
   width: 100%;
-  background: white;
+  background: var(--cyp-bg-card);
   border-radius: 24px;
   box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
   padding: 2rem;
@@ -402,6 +435,16 @@ onMounted(() => {
   gap: 1.5rem;
   position: relative;
   z-index: 1;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+/* 版权栏贴视口底部（勿与引导卡片并排） */
+.welcome-view :deep(.app-footer) {
+  width: 100%;
+  flex-shrink: 0;
+  align-self: stretch;
+  margin-top: 0;
 }
 
 /* 进度条 */
@@ -414,14 +457,14 @@ onMounted(() => {
 .progress-bar {
   flex: 1;
   height: 6px;
-  background: #e5e7eb;
+  background: var(--cyp-border);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
   border-radius: 3px;
   transition: width 0.5s ease;
 }
@@ -429,7 +472,7 @@ onMounted(() => {
 .progress-text {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--cyp-text-muted);
   min-width: 50px;
   text-align: right;
 }
@@ -458,22 +501,22 @@ onMounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #e5e7eb;
+  background: var(--cyp-border);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
   font-size: 0.875rem;
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
   transition: all 0.3s ease;
   position: relative;
 }
 
 .step-indicator.active .indicator-dot {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--cyp-brand);
   color: white;
   transform: scale(1.15);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 15px rgba(0, 153, 255, 0.4);
 }
 
 .step-indicator.completed .indicator-dot {
@@ -493,7 +536,7 @@ onMounted(() => {
 .indicator-label {
   font-size: 0.7rem;
   font-weight: 600;
-  color: #667eea;
+  color: var(--cyp-brand);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -530,16 +573,20 @@ onMounted(() => {
   display: inline-block;
 }
 
-.logo-emoji {
-  font-size: 5rem;
+.logo-mark {
+  width: 88px;
+  height: 88px;
   display: block;
+  object-fit: cover;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   animation: bounce 2s ease-in-out infinite;
 }
 
 .logo-glow {
   position: absolute;
   inset: -20px;
-  background: radial-gradient(circle, rgba(102, 126, 234, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(0, 153, 255, 0.3) 0%, transparent 70%);
   border-radius: 50%;
   animation: pulse 2s ease-in-out infinite;
 }
@@ -564,13 +611,13 @@ onMounted(() => {
 .title-welcome {
   font-size: 1.25rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--cyp-text-muted);
 }
 
 .title-brand {
   font-size: 3rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -578,7 +625,7 @@ onMounted(() => {
 
 .hero-subtitle {
   font-size: 1.1rem;
-  color: #6b7280;
+  color: var(--cyp-text-muted);
   max-width: 500px;
   line-height: 1.6;
   margin: 0;
@@ -593,11 +640,11 @@ onMounted(() => {
 
 .badge {
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+  background: linear-gradient(135deg, rgba(0,153,255,0.10) 0%, rgba(0,153,255,0.04) 100%);
   border-radius: 20px;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #5b21b6;
+  color: var(--cyp-brand);
 }
 
 /* 最后一步样式 */
@@ -609,7 +656,10 @@ onMounted(() => {
 }
 
 .final-icon {
-  font-size: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyp-brand);
   animation: celebrate 1s ease-in-out infinite;
 }
 
@@ -621,13 +671,13 @@ onMounted(() => {
 .final-title {
   font-size: 2.5rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--cyp-text);
   margin: 0;
 }
 
 .final-subtitle {
   font-size: 1rem;
-  color: #6b7280;
+  color: var(--cyp-text-muted);
   margin: 0 0 1rem 0;
 }
 
@@ -645,7 +695,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 1.25rem 1rem;
-  background: #f9fafb;
+  background: var(--cyp-bg-muted);
   border-radius: 16px;
   transition: all 0.3s ease;
   animation: fadeInUp 0.5s ease forwards;
@@ -664,24 +714,27 @@ onMounted(() => {
 }
 
 .feature-card:hover {
-  background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+  background: linear-gradient(135deg, rgba(0,153,255,0.10) 0%, rgba(0,153,255,0.04) 100%);
   transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 8px 25px rgba(0, 153, 255, 0.15);
 }
 
 .feature-icon {
-  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyp-brand);
 }
 
 .feature-name {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--cyp-text-secondary);
 }
 
 .feature-desc {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
 }
 
 /* 中间步骤样式 */
@@ -699,28 +752,31 @@ onMounted(() => {
 .illustration-wrapper {
   width: 120px;
   height: 120px;
-  background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+  background: linear-gradient(135deg, rgba(0,153,255,0.10) 0%, rgba(0,153,255,0.04) 100%);
   border-radius: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 10px 30px rgba(0, 153, 255, 0.15);
 }
 
 .illustration-icon {
-  font-size: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyp-brand);
 }
 
 .guide-title {
   font-size: 2rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--cyp-text);
   margin: 0;
 }
 
 .guide-description {
   font-size: 1.1rem;
-  color: #6b7280;
+  color: var(--cyp-text-muted);
   max-width: 500px;
   line-height: 1.6;
   margin: 0;
@@ -739,19 +795,22 @@ onMounted(() => {
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.875rem 1rem;
-  background: #fffbeb;
+  background: rgba(230, 162, 60, 0.12);
   border-radius: 12px;
   text-align: left;
 }
 
 .tip-icon {
-  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  color: var(--cyp-brand);
 }
 
 .tip-text {
   font-size: 0.9rem;
-  color: #92400e;
+  color: var(--cyp-text-secondary);
   line-height: 1.5;
 }
 
@@ -761,7 +820,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--cyp-border);
 }
 
 .nav-left, .nav-center, .nav-right {
@@ -795,33 +854,34 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(0, 153, 255, 0.35);
 }
 
 .btn-primary:hover {
+  background: linear-gradient(135deg, var(--cyp-brand-hover) 0%, #0077cc 100%);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 153, 255, 0.45);
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
 }
 
 .btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--cyp-border);
 }
 
 .btn-text {
   background: transparent;
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
   padding: 0.75rem 1rem;
 }
 
 .btn-text:hover {
-  color: #6b7280;
+  color: var(--cyp-text-muted);
 }
 
 .btn-start {
@@ -894,24 +954,24 @@ onMounted(() => {
 
 /* 深色模式 */
 .dark-mode {
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+  background: var(--cyp-bg-page);
 }
 
 .dark-mode .welcome-container {
-  background: #1f2937;
+  background: var(--cyp-bg-card);
 }
 
 .dark-mode .progress-bar {
-  background: #374151;
+  background: var(--cyp-bg-muted);
 }
 
 .dark-mode .progress-text {
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
 }
 
 .dark-mode .indicator-dot {
-  background: #374151;
-  color: #6b7280;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-muted);
 }
 
 .dark-mode .indicator-label {
@@ -919,59 +979,76 @@ onMounted(() => {
 }
 
 .dark-mode .title-welcome {
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
 }
 
 .dark-mode .hero-subtitle,
 .dark-mode .guide-description,
 .dark-mode .final-subtitle {
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
 }
 
 .dark-mode .badge {
-  background: linear-gradient(135deg, #312e81 0%, #4c1d95 100%);
-  color: #c4b5fd;
+  background: linear-gradient(135deg, #0b3d66 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
 }
 
 .dark-mode .guide-title,
 .dark-mode .final-title {
-  color: #f9fafb;
+  color: var(--cyp-text);
 }
 
 .dark-mode .illustration-wrapper {
-  background: linear-gradient(135deg, #312e81 0%, #4c1d95 100%);
+  background: linear-gradient(135deg, #0b3d66 0%, var(--cyp-brand-hover) 100%);
+}
+
+.dark-mode .illustration-icon,
+.dark-mode .feature-icon,
+.dark-mode .final-icon,
+.dark-mode .tip-icon {
+  color: #ffffff;
 }
 
 .dark-mode .tip-item {
-  background: #374151;
+  background: var(--cyp-bg-muted);
 }
 
 .dark-mode .tip-text {
-  color: #fcd34d;
+  color: var(--cyp-text-secondary);
 }
 
 .dark-mode .feature-card {
-  background: #374151;
+  background: var(--cyp-bg-muted);
 }
 
 .dark-mode .feature-card:hover {
-  background: linear-gradient(135deg, #312e81 0%, #4c1d95 100%);
+  background: linear-gradient(135deg, #0b3d66 0%, var(--cyp-brand-hover) 100%);
 }
 
 .dark-mode .feature-name {
-  color: #e5e7eb;
+  color: var(--cyp-text);
 }
 
 .dark-mode .feature-desc {
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
 }
 
 .dark-mode .navigation-footer {
-  border-top-color: #374151;
+  border-top-color: var(--cyp-border);
+}
+
+.dark-mode .btn-primary {
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(0, 153, 255, 0.4);
+}
+
+.dark-mode .btn-primary:hover {
+  background: linear-gradient(135deg, var(--cyp-brand-soft) 0%, var(--cyp-brand) 100%);
 }
 
 .dark-mode .btn-secondary {
-  background: #374151;
+  background: var(--cyp-bg-muted);
   color: #e5e7eb;
 }
 
@@ -980,17 +1057,17 @@ onMounted(() => {
 }
 
 .dark-mode .btn-text {
-  color: #6b7280;
+  color: var(--cyp-text-muted);
 }
 
 .dark-mode .btn-text:hover {
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .welcome-view {
-    padding: 1rem;
+    padding: 1rem 1rem 0;
   }
 
   .welcome-container {
@@ -1016,8 +1093,9 @@ onMounted(() => {
     min-height: 320px;
   }
 
-  .logo-emoji {
-    font-size: 4rem;
+  .logo-mark {
+    width: 64px;
+    height: 64px;
   }
 
   .title-brand {
@@ -1047,10 +1125,6 @@ onMounted(() => {
     width: 100px;
     height: 100px;
     border-radius: 24px;
-  }
-
-  .illustration-icon {
-    font-size: 3rem;
   }
 
   .navigation-footer {

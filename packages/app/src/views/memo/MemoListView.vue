@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   备忘录列表页面
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
@@ -15,7 +15,7 @@
             placeholder="搜索备忘录..."
             @input="handleSearch"
           />
-          <span class="search-icon">🔍</span>
+          <el-icon class="search-icon" :size="16"><Search /></el-icon>
         </div>
         <div class="sort-wrapper">
           <select v-model="sortBy" class="sort-select">
@@ -27,7 +27,10 @@
             {{ sortOrder === 'desc' ? '↓' : '↑' }}
           </button>
         </div>
-        <Button type="primary" @click="handleCreate"> ✏️ 新建备忘录 </Button>
+        <Button type="primary" @click="handleCreate">
+          <el-icon class="btn-leading-icon"><Plus /></el-icon>
+          新建备忘录
+        </Button>
       </div>
 
       <!-- 主内容区 -->
@@ -69,7 +72,7 @@
           </div>
 
           <div v-else-if="displayedMemos.length === 0" class="empty-state">
-            <div class="empty-icon">📝</div>
+            <div class="empty-icon"></div>
             <p class="empty-text">
               {{
                 searchQuery || selectedTags.length > 0
@@ -79,59 +82,60 @@
             </p>
           </div>
 
-          <div v-else class="memo-grid">
-            <!-- 虚拟滚动容器 -->
-            <div ref="scrollContainer" class="scroll-container" @scroll="handleScroll">
-              <div :style="{ height: `${totalHeight}px`, position: 'relative' }">
-                <div
-                  v-for="memo in visibleMemos"
-                  :key="memo.id"
-                  :style="{
-                    position: 'absolute',
-                    top: `${memo.top}px`,
-                    left: 0,
-                    right: 0,
-                  }"
-                  class="memo-card-wrapper"
-                >
-                  <div class="memo-card" @click="handleView(memo.id)">
-                    <div class="memo-header">
-                      <h3 class="memo-title">
-                        {{ memo.title || '无标题' }}
-                      </h3>
-                      <div class="memo-actions">
-                        <button class="action-btn" title="编辑" @click.stop="handleEdit(memo.id)">
-                          ✏️
-                        </button>
-                        <button class="action-btn" title="删除" @click.stop="handleDelete(memo.id)">
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="memo-content">
-                      {{ getExcerpt(memo.content) }}
-                    </div>
-
-                    <div class="memo-footer">
-                      <div class="memo-tags">
-                        <span v-for="tag in memo.tags" :key="tag" class="tag">
-                          {{ tag }}
-                        </span>
-                      </div>
-                      <div class="memo-meta">
-                        <span v-if="memo.creatorName" class="memo-creator">
-                          {{ memo.creatorName }}
-                        </span>
-                        <span class="memo-date">
-                          {{ formatDate(memo.updatedAt) }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+          <div v-else class="memo-list">
+            <article
+              v-for="memo in displayedMemos"
+              :key="memo.id"
+              class="memo-card"
+              @click="handleView(memo.id)"
+            >
+              <header class="memo-header">
+                <h3 class="memo-title">{{ memo.title || '无标题' }}</h3>
+                <div class="memo-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="action-btn"
+                    title="编辑备忘录"
+                    @click="handleEdit(memo.id)"
+                  >
+                    <el-icon :size="14"><EditPen /></el-icon>
+                    <span>编辑</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="action-btn action-btn-danger"
+                    title="删除备忘录"
+                    @click="handleDelete(memo.id)"
+                  >
+                    <el-icon :size="14"><Delete /></el-icon>
+                    <span>删除</span>
+                  </button>
                 </div>
-              </div>
-            </div>
+              </header>
+
+              <p class="memo-content">{{ getExcerpt(memo.content) }}</p>
+
+              <footer class="memo-footer">
+                <div class="memo-tags">
+                  <span v-for="tag in memo.tags" :key="tag" class="tag">{{ tag }}</span>
+                </div>
+                <div class="memo-meta">
+                  <span class="memo-creator" :title="`创建人：${memo.creatorName || '未知用户'}`">
+                    {{ memo.creatorName || '未知用户' }}
+                  </span>
+                  <span class="memo-date" :title="formatFullDate(memo.createdAt)">
+                    创建 {{ formatDate(memo.createdAt) }}
+                  </span>
+                  <span
+                    v-if="hasBeenUpdated(memo)"
+                    class="memo-date"
+                    :title="formatFullDate(memo.updatedAt)"
+                  >
+                    更新 {{ formatDate(memo.updatedAt) }}
+                  </span>
+                </div>
+              </footer>
+            </article>
           </div>
         </main>
       </div>
@@ -141,11 +145,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useMemoStore } from '../../stores/memo'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading } from '../../components'
+import { Plus, EditPen, Delete, Search } from '@element-plus/icons-vue'
 import type { Memo } from '@cyp-memo/shared'
 
 const router = useRouter()
@@ -156,27 +162,23 @@ const toast = useToast()
 // 状态
 const searchQuery = ref('')
 const selectedTags = ref<string[]>([])
-const scrollContainer = ref<HTMLElement>()
 const sortBy = ref<'updatedAt' | 'createdAt' | 'title'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
-// 虚拟滚动相关
-const CARD_HEIGHT = 216 // 每个卡片的高度（包括间距）
-const BUFFER_SIZE = 3 // 缓冲区大小（上下各显示几个额外的项）
-const scrollTop = ref(0)
-
-// 计算属性
-const { isLoading, error, memos, allTags } = memoStore
+// 必须用 storeToRefs：直接解构会丢掉响应式，登录后 loadMemos 写库不刷新列表
+const { isLoading, error, memos, allTags } = storeToRefs(memoStore)
 
 const displayedMemos = computed(() => {
-  let result = memos
+  let result = [...memos.value]
 
-  // 按搜索查询过滤
+  // 按搜索查询过滤（列表正文已投影截断；深搜请用服务端 search，此处匹配标题/标签/摘要）
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(
       (memo) =>
-        memo.title.toLowerCase().includes(query) || memo.content.toLowerCase().includes(query)
+        memo.title.toLowerCase().includes(query) ||
+        memo.content.toLowerCase().includes(query) ||
+        memo.tags.some((t) => t.toLowerCase().includes(query))
     )
   }
 
@@ -185,7 +187,7 @@ const displayedMemos = computed(() => {
     result = result.filter((memo) => selectedTags.value.every((tag) => memo.tags.includes(tag)))
   }
 
-  // 排序
+  // 排序（拷贝后再 sort，避免原地改写 store 数组）
   return result.sort((a, b) => {
     let comparison = 0
     if (sortBy.value === 'title') {
@@ -197,27 +199,6 @@ const displayedMemos = computed(() => {
     }
     return sortOrder.value === 'desc' ? -comparison : comparison
   })
-})
-
-// 虚拟滚动计算
-const totalHeight = computed(() => displayedMemos.value.length * CARD_HEIGHT)
-
-const visibleRange = computed(() => {
-  const containerHeight = scrollContainer.value?.clientHeight || 600
-  const startIndex = Math.max(0, Math.floor(scrollTop.value / CARD_HEIGHT) - BUFFER_SIZE)
-  const endIndex = Math.min(
-    displayedMemos.value.length,
-    Math.ceil((scrollTop.value + containerHeight) / CARD_HEIGHT) + BUFFER_SIZE
-  )
-  return { startIndex, endIndex }
-})
-
-const visibleMemos = computed(() => {
-  const { startIndex, endIndex } = visibleRange.value
-  return displayedMemos.value.slice(startIndex, endIndex).map((memo, index) => ({
-    ...memo,
-    top: (startIndex + index) * CARD_HEIGHT,
-  }))
 })
 
 // 方法
@@ -258,7 +239,7 @@ const toggleSortOrder = () => {
 }
 
 const getTagCount = (tag: string) => {
-  return memos.filter((memo) => memo.tags.includes(tag)).length
+  return memos.value.filter((memo) => memo.tags.includes(tag)).length
 }
 
 const getExcerpt = (content: string): string => {
@@ -269,10 +250,14 @@ const getExcerpt = (content: string): string => {
     .replace(/<\/div>/gi, '\n')      // 将 </div> 转换为换行
     .replace(/<[^>]*>/g, '')         // 移除其他 HTML 标签
   
-  // 解码 HTML 实体
-  const textarea = document.createElement('textarea')
-  textarea.innerHTML = text
-  text = textarea.value
+  // 解码 HTML 实体（禁 DOM 注入属性）
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
   
   // 清理多余的连续换行，但保留单个换行
   text = text.replace(/\n{3,}/g, '\n\n').trim()
@@ -307,6 +292,24 @@ const formatDate = (date: Date | string): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const formatFullDate = (date: Date | string): string => {
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day} ${h}:${min}`
+}
+
+const hasBeenUpdated = (memo: Memo): boolean => {
+  const created = new Date(memo.createdAt).getTime()
+  const updated = new Date(memo.updatedAt).getTime()
+  if (Number.isNaN(created) || Number.isNaN(updated)) return false
+  return Math.abs(updated - created) > 1000
+}
+
 const handleCreate = () => {
   router.push('/memos/new')
 }
@@ -333,21 +336,9 @@ const handleDelete = async (id: string) => {
   }
 }
 
-const handleScroll = () => {
-  if (scrollContainer.value) {
-    scrollTop.value = scrollContainer.value.scrollTop
-  }
-}
-
 // 生命周期
 onMounted(async () => {
   await loadData()
-
-  // 初始化滚动位置
-  await nextTick()
-  if (scrollContainer.value) {
-    scrollTop.value = scrollContainer.value.scrollTop
-  }
 })
 
 // 监听路由变化，重新加载数据
@@ -376,8 +367,7 @@ watch(
       await nextTick()
       await loadData()
     }
-  },
-  { immediate: true }
+  }
 )
 </script>
 
@@ -392,8 +382,8 @@ watch(
   display: flex;
   gap: 16px;
   padding: 20px;
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--cyp-bg-card);
+  border-bottom: 1px solid var(--cyp-border);
   align-items: center;
   flex-wrap: wrap;
 }
@@ -414,50 +404,52 @@ watch(
 .sort-select {
   height: 36px;
   padding: 0 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
   font-size: 14px;
-  color: #606266;
-  background: white;
+  color: var(--cyp-text-secondary);
+  background: var(--cyp-bg-input);
   cursor: pointer;
 }
 
 .sort-select:focus {
   outline: none;
-  border-color: #409eff;
+  border-color: var(--cyp-brand);
 }
 
 .sort-order-btn {
   width: 36px;
   height: 36px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
-  background: white;
+  background: var(--cyp-bg-input);
   font-size: 16px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .sort-order-btn:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: var(--cyp-brand);
+  color: var(--cyp-brand);
 }
 
 .search-input {
   width: 100%;
   height: 40px;
   padding: 0 40px 0 16px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 20px;
   font-size: 14px;
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
   transition: all 0.3s;
   box-sizing: border-box;
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+  border-color: var(--cyp-brand);
+  box-shadow: 0 0 0 2px rgba(0, 153, 255, 0.1);
 }
 
 .search-icon {
@@ -465,7 +457,7 @@ watch(
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .content-wrapper {
@@ -476,8 +468,8 @@ watch(
 
 .sidebar {
   width: 240px;
-  background: white;
-  border-right: 1px solid #e4e7ed;
+  background: var(--cyp-bg-card);
+  border-right: 1px solid var(--cyp-border);
   overflow-y: auto;
   padding: 20px;
 }
@@ -489,7 +481,7 @@ watch(
 .sidebar-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin-bottom: 12px;
 }
 
@@ -504,24 +496,24 @@ watch(
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   border: 1px solid transparent;
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   transition: all 0.2s;
   text-align: left;
 }
 
 .tag-item:hover {
-  background: #ecf5ff;
-  border-color: #409eff;
-  color: #409eff;
+  background: rgba(0, 153, 255, 0.12);
+  border-color: var(--cyp-brand);
+  color: var(--cyp-brand);
 }
 
 .tag-item.active {
-  background: #409eff;
+  background: var(--cyp-brand);
   color: white;
 }
 
@@ -533,7 +525,7 @@ watch(
 .empty-tags {
   padding: 20px;
   text-align: center;
-  color: #909399;
+  color: var(--cyp-text-muted);
   font-size: 14px;
 }
 
@@ -545,7 +537,7 @@ watch(
 .main-content {
   flex: 1;
   overflow: hidden;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
 }
 
 .error-message {
@@ -555,7 +547,7 @@ watch(
   justify-content: center;
   height: 100%;
   gap: 16px;
-  color: #f56c6c;
+  color: var(--cyp-danger);
 }
 
 .empty-state {
@@ -564,7 +556,7 @@ watch(
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .empty-icon {
@@ -576,111 +568,116 @@ watch(
   font-size: 16px;
 }
 
-.memo-grid {
-  height: 100%;
-  overflow: hidden;
-}
-
-.scroll-container {
+.memo-list {
   height: 100%;
   overflow-y: auto;
-  padding: 20px;
-}
-
-.memo-card-wrapper {
-  padding-bottom: 16px;
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
 }
 
 .memo-card {
-  background: white;
+  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-border);
   border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 14px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   cursor: pointer;
-  transition: all 0.3s;
-  height: 200px;
+  transition: box-shadow 0.2s, border-color 0.2s;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  gap: 10px;
+  box-sizing: border-box;
 }
 
 .memo-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 153, 255, 0.35);
 }
 
 .memo-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  gap: 12px;
 }
 
 .memo-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0;
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: calc(100% - 80px);
+  line-height: 1.4;
 }
 
 .memo-actions {
   display: flex;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.memo-card:hover .memo-actions {
-  opacity: 1;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .action-btn {
-  width: 32px;
-  height: 32px;
-  background: #f5f7fa;
-  border: none;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--cyp-bg-muted);
+  border: 1px solid transparent;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 16px;
-  transition: all 0.2s;
-  display: flex;
+  color: var(--cyp-text-secondary);
+  transition: all 0.15s;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .action-btn:hover {
-  background: #ecf5ff;
-  transform: scale(1.1);
+  background: rgba(0, 153, 255, 0.12);
+  color: var(--cyp-brand, var(--cyp-brand));
+  border-color: rgba(0, 153, 255, 0.25);
+}
+
+.action-btn-danger:hover {
+  background: rgba(245, 108, 108, 0.12);
+  color: var(--cyp-danger);
+  border-color: rgba(245, 108, 108, 0.25);
+}
+
+.btn-leading-icon {
+  margin-right: 4px;
+  vertical-align: middle;
 }
 
 .memo-content {
-  flex: 1;
-  color: #606266;
+  margin: 0;
+  color: var(--cyp-text-secondary);
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
   overflow: hidden;
-  text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-  margin-bottom: 12px;
   word-break: break-word;
   white-space: pre-wrap;
-  min-height: 0;
-  max-height: 72px;
 }
 
 .memo-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid #f0f0f0;
+  padding-top: 10px;
+  border-top: 1px solid var(--cyp-border);
+  gap: 12px;
 }
 
 .memo-tags {
@@ -694,8 +691,8 @@ watch(
 
 .tag {
   padding: 2px 8px;
-  background: #ecf5ff;
-  color: #409eff;
+  background: rgba(0, 153, 255, 0.12);
+  color: var(--cyp-brand);
   border-radius: 4px;
   font-size: 12px;
 }
@@ -703,20 +700,28 @@ watch(
 .memo-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 60%;
 }
 
 .memo-creator {
   font-size: 12px;
-  color: #409eff;
+  color: var(--cyp-brand);
   padding: 2px 8px;
-  background: #ecf5ff;
+  background: rgba(0, 153, 255, 0.12);
   border-radius: 4px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .memo-date {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
+  white-space: nowrap;
 }
 
 /* 移动端适配 */
@@ -728,7 +733,7 @@ watch(
   .sidebar {
     width: 100%;
     border-right: none;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--cyp-border);
     max-height: 200px;
   }
 
@@ -742,60 +747,4 @@ watch(
 }
 
 /* 深色主题支持 */
-[data-theme='dark'] .search-bar,
-[data-theme='dark'] .sidebar,
-[data-theme='dark'] .memo-card {
-  background: #1d1e1f;
-  border-color: #414243;
-}
-
-[data-theme='dark'] .main-content {
-  background: #141414;
-}
-
-[data-theme='dark'] .search-input {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .sidebar-title,
-[data-theme='dark'] .memo-title {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tag-item {
-  background: #262727;
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .tag-item:hover {
-  background: #337ecc;
-}
-
-[data-theme='dark'] .memo-content {
-  color: #a8abb2;
-}
-
-[data-theme='dark'] .action-btn {
-  background: #262727;
-}
-
-[data-theme='dark'] .action-btn:hover {
-  background: #337ecc;
-}
-
-[data-theme='dark'] .memo-footer {
-  border-top-color: #414243;
-}
-
-[data-theme='dark'] .tag {
-  background: #337ecc;
-  color: white;
-}
-
-[data-theme='dark'] .memo-creator {
-  background: #337ecc;
-  color: white;
-}
 </style>

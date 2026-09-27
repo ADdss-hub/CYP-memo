@@ -1,4 +1,4 @@
-﻿/**
+/**
  * TermsDialog 组件测试
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
