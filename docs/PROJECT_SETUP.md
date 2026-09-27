@@ -1,4 +1,4 @@
-﻿# CYP-memo 项目设置文档
+# CYP-memo 项目设置文档
 
 ## 项目概述
 
@@ -56,7 +56,7 @@ cyp-memo/
 │       ├── scripts/        # 构建脚本
 │       └── package.json
 ├── scripts/
-│   ├── dev.js              # 开发环境启动脚本
+│   ├── local.js            # 本机联调启动脚本（生产配置基准）
 │   ├── build.js            # 生产构建脚本
 │   └── release.js          # 版本发布脚本
 ├── docs/                   # 文档目录
@@ -118,7 +118,7 @@ cyp-memo/
 - 共享库可被两个应用引用
 - 统一的依赖管理
 
-### 2. 开发环境
+### 2. 本机联调（生产配置基准）
 - 用户端应用运行在 http://localhost:5173
 - 管理端应用运行在 http://localhost:5174
 - API 服务器运行在 http://localhost:5170
@@ -156,13 +156,13 @@ cyp-memo/
 
 ## 可用命令
 
-### 开发
+### 本机联调
 ```bash
 # 同时启动用户端和管理员端
-pnpm dev
+pnpm local
 
 # 只启动用户端
-pnpm --filter @cyp-memo/app dev
+pnpm --filter @cyp-memo/app local
 
 # 只启动管理员端
 pnpm --filter @cyp-memo/admin dev

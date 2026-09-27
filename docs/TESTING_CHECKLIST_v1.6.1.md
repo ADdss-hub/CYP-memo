@@ -7,17 +7,17 @@
 ```bash
 # 终端 1: 启动服务器端（必须）
 cd packages/server
-pnpm dev
+pnpm local
 # 应显示: Server running on http://localhost:5170
 
 # 终端 2: 启动用户端
 cd packages/app
-pnpm dev
+pnpm local
 # 应显示: Local: http://localhost:5173
 
 # 终端 3: 启动管理端
 cd packages/admin
-pnpm dev
+pnpm local
 # 应显示: Local: http://localhost:5174
 ```
 
@@ -224,7 +224,7 @@ pnpm dev
 ### 测试 16: 移动端适配
 
 **步骤**:
-1. 使用移动设备或浏览器开发者工具
+1. 使用移动设备或浏览器调试工具
 2. 测试响应式布局
 
 **预期结果**:

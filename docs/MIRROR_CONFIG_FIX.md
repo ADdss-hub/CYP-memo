@@ -109,13 +109,13 @@ npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/el
 - ✅ GitHub Actions (Linux 构建)
 - ✅ GitHub Actions (macOS 构建)
 - ✅ GitHub Actions (Windows 构建)
-- ✅ 本地开发脚本 (Linux/macOS)
-- ✅ 本地开发脚本 (Windows)
+- ✅ 本机联调脚本 (Linux/macOS)
+- ✅ 本机联调脚本 (Windows)
 
 ### 无需修改
 - ✅ `.npmrc` 文件（已正确配置）
 - ✅ Docker 构建（使用 .npmrc）
-- ✅ 本地开发（使用 .npmrc）
+- ✅ 本机联调（使用 .npmrc）
 
 ## 🧪 验证方法
 
@@ -150,7 +150,7 @@ pnpm build
 
 1. **项目级别**：使用 `.npmrc` 文件（已配置）
 2. **CI/CD**：使用环境变量（已修复）
-3. **本地开发**：使用环境变量或依赖 `.npmrc`（已修复）
+3. **本机联调**：使用环境变量或依赖 `.npmrc`（已修复）
 4. **不要使用**：`npm config set` 设置非标准选项 ❌
 
 ## 📝 注意事项

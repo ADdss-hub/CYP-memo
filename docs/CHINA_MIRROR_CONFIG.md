@@ -206,7 +206,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 ---
 
-## 🔧 本地开发配置
+## 🔧 本机联调配置（生产基准）
 
 ### 1. 配置 NPM 镜像
 

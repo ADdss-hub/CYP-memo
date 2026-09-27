@@ -1,6 +1,6 @@
-# 跨平台开发环境指南
+# 跨平台本机联调指南（生产配置基准）
 
-本文档说明在不同操作系统和环境下运行 CYP-memo 开发模式可能遇到的问题及解决方案。
+本文档说明在不同操作系统和环境下运行 CYP-memo 本机联调可能遇到的问题及解决方案。
 
 ## 支持的平台
 
@@ -14,17 +14,17 @@
 
 ### Windows
 ```batch
-dev.bat
+local.bat
 # 或
-pnpm dev:all
+pnpm local:all
 ```
 
 ### Linux/macOS
 ```bash
-chmod +x dev.sh
-./dev.sh
+chmod +x local.sh
+./local.sh
 # 或
-pnpm dev:all
+pnpm local:all
 ```
 
 ### Docker
@@ -54,7 +54,7 @@ taskkill /PID <进程ID> /F
 需要安装 Visual Studio Build Tools:
 ```powershell
 npm install -g windows-build-tools
-# 或安装 Visual Studio 2022 并选择 "C++ 桌面开发" 工作负载
+# 或安装 Visual Studio 2022 并选择 MSVC C++ desktop workload 工作负载
 ```
 
 ### 2. macOS 特定问题
@@ -104,7 +104,7 @@ sudo sysctl -p
 需要将 Vite 服务器绑定到 0.0.0.0:
 ```bash
 export VITE_HOST=0.0.0.0
-pnpm dev:all
+pnpm local:all
 ```
 
 #### 4.2 热更新 (HMR) 不工作
@@ -150,7 +150,8 @@ environment:
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `NODE_ENV` | 运行环境 | `development` |
+| `NODE_ENV` | 运行环境 | `production`（CI02 强制） |
+| `APP_ENV` | 应用环境 | `prod`（CI02 强制） |
 | `PORT` | 服务器端口 | `5170` |
 | `DATA_DIR` | 数据存储目录 | 平台相关 |
 | `VITE_HOST` | Vite 服务器主机 | `localhost` |
@@ -158,7 +159,7 @@ environment:
 
 ### 数据目录默认位置
 
-| 平台 | 开发环境默认路径 |
+| 平台 | 本机联调默认路径 |
 |------|------------------|
 | Windows | `./packages/server/data` 或 `%LOCALAPPDATA%/cyp-memo/data` |
 | macOS | `./packages/server/data` 或 `~/Library/Application Support/cyp-memo/data` |
@@ -201,7 +202,7 @@ chmod +x scripts/setup-mirrors.sh
 
 ### 1. 查看详细日志
 ```bash
-LOG_LEVEL=debug pnpm dev:server
+LOG_LEVEL=debug pnpm local:server
 ```
 
 ### 2. 检查端口占用

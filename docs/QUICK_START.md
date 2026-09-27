@@ -24,10 +24,10 @@ pnpm install
 
 ```bash
 # Windows
-dev.bat
+local.bat
 
 # Linux/Mac
-pnpm dev
+pnpm local
 ```
 
 ### 步骤 4: 访问应用
@@ -192,7 +192,7 @@ pnpm migrate
 
 ```bash
 # 直接运行
-pnpm dev
+pnpm local
 
 # 访问 http://localhost:5173
 ```
@@ -305,7 +305,7 @@ pnpm build
 
 ## 📚 更多文档
 
-- [开发文档](./DEVELOPMENT.md)
+- [工程文档](./DEVELOPMENT.md)
 - [SQLite 迁移指南](./SQLITE_MIGRATION.md)
 - [存储架构说明](./STORAGE_ARCHITECTURE.md)
 - [依赖列表](./DEPENDENCIES.md)

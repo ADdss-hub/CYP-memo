@@ -10,7 +10,7 @@ npm install --global windows-build-tools
 
 # 或者安装 Visual Studio Build Tools
 # 下载: https://visualstudio.microsoft.com/downloads/
-# 选择: "使用 C++ 的桌面开发"
+# 选择: MSVC C++ desktop workload
 
 # 然后安装依赖
 cd packages/server
@@ -122,7 +122,7 @@ A: 可以继续使用 JSON 存储，但：
 
 ## 推荐方案
 
-### 开发环境
+### 本机联调（生产配置基准）
 - **Windows**: 使用 Docker
 - **Linux/Mac**: 直接编译
 

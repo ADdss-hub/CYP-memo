@@ -1,4 +1,4 @@
-﻿# 🚀 升级到 v1.7.0 - SQLite 数据库
+# 🚀 升级到 v1.7.0 - SQLite 数据库
 
 ## 概述
 
@@ -112,8 +112,8 @@ pnpm migrate
 ### 步骤 5: 启动服务
 
 ```bash
-# 开发模式
-pnpm dev
+# 本机联调（生产配置基准）
+pnpm local
 
 # 或生产模式
 pnpm build
@@ -234,7 +234,7 @@ cp packages/server/data/database.json.backup.* packages/server/data/database.jso
 # 改回: import { database } from './database.js'
 
 # 重启服务
-pnpm dev
+pnpm local
 ```
 
 ### 方法 2: 回退版本
@@ -242,7 +242,7 @@ pnpm dev
 ```bash
 git checkout v1.6.2
 pnpm install
-pnpm dev
+pnpm local
 ```
 
 ---

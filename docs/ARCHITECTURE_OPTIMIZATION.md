@@ -304,7 +304,7 @@ pm2 save
 ### 技术文档
 
 - ✅ [存储架构说明](./STORAGE_ARCHITECTURE.md)
-- ✅ [开发文档](./DEVELOPMENT.md)
+- ✅ [工程文档](./DEVELOPMENT.md)
 - ✅ [依赖列表](./DEPENDENCIES.md)
 
 ### 服务器文档
@@ -345,7 +345,7 @@ pm2 save
    cd packages/server
    pnpm install
    pnpm migrate
-   pnpm dev
+   pnpm local
    ```
 
 2. **验证效果**
@@ -362,11 +362,11 @@ pm2 save
 
 ## 💡 最佳实践
 
-### 开发环境
+### 本机联调（生产配置基准）
 
 ```bash
-# 使用开发模式
-pnpm dev
+# 使用本机联调（生产配置基准）
+pnpm local
 
 # 自动重启
 # 实时日志

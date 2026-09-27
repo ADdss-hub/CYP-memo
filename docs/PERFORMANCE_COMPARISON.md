@@ -1,4 +1,4 @@
-﻿# 性能对比：JSON vs SQLite
+# 性能对比：JSON vs SQLite
 
 ## 测试环境
 

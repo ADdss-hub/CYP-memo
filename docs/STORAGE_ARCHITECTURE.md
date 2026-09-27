@@ -1,4 +1,4 @@
-﻿# CYP-memo 存储架构说明
+# CYP-memo 存储架构说明
 
 ## 概述
 
@@ -34,7 +34,7 @@ await storageManager.initialize({
 
 ### 2. 本地存储（Local Storage）- 已废弃 ⚠️
 
-**状态**: 已废弃，仅用于开发和测试
+**状态**: 已废弃，仅用于联调与测试
 
 **实现**: `LocalStorageAdapter`
 
@@ -154,22 +154,22 @@ await storageManager.initialize({
 - 用户端通过 API 访问服务器端数据
 - 结果：清除数据库后，所有数据都被清除
 
-## 开发和测试
+## 联调与测试
 
 ### 启动服务
 
 ```bash
 # 启动服务器端（必须）
 cd packages/server
-pnpm dev
+pnpm local
 
 # 启动用户端
 cd packages/app
-pnpm dev
+pnpm local
 
 # 启动管理端
 cd packages/admin
-pnpm dev
+pnpm local
 ```
 
 ### 测试数据清除

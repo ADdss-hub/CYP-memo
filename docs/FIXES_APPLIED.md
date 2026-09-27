@@ -135,7 +135,7 @@ permissions:
 ### 详细配置
 
 查看 `docs/CHINA_MIRROR_CONFIG.md` 获取完整的镜像配置文档，包括：
-- 本地开发配置
+- 本机联调配置（生产基准）
 - CI/CD 配置
 - 故障排查
 - 可用镜像源列表

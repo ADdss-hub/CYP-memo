@@ -69,7 +69,7 @@
 | [Chart.js](https://www.chartjs.org/) | ^4.5.1 | MIT | JavaScript 图表库 |
 | [vue-chartjs](https://vue-chartjs.org/) | ^5.3.3 | MIT | Chart.js 的 Vue 封装 |
 
-## 开发依赖
+## 工程依赖
 
 ### 测试框架
 
@@ -79,7 +79,7 @@
 | [@vue/test-utils](https://test-utils.vuejs.org/) | ^2.4.3 | MIT | Vue 组件测试工具 |
 | [jsdom](https://github.com/jsdom/jsdom) | ^23.0.1 | MIT | JavaScript DOM 实现 |
 | [fast-check](https://github.com/dubzzz/fast-check) | ^3.15.0 | MIT | 属性测试库 |
-| [fake-indexeddb](https://github.com/dumbmatter/fakeIndexedDB) | ^6.2.5 | Apache-2.0 | IndexedDB 模拟库（测试用） |
+| [fake-indexeddb](https://github.com/dumbmatter/fakeIndexedDB) | ^6.2.5 | Apache-2.0 | IndexedDB 桩库（测试）（测试用） |
 
 ### 代码质量工具
 

@@ -1,4 +1,4 @@
-# CYP-memo 开发文档
+# CYP-memo 工程文档
 
 ## 项目架构
 
@@ -37,7 +37,7 @@ cyp-memo/
 - **测试框架**: Vitest + fast-check (属性测试)
 - **代码规范**: ESLint + Prettier
 
-## 开发环境设置
+## 本机联调设置（生产配置基准）
 
 ### 环境要求
 
@@ -51,26 +51,26 @@ cyp-memo/
 pnpm install
 ```
 
-### 开发模式
+### 本机联调（生产配置基准）
 
 ```bash
 # 同时启动用户端和管理员端
-pnpm dev
+pnpm local
 
 # 单独启动用户端
 cd packages/app
-pnpm dev
+pnpm local
 
 # 单独启动管理员端
 cd packages/admin
-pnpm dev
+pnpm local
 ```
 
 访问地址：
 - 用户端: http://localhost:5173
 - 管理端: http://localhost:5174
 - API 服务器: http://localhost:5170
-- 桌面端: 运行 `pnpm dev` 在 `packages/desktop` 目录
+- 桌面端: 运行 `pnpm local` 在 `packages/desktop` 目录
 
 ### 构建
 
@@ -202,7 +202,7 @@ const memo = await memoManager.createMemo('内容', ['标签1', '标签2'])
 const results = await memoManager.searchMemos('关键词')
 ```
 
-## 组件开发
+## 组件编写
 
 ### Vue 组件规范
 
@@ -259,7 +259,7 @@ const count = ref(0)
 
 ## 调试
 
-### 浏览器开发工具
+### 浏览器调试工具
 
 1. **Vue DevTools**: 调试 Vue 组件和状态
 2. **IndexedDB 查看器**: 查看本地数据库
@@ -375,10 +375,10 @@ pm2 save
 ```
 feat: 添加备忘录分享功能
 fix: 修复文件上传失败的问题
-docs: 更新开发文档
+docs: 更新工程文档
 ```
 
-### 开发流程
+### 实现流程
 
 1. Fork 项目
 2. 创建功能分支
@@ -390,7 +390,7 @@ docs: 更新开发文档
 
 ### Q: 如何清除本地数据？
 
-A: 打开浏览器开发工具 → Application → IndexedDB → 删除 CYPMemoDB
+A: 打开浏览器调试工具 → Application → IndexedDB → 删除 CYPMemoDB
 
 ### Q: 如何重置欢迎引导？
 

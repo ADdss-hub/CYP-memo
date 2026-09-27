@@ -127,7 +127,7 @@ packages/
     │   │   │   ├── detail.vue  # 备忘录详情
     │   │   │   └── edit.vue    # 备忘录编辑
     │   │   ├── login/          # 登录页
-    │   │   ├── profile/        # 个人中心
+    │   │   ├── profile/        # 个人资料
     │   │   └── share/          # 分享页
     │   ├── components/
     │   │   ├── MemoCard.vue
@@ -158,7 +158,7 @@ packages/
 | 备忘录列表 | 列表展示、下拉刷新、上拉加载 |
 | 备忘录详情 | 内容展示、附件查看 |
 | 备忘录编辑 | 创建/编辑、标签管理、优先级 |
-| 个人中心 | 基本信息、退出登录 |
+| 个人资料 | 基本信息、退出登录 |
 
 #### 增强阶段（第二版）
 
@@ -244,7 +244,7 @@ export enum Platform {
 
 ---
 
-## 六、开发计划
+## 六、实施计划
 
 ### 6.1 工作量估算
 
@@ -252,7 +252,7 @@ export enum Platform {
 |-----|------|---------|
 | 第一周 | 项目搭建、登录模块、API 对接 | 3-4 天 |
 | 第二周 | 备忘录列表、详情、编辑 | 4-5 天 |
-| 第三周 | 个人中心、UI 优化、测试 | 3-4 天 |
+| 第三周 | 个人资料、UI 优化、测试 | 3-4 天 |
 | 第四周 | 微信登录、分享功能（可选） | 2-3 天 |
 
 **总计：约 12-16 个工作日**
@@ -273,7 +273,7 @@ export enum Platform {
 |-----|------|
 | 微信小程序账号 | 需注册并完成认证 |
 | 服务器域名 | 需配置 HTTPS，添加到小程序白名单 |
-| 开发工具 | 微信开发者工具、HBuilderX（可选） |
+| 调试工具 | 微信调试工具、HBuilderX（可选） |
 
 ---
 
@@ -303,11 +303,11 @@ export enum Platform {
 1. **采用 uni-app 框架** - 最大化复用现有技术栈
 2. **MVP 优先** - 先实现核心功能，快速验证
 3. **微信登录可选** - 初期可仅支持账号密码登录
-4. **渐进式开发** - 根据用户反馈迭代增强
+4. **渐进式迭代** - 根据用户反馈迭代增强
 
 ### 8.3 下一步行动
 
-1. 确认是否启动小程序开发
+1. 确认是否启动小程序实现
 2. 注册微信小程序账号
 3. 配置服务器 HTTPS 和域名白名单
 4. 初始化 uni-app 项目
@@ -319,7 +319,7 @@ export enum Platform {
 ### A. 参考资源
 
 - [uni-app 官方文档](https://uniapp.dcloud.net.cn/)
-- [微信小程序开发文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
+- [微信小程序工程文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
 - [mp-html 富文本组件](https://github.com/nicefan/mp-html)
 - [uView Plus UI 组件库](https://uiadmin.net/uview-plus/)
 

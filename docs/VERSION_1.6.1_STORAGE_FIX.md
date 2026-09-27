@@ -145,16 +145,16 @@ database.json (服务器端文件)
 
 ## 废弃的组件
 
-- `LocalStorageAdapter` - 仅用于开发和测试
+- `LocalStorageAdapter` - 仅用于联调与测试
 - 浏览器 IndexedDB - 不再使用
 
 ## 测试验证
 
 ### 测试步骤
 
-1. 启动服务器：`cd packages/server && pnpm dev`
-2. 启动用户端：`cd packages/app && pnpm dev`
-3. 启动管理端：`cd packages/admin && pnpm dev`
+1. 启动服务器：`cd packages/server && pnpm local`
+2. 启动用户端：`cd packages/app && pnpm local`
+3. 启动管理端：`cd packages/admin && pnpm local`
 4. 注册用户并创建备忘录
 5. 在管理端清除数据库
 6. 刷新用户端，验证数据已清除

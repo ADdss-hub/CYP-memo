@@ -1,4 +1,4 @@
-﻿# SQLite 数据库迁移指南
+# SQLite 数据库迁移指南
 
 ## 概述
 
@@ -57,7 +57,7 @@ pnpm migrate
 ### 3. 启动服务器
 
 ```bash
-pnpm dev
+pnpm local
 ```
 
 服务器会自动使用 SQLite 数据库。
@@ -185,7 +185,7 @@ import { database } from './database.js' // 改回 JSON
 ### 3. 重启服务器
 
 ```bash
-pnpm dev
+pnpm local
 ```
 
 ---

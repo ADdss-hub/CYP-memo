@@ -52,15 +52,15 @@ npm config set electron_mirror https://npmmirror.com/mirrors/electron/
 npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
 ```
 
-## 🏃 启动开发环境
+## 🏃 启动本机联调（生产配置基准）
 
 ```bash
 # 启动所有服务（推荐）
-pnpm dev
+pnpm local
 
 # 或分别启动
-pnpm dev:server  # 启动后端服务
-pnpm dev         # 启动前端开发服务器
+pnpm local:server  # 启动后端服务
+pnpm local         # 启动前端联调（HMR）
 ```
 
 访问：
@@ -105,7 +105,7 @@ docker-compose up -d
 ## 📚 更多文档
 
 - [完整安装指南](./PROJECT_SETUP.md)
-- [开发指南](./DEVELOPMENT.md)
+- [接入指南](./DEVELOPMENT.md)
 - [镜像配置详解](./CHINA_MIRROR_CONFIG.md)
 - [快速参考卡片](./MIRROR_QUICK_REF.md)
 
