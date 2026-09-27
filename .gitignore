@@ -102,3 +102,10 @@ logs/local-debug-*.zip
 __pycache__/
 *.pyc
 
+
+# Local agent / probe artifacts (do not commit)
+.tmp-*
+screenshots/
+test-results/
+packages/app/_tmp_*
+packages/app/public/__shot_*
