@@ -643,7 +643,7 @@ async function exportToPDF(memos: Memo[]) {
       doc.addPage()
     }
     
-    // 创建临时容器用于渲染当前页
+    // 创建临时节点用于渲染当前页
     const container = document.createElement('div')
     container.style.cssText = `
       position: absolute;
@@ -752,7 +752,7 @@ async function exportToPDF(memos: Memo[]) {
       
       doc.addImage(imgData, 'JPEG', xOffset, margin, finalWidth, finalHeight)
     } finally {
-      // 清理临时容器
+      // 清理临时节点
       document.body.removeChild(container)
     }
   }

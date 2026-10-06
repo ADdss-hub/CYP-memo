@@ -4,7 +4,7 @@
 |----|------|
 | 项目 | CYP-memo |
 | 对齐 | `DEPLOY.md` 闭集 35 · Server 声明集 · 四通道安装 · `scripts/` |
-| 禁止 | Docker / compose / Watchtower |
+| 形态 | 仅面板 / NAS / Windows / Unix 原生进程 |
 
 ## 运行底座闭集探针
 
@@ -19,7 +19,7 @@
 
 | 动作 | 命令 |
 |------|------|
-| 数据备份 | `./scripts/backup.sh` |
+| 数据备份 | `./scripts/snapshot/backup.sh` |
 | 本机快照 | `scripts/snapshot/snapshot-local.ps1` |
 
 ## 回滚（rollback）
@@ -27,7 +27,7 @@
 | 动作 | 命令 |
 |------|------|
 | 权威入口 | `scripts/rollback/rollback-local.bat` / `.ps1` |
-| 数据恢复（tar） | `./scripts/restore.sh backups/cyp-memo-backup-*.tar.gz` |
+| 数据恢复（tar） | `./scripts/snapshot/restore.sh backups/cyp-memo-backup-*.tar.gz` |
 | 服务端回退 | 解压上一版 server tarball + 重跑对应 `scripts/install/*` |
 
 ## 监控与告警

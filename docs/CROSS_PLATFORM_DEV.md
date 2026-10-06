@@ -8,7 +8,6 @@
 - macOS (Intel/Apple Silicon)
 - Linux (Ubuntu, Debian, CentOS, Arch 等)
 - WSL2 (Windows Subsystem for Linux)
-- Docker
 
 ## 快速启动
 
@@ -27,10 +26,7 @@ chmod +x local.sh
 pnpm local:all
 ```
 
-### Docker
-```bash
-docker-compose -f docker/docker-compose.dev.yml up
-```
+生产部署见根目录 [`DEPLOY.md`](../DEPLOY.md) 与 `scripts/install/`。
 
 ## 常见问题
 
@@ -121,31 +117,6 @@ server: {
 #### 4.3 文件系统性能
 将项目放在 WSL2 文件系统中（`/home/user/`）而不是 Windows 挂载目录（`/mnt/c/`）。
 
-### 5. Docker 特定问题
-
-#### 5.1 容器内无法访问
-确保端口映射正确:
-```yaml
-ports:
-  - "5170:5170"
-  - "5173:5173"
-  - "5174:5174"
-```
-
-#### 5.2 热更新不工作
-在 Docker 挂载卷中，需要启用轮询:
-```bash
-export VITE_HOST=0.0.0.0
-```
-
-#### 5.3 权限问题
-使用 PUID/PGID 环境变量:
-```yaml
-environment:
-  - PUID=1000
-  - PGID=1000
-```
-
 ## 环境变量配置
 
 | 变量 | 说明 | 默认值 |
@@ -154,7 +125,7 @@ environment:
 | `APP_ENV` | 应用环境 | `prod`（CI02 强制） |
 | `PORT` | 服务器端口 | `5170` |
 | `DATA_DIR` | 数据存储目录 | 平台相关 |
-| `VITE_HOST` | Vite 服务器主机 | `localhost` |
+| `VITE_HOST` | Vite 服务器主机 | 默认 `0.0.0.0`（生产口径） |
 | `LOG_LEVEL` | 日志级别 | `info` |
 
 ### 数据目录默认位置
@@ -164,7 +135,6 @@ environment:
 | Windows | `./packages/server/data` 或 `%LOCALAPPDATA%/cyp-memo/data` |
 | macOS | `./packages/server/data` 或 `~/Library/Application Support/cyp-memo/data` |
 | Linux | `./packages/server/data` 或 `~/.local/share/cyp-memo/data` |
-| Docker | `/app/data` |
 
 ## 原生模块依赖
 
@@ -189,13 +159,13 @@ environment:
 
 ### Windows
 ```powershell
-.\scripts\setup-mirrors.ps1
+.\scripts\install\setup-mirrors.ps1
 ```
 
 ### Linux/macOS
 ```bash
-chmod +x scripts/setup-mirrors.sh
-./scripts/setup-mirrors.sh
+chmod +x scripts/install/setup-mirrors.sh
+./scripts/install/setup-mirrors.sh
 ```
 
 ## 调试技巧

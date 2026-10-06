@@ -6,21 +6,21 @@ $ErrorActionPreference = 'Stop'
 $Root = Get-Root $PSScriptRoot
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
-$dataDir = Join-Path $Root 'packages\server\data'
+$dataDir = if ($env:CYP_SNAPSHOT_DATA_DIR) { $env:CYP_SNAPSHOT_DATA_DIR } else { Join-Path $Root 'packages\server\data' }
 if (-not (Test-Path -LiteralPath $dataDir)) {
   Write-Error "DATA_DIR missing: $dataDir"
   exit 1
 }
 
 $ts = Get-Date -Format 'yyyyMMdd_HHmmss'
-$snapRoot = Join-Path $Root 'backups\snapshots'
+$snapRoot = if ($env:CYP_SNAPSHOT_ROOT) { $env:CYP_SNAPSHOT_ROOT } else { Join-Path $Root 'backups\snapshots' }
 if (-not (Test-Path -LiteralPath $snapRoot)) {
   New-Item -ItemType Directory -Force -Path $snapRoot | Out-Null
 }
 $dest = Join-Path $snapRoot "snap-$ts"
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
-Copy-Item -LiteralPath (Join-Path $dataDir '*') -Destination $dest -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item -Path (Join-Path $dataDir '*') -Destination $dest -Recurse -Force -ErrorAction SilentlyContinue
 # 元数据
 @{
   ts       = (Get-Date).ToUniversalTime().ToString('o')
@@ -28,6 +28,9 @@ Copy-Item -LiteralPath (Join-Path $dataDir '*') -Destination $dest -Recurse -For
   dest     = $dest
   commit   = (Get-CypCommitSha -Root $Root)
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dest 'SNAPSHOT.json') -Encoding UTF8
+
+& node (Join-Path $Root 'scripts\_internal\write-dir-manifest.mjs') $dest
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # 指针：latest
 $latest = Join-Path $snapRoot 'LATEST.txt'

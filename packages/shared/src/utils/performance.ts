@@ -70,8 +70,8 @@ export interface VirtualScrollConfig {
   totalItems: number
   /** 每项高度（像素） */
   itemHeight: number
-  /** 容器高度（像素） */
-  containerHeight: number
+  /** 可视区域高度（像素） */
+  viewportHeight: number
   /** 缓冲区项目数（上下各增加的项目数） */
   bufferSize?: number
 }
@@ -102,7 +102,7 @@ export interface VirtualScrollResult {
  * const result = calculateVirtualScroll(scrollTop, {
  *   totalItems: 10000,
  *   itemHeight: 50,
- *   containerHeight: 600,
+ *   viewportHeight: 600,
  *   bufferSize: 5
  * })
  * // 只渲染 result.startIndex 到 result.endIndex 的项目
@@ -111,10 +111,10 @@ export function calculateVirtualScroll(
   scrollTop: number,
   config: VirtualScrollConfig
 ): VirtualScrollResult {
-  const { totalItems, itemHeight, containerHeight, bufferSize = 3 } = config
+  const { totalItems, itemHeight, viewportHeight, bufferSize = 3 } = config
 
   // 计算可见项目数
-  const visibleCount = Math.ceil(containerHeight / itemHeight)
+  const visibleCount = Math.ceil(viewportHeight / itemHeight)
 
   // 计算开始索引（包含缓冲区）
   const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - bufferSize)

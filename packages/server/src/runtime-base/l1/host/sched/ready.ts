@@ -338,11 +338,60 @@ function upsertSystemCron(id: string, cronExpr: string, handlerName: string): vo
   })
 }
 
+export interface TicketAuditRow {
+  at: string
+  jobId: string
+  from: JobRunStatus | 'none'
+  to: JobRunStatus
+  reason: string
+}
+
+function ticketAuditPath(): string | null {
+  const dir = scheduleDir()
+  return dir ? path.join(dir, 'ticket-audit.jsonl') : null
+}
+
+function appendTicketAudit(row: TicketAuditRow): void {
+  const file = ticketAuditPath()
+  if (!file) return
+  try {
+    ensureScheduleDir()
+    fs.appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf-8')
+  } catch {
+    /* 审计失败不得打断调度 */
+  }
+}
+
+export function listTicketAudit(jobId?: string): TicketAuditRow[] {
+  const file = ticketAuditPath()
+  if (!file || !fs.existsSync(file)) return []
+  const lines = fs.readFileSync(file, 'utf-8').split(/\r?\n/).filter(Boolean)
+  const rows: TicketAuditRow[] = []
+  for (const line of lines.slice(Math.max(0, lines.length - 800))) {
+    try {
+      const row = JSON.parse(line) as TicketAuditRow
+      if (jobId && row.jobId !== jobId) continue
+      rows.push(row)
+    } catch {
+      /* skip */
+    }
+  }
+  return rows
+}
+
 function logJobStatus(
   job: ScheduleJob,
   status: JobRunStatus,
-  extra?: Record<string, unknown>
+  extra?: Record<string, unknown> & { from?: JobRunStatus | 'none' }
 ): void {
+  const from = extra?.from ?? 'none'
+  appendTicketAudit({
+    at: nowIso(),
+    jobId: job.id,
+    from,
+    to: status,
+    reason: String(extra?.reason || 'status'),
+  })
   log({
     level: status === 'error' ? 'error' : 'info',
     message: `schedule job ${status}`,
@@ -367,29 +416,32 @@ async function runJob(job: ScheduleJob, reason: 'tick' | 'trigger'): Promise<voi
   if (reason === 'tick' && !exempt) {
     const gate = shouldDeferScheduleForPerf()
     if (gate.defer) {
+      const from = job.lastStatus
       job.lastStatus = 'deferred'
       job.lastError = gate.reason
       job.lastRunAt = nowIso()
-      logJobStatus(job, 'deferred', { reason, perfGate: gate.reason })
+      logJobStatus(job, 'deferred', { reason, from, perfGate: gate.reason })
       persistJobs()
       return
     }
   }
   const handler = handlers.get(job.handlerName)
   if (!handler) {
+    const from = job.lastStatus
     job.lastStatus = 'error'
     job.lastError = `handler not registered: ${job.handlerName}`
     job.lastRunAt = nowIso()
-    logJobStatus(job, 'error', { reason })
+    logJobStatus(job, 'error', { reason, from })
     persistJobs()
     return
   }
 
   schedState.running.add(job.id)
+  const fromBeforeRun = job.lastStatus
   job.lastStatus = 'running'
   job.lastError = null
   job.lastRunAt = nowIso()
-  logJobStatus(job, 'running', { reason })
+  logJobStatus(job, 'running', { reason, from: fromBeforeRun })
 
   try {
     await Promise.resolve(handler())
@@ -403,14 +455,14 @@ async function runJob(job: ScheduleJob, reason: 'tick' | 'trigger'): Promise<voi
         job.nextRunAt = computeNextCronRun(job.cronExpr)
       }
     }
-    logJobStatus(job, job.lastStatus, { reason })
+    logJobStatus(job, job.lastStatus, { reason, from: 'running' })
   } catch (err) {
     job.lastStatus = 'error'
     job.lastError = err instanceof Error ? err.message : String(err)
     if (job.kind === 'cron' && job.cronExpr) {
       job.nextRunAt = computeNextCronRun(job.cronExpr)
     }
-    logJobStatus(job, 'error', { reason })
+    logJobStatus(job, 'error', { reason, from: 'running' })
   } finally {
     schedState.running.delete(job.id)
     persistJobs()
@@ -553,6 +605,35 @@ export function trigger(id: string): boolean {
   if (!job) return false
   void runJob(job, 'trigger')
   return true
+}
+
+/** 等待本次触发结束（工单状态可审计核验） */
+export async function triggerAwait(id: string): Promise<boolean> {
+  const job = jobs.get(id)
+  if (!job) return false
+  await runJob(job, 'trigger')
+  return true
+}
+
+/**
+ * 嵌入式工单探针：延迟任务一次触发须留下 running 与终态审计行。
+ * 不等于 NR-05 完善；只证明 5.7「状态迁移可审计」的嵌入式落点。
+ */
+export async function runScheduleTicketProbe(): Promise<{
+  triggered: boolean
+  hasRunning: boolean
+  hasTerminal: boolean
+}> {
+  const id = `eq-ticket-${Date.now()}`
+  registerJobHandler('eq_ticket_probe', () => undefined)
+  registerDelay(id, Date.now() - 1, 'eq_ticket_probe')
+  const triggered = await triggerAwait(id)
+  const rows = listTicketAudit(id)
+  return {
+    triggered,
+    hasRunning: rows.some((r) => r.to === 'running'),
+    hasTerminal: rows.some((r) => r.to === 'done' || r.to === 'ok' || r.to === 'error'),
+  }
 }
 
 export function listJobs(): ScheduleJob[] {

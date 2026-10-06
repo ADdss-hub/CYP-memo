@@ -18,7 +18,7 @@ git clone https://github.com/ADdss-hub/CYP-memo.git
 cd CYP-memo
 
 # 运行镜像配置脚本
-bash scripts/setup-mirrors.sh
+bash scripts/install/setup-mirrors.sh
 
 # 安装依赖
 pnpm install
@@ -32,7 +32,7 @@ git clone https://github.com/ADdss-hub/CYP-memo.git
 cd CYP-memo
 
 # 运行镜像配置脚本
-.\scripts\setup-mirrors.ps1
+.\scripts\install\setup-mirrors.ps1
 
 # 安装依赖
 pnpm install
@@ -64,9 +64,9 @@ pnpm local         # 启动前端联调（HMR）
 ```
 
 访问：
-- 用户端: http://localhost:5173
-- 管理端: http://localhost:5174
-- API: http://localhost:5170
+- 用户端: http://127.0.0.1:5173
+- 管理端: http://127.0.0.1:5174
+- API: http://127.0.0.1:5170
 
 ## 📦 构建生产版本
 
@@ -81,26 +81,9 @@ pnpm build:mac    # macOS
 pnpm build:linux  # Linux
 ```
 
-## 🐳 Docker 部署
+## 生产部署
 
-```bash
-# 使用国内镜像构建
-docker build -f docker/Dockerfile -t cyp-memo .
-
-# 运行容器
-docker run -d \
-  -p 5170:5170 \
-  -v ./data:/app/data \
-  --name cyp-memo \
-  cyp-memo
-```
-
-或使用 docker-compose：
-
-```bash
-cd docker
-docker-compose up -d
-```
+权威：根目录 [`DEPLOY.md`](../DEPLOY.md) 与 `scripts/install/`（面板 / NAS / Windows / Unix 原生进程）。
 
 ## 📚 更多文档
 
@@ -130,9 +113,9 @@ pnpm store prune
 pnpm install
 ```
 
-### 3. Docker 拉取镜像慢？
+### 3. 依赖拉取慢？
 
-配置 Docker 镜像加速，参考 [镜像配置文档](./CHINA_MIRROR_CONFIG.md)。
+配置 npm / pnpm 国内镜像，参考 [镜像配置文档](./CHINA_MIRROR_CONFIG.md)。
 
 ### 4. GitHub 访问慢？
 

@@ -59,6 +59,8 @@ export const MEMBER_ASSIGNABLE_PERMISSIONS: readonly string[] = [
   'tenant_monitor',
   'tenant_logs',
   'profile_self',
+  'memo_isolate_peers',
+  'attachment_isolate_peers',
 ] as const
 
 const MEMBER_ASSIGNABLE_SET = new Set(MEMBER_ASSIGNABLE_PERMISSIONS)
@@ -163,6 +165,8 @@ export interface Memo {
   deletedAt: string | null
   createdAt: string
   updatedAt: string
+  /** 允许 MCP 公开投影（O7 flag） */
+  mcpPublic?: boolean
 }
 
 /**
@@ -192,6 +196,20 @@ export interface FileRecord {
   size: number
   path: string
   createdAt: string
+  /** 允许 MCP 公开投影（O7 flag） */
+  mcpPublic?: boolean
+}
+
+/** MCP 个人访问令牌（仅存哈希） */
+export interface McpPatRecord {
+  id: string
+  userId: string
+  tokenHash: string
+  tokenPrefix: string
+  label: string
+  expiresAt: string
+  createdAt: string
+  revokedAt: string | null
 }
 
 /**

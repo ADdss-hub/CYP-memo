@@ -114,6 +114,7 @@ const AUTOMATION_BY_SOURCE: Record<string, AutomationPlan> = {
   'perf-service': { assignee: 'automation:perf', mode: 'hold' },
   telem: { assignee: 'automation:telem', mode: 'ack_close' },
   'g06-registry': { assignee: 'automation:dataflow', mode: 'ack_close' },
+  mcp: { assignee: 'automation:mcp', mode: 'ack_close' },
   manual: { assignee: 'automation:probe', mode: 'ack_close' },
 }
 

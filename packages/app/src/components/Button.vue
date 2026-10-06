@@ -163,7 +163,7 @@ const handleClick = (event: MouseEvent) => {
 
 .btn-danger {
   background: var(--cyp-danger);
-  color: var(--cyp-text);
+  color: #fff;
   border-color: var(--cyp-danger);
   font-weight: 600;
 }
@@ -171,6 +171,7 @@ const handleClick = (event: MouseEvent) => {
 .btn-danger:hover:not(.btn-disabled):not(.btn-loading) {
   background: var(--cyp-danger-hover);
   border-color: var(--cyp-danger-hover);
+  color: #fff;
 }
 
 .btn-default {

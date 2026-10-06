@@ -3,7 +3,9 @@ Description=CYP-memo API (five centers · non-container)
 After=network.target
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=120
 User=cyp-memo
 WorkingDirectory=/opt/cyp-memo/packages/server
 EnvironmentFile=-/opt/cyp-memo/.env

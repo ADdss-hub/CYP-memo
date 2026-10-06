@@ -6,13 +6,6 @@
 
 <template>
   <div :class="['welcome-view', { 'dark-mode': isDarkMode }]">
-    <!-- 背景装饰 -->
-    <div class="bg-decoration">
-      <div class="bg-circle circle-1"></div>
-      <div class="bg-circle circle-2"></div>
-      <div class="bg-circle circle-3"></div>
-    </div>
-
     <div class="welcome-container">
       <!-- 顶部进度条 -->
       <div class="progress-bar-container">
@@ -369,66 +362,22 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--cyp-bg-page);
+  background: transparent;
   padding: 1.5rem 1.5rem 0;
   position: relative;
   overflow-x: hidden;
 }
 
-/* 背景装饰 */
-.bg-decoration {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.bg-circle {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  animation: float 20s infinite ease-in-out;
-}
-
-.circle-1 {
-  width: 400px;
-  height: 400px;
-  top: -100px;
-  right: -100px;
-  animation-delay: 0s;
-}
-
-.circle-2 {
-  width: 300px;
-  height: 300px;
-  bottom: -50px;
-  left: -50px;
-  animation-delay: -5s;
-}
-
-.circle-3 {
-  width: 200px;
-  height: 200px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation-delay: -10s;
-}
-
-@keyframes float {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(20px, -20px) scale(1.05); }
-  50% { transform: translate(-10px, 10px) scale(0.95); }
-  75% { transform: translate(10px, 20px) scale(1.02); }
-}
-
-/* 主容器 */
+/* 主布局 */
 .welcome-container {
   max-width: 900px;
   width: 100%;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 24px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cyp-chrome-shadow), 0 25px 80px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   padding: 2rem;
   display: flex;
   flex-direction: column;
@@ -514,14 +463,14 @@ onMounted(() => {
 
 .step-indicator.active .indicator-dot {
   background: var(--cyp-brand);
-  color: white;
+  color: #ffffff;
   transform: scale(1.15);
   box-shadow: 0 4px 15px rgba(0, 153, 255, 0.4);
 }
 
 .step-indicator.completed .indicator-dot {
-  background: #10b981;
-  color: white;
+  background: var(--cyp-success);
+  color: #ffffff;
 }
 
 .step-indicator.clickable:hover .indicator-dot {
@@ -860,7 +809,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--cyp-brand-hover) 0%, #0077cc 100%);
+  background: linear-gradient(135deg, var(--cyp-brand-hover) 0%, var(--cyp-brand) 100%);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 153, 255, 0.45);
 }
@@ -904,7 +853,7 @@ onMounted(() => {
   width: 18px;
   height: 18px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -953,12 +902,8 @@ onMounted(() => {
 }
 
 /* 深色模式 */
-.dark-mode {
-  background: var(--cyp-bg-page);
-}
-
 .dark-mode .welcome-container {
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
 }
 
 .dark-mode .progress-bar {
@@ -975,7 +920,7 @@ onMounted(() => {
 }
 
 .dark-mode .indicator-label {
-  color: #a5b4fc;
+  color: var(--cyp-brand-soft);
 }
 
 .dark-mode .title-welcome {
@@ -989,7 +934,7 @@ onMounted(() => {
 }
 
 .dark-mode .badge {
-  background: linear-gradient(135deg, #0b3d66 0%, var(--cyp-brand-hover) 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
   color: #ffffff;
 }
 
@@ -999,7 +944,7 @@ onMounted(() => {
 }
 
 .dark-mode .illustration-wrapper {
-  background: linear-gradient(135deg, #0b3d66 0%, var(--cyp-brand-hover) 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
 }
 
 .dark-mode .illustration-icon,
@@ -1022,7 +967,7 @@ onMounted(() => {
 }
 
 .dark-mode .feature-card:hover {
-  background: linear-gradient(135deg, #0b3d66 0%, var(--cyp-brand-hover) 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
 }
 
 .dark-mode .feature-name {
@@ -1049,11 +994,11 @@ onMounted(() => {
 
 .dark-mode .btn-secondary {
   background: var(--cyp-bg-muted);
-  color: #e5e7eb;
+  color: var(--cyp-text-secondary);
 }
 
 .dark-mode .btn-secondary:hover {
-  background: #4b5563;
+  background: var(--cyp-bg-elevated);
 }
 
 .dark-mode .btn-text {

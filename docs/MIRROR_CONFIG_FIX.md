@@ -73,7 +73,7 @@ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install
     ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
 ```
 
-### 2. `scripts/setup-mirrors.sh`
+### 2. `scripts/install/setup-mirrors.sh`
 
 **修复前**：
 ```bash
@@ -88,7 +88,7 @@ export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
 export ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
 ```
 
-### 3. `scripts/setup-mirrors.ps1`
+### 3. `scripts/install/setup-mirrors.ps1`
 
 **修复前**：
 ```powershell
@@ -114,7 +114,7 @@ npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/el
 
 ### 无需修改
 - ✅ `.npmrc` 文件（已正确配置）
-- ✅ Docker 构建（使用 .npmrc）
+- ✅ 发行包构建（使用 .npmrc）
 - ✅ 本机联调（使用 .npmrc）
 
 ## 🧪 验证方法

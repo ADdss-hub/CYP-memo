@@ -25,7 +25,11 @@ const SIGNAL_RE =
   /\b(RB-L[01]-[A-Z]+-[A-Z]+-\d+|HOST-[A-Z]+|COL-[A-Z]+|MGMT-[A-Z]+|PUB-[A-Z]+)\b/g
 const CENTER_RE = /[\u4e00-\u9fff]{0,24}中心/g
 
-const SCAN_DIRS = ['docs/runtime-base', 'packages/server/src/runtime-base']
+const SCAN_DIRS = [
+  'docs/runtime-base',
+  'packages/server/src/runtime-base',
+  'packages/desktop/src/main',
+]
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out

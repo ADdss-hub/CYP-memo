@@ -1,5 +1,6 @@
-# CYP-memo: stop local stack by listening ports 5170/5173/5175 only
-# 5175 = desktop Vite；产品壳 5174 已废止
+# CYP-memo: stop local stack by listening ports 5170/5173/10170/13175/12000
+# 10170 = 后端 API 服务（仅环回）；13175 = MCP 旁路；12000 = KMS；产品壳 5174 已废止
+# 12000 = KMS 密钥保险箱独立服务（基础设施服务段）
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'
 
@@ -17,7 +18,7 @@ Write-CypJsonl -Path $stopJsonl -TraceId $traceId -Fields @{
 } | Out-Null
 
 Write-Host '== CYP-memo stop-local =='
-$ports = @(5170, 5173, 5175)
+$ports = @(5170, 5173, 10170, 13175, 12000)
 $killed = New-Object System.Collections.Generic.List[int]
 
 foreach ($port in $ports) {

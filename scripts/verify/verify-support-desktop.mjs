@@ -64,7 +64,16 @@ if (!cache.includes('不冒充')) {
 
 function resolveEmbedLaunch() {
   const dist = path.join(root, 'packages/server/dist/index.js')
-  if (fs.existsSync(dist)) {
+  const src = path.join(root, 'packages/server/src/index.ts')
+  const tsxCli = [
+    path.join(root, 'packages/server/node_modules/tsx/dist/cli.mjs'),
+    path.join(root, 'node_modules/tsx/dist/cli.mjs'),
+  ].find((p) => fs.existsSync(p))
+  // dist 须含 HTTPS（R-TLS-001）；陈旧 HTTP dist 会导致探针 https 永远超时
+  const distOk =
+    fs.existsSync(dist) &&
+    /ensureApiTlsMaterial|createHttpsServer/.test(fs.readFileSync(dist, 'utf8'))
+  if (distOk) {
     return {
       command: process.execPath,
       args: ['--conditions=cyp-node', dist],
@@ -72,11 +81,6 @@ function resolveEmbedLaunch() {
       mode: 'dist',
     }
   }
-  const src = path.join(root, 'packages/server/src/index.ts')
-  const tsxCli = [
-    path.join(root, 'packages/server/node_modules/tsx/dist/cli.mjs'),
-    path.join(root, 'node_modules/tsx/dist/cli.mjs'),
-  ].find((p) => fs.existsSync(p))
   if (src && tsxCli && fs.existsSync(src)) {
     return {
       command: process.execPath,
@@ -93,8 +97,9 @@ if (!launch) {
   fails.push('embed launch unresolved (need server dist or tsx+src)')
 }
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0'
 const readyUrl = (() => {
-  const raw = (process.env.CYP_READY_URL || 'http://127.0.0.1:5170/healthz/ready').trim()
+  const raw = (process.env.CYP_READY_URL || 'https://127.0.0.1:5170/healthz/ready').trim()
   if (/\/healthz\/ready\/?$/.test(raw)) return raw.replace(/\/$/, '')
   return `${raw.replace(/\/$/, '')}/healthz/ready`
 })()
@@ -126,6 +131,8 @@ if (launch && fails.length === 0 && process.env.CYP_SKIP_EMBED_SMOKE !== '1') {
       APP_ENV: 'prod',
       NODE_ENV: 'production',
       LOG_LEVEL: 'error',
+      NODE_TLS_REJECT_UNAUTHORIZED: process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0',
+      CYP_EMBED_START_TIMEOUT_MS: process.env.CYP_EMBED_START_TIMEOUT_MS || '120000',
     },
     cwd: launch.cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -134,7 +141,7 @@ if (launch && fails.length === 0 && process.env.CYP_SKIP_EMBED_SMOKE !== '1') {
   child.stderr?.on('data', (d) => {
     stderr += String(d)
   })
-  const deadline = Date.now() + 60000
+  const deadline = Date.now() + Number(process.env.CYP_EMBED_SMOKE_DEADLINE_MS || 120000)
   try {
     while (Date.now() < deadline) {
       if (child.exitCode != null) {
@@ -142,7 +149,7 @@ if (launch && fails.length === 0 && process.env.CYP_SKIP_EMBED_SMOKE !== '1') {
         break
       }
       try {
-        const res = await fetch(`http://127.0.0.1:${port}/healthz/ready`)
+        const res = await fetch(`https://127.0.0.1:${port}/healthz/ready`)
         if (res.ok) {
           const body = await res.json()
           const rb = body?.data?.runtimeBase

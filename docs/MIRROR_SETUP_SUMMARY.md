@@ -14,8 +14,6 @@
 | Sharp | **华为云** | 455ms | npmmirror 超时 |
 | Chromium/Puppeteer | **华为云** | 53ms | npmmirror 超时 |
 | Node.js | **华为云** | 116ms | npmmirror 超时 |
-| **Docker** |
-| Docker Hub | **网易** | 5ms | 百度云 10ms |
 | **Linux 软件源** |
 | Alpine APK | **阿里云** | 108ms | 网易 199ms |
 | Ubuntu APT | **阿里云** | 50ms | 华为云 67ms |
@@ -25,11 +23,8 @@
 | 文件 | 镜像源 | 状态 |
 |------|--------|------|
 | `.npmrc` | 华为云 (NPM/Electron/原生模块) | ✅ |
-| `docker/Dockerfile` | 阿里云 (Alpine) + 华为云 (NPM) | ✅ |
-| `docker/Dockerfile.dev` | 阿里云 (Alpine) + 华为云 (NPM) | ✅ |
-| `.github/workflows/release.yml` | 阿里云 (Ubuntu) + 网易 (Docker) + 华为云 (NPM) | ✅ |
-| `scripts/setup-mirrors.sh` | 华为云 | ✅ |
-| `scripts/setup-mirrors.ps1` | 华为云 | ✅ |
+| `scripts/install/setup-mirrors.sh` | 华为云 | ✅ |
+| `scripts/install/setup-mirrors.ps1` | 华为云 | ✅ |
 
 ---
 
@@ -56,7 +51,6 @@
 | Chromium/Puppeteer | **53ms** | 5025ms | **95x** |
 | Node.js | **116ms** | 5007ms | **43x** |
 
-### Docker Hub
 
 | 镜像源 | 响应时间 | 推荐 |
 |--------|----------|------|
@@ -104,7 +98,6 @@ node_sqlite3_binary_host_mirror=https://repo.huaweicloud.com/node-sqlite3/
 puppeteer_download_host=https://repo.huaweicloud.com/chromium-browser-snapshots/
 ```
 
-### Docker (网易)
 
 ```json
 {
@@ -117,7 +110,6 @@ puppeteer_download_host=https://repo.huaweicloud.com/chromium-browser-snapshots/
 
 ### Alpine APK (阿里云)
 
-```dockerfile
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 ```
 
@@ -137,8 +129,8 @@ git clone https://github.com/ADdss-hub/CYP-memo.git
 cd CYP-memo
 
 # 运行配置脚本
-bash scripts/setup-mirrors.sh  # Linux/macOS
-.\scripts\setup-mirrors.ps1    # Windows
+bash scripts/install/setup-mirrors.sh  # Linux/macOS
+.\scripts\install\setup-mirrors.ps1    # Windows
 
 # 安装依赖（自动使用最快镜像）
 pnpm install

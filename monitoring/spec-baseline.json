@@ -1,0 +1,147 @@
+{
+  "$schema_note": "CYP-memo 军械库规范对齐基线。verify-spec-drift.mjs 据此强校验：承接文件真实存在 + 最后核对日期<=90天 + 适用规范已全部登记。",
+  "project": "CYP-memo",
+  "baseline_version": "1.0.0",
+  "generated": "2026-10-05",
+  "max_age_days": 90,
+  "applicable_specs": [
+    "上线-通用一键本地启动脚本与流程测试强制规范",
+    "部署-通用非容器跨系统架构平台服务启动编排规范",
+    "开发-通用统一运行底座平台架构设计规范",
+    "监控告警可观测性规范-2.14-R14",
+    "军械库性能工程分层检查标准-IA85",
+    "编码合规规范-2.5.2",
+    "门禁对齐与一票否决-B12",
+    "隐私合规与AI约束-2.8-2.9",
+    "研发效能度量-2.7-devloop",
+    "文档即代码与门禁-2.12",
+    "gate_token门禁-3.1.1"
+  ],
+  "specs": [
+    {
+      "spec_name": "上线-通用一键本地启动脚本与流程测试强制规范",
+      "spec_file": "上线（强制要求）-通用一键本地启动脚本与流程测试强制规范",
+      "version": "v1.0.1",
+      "carried_by": [
+        "scripts/start/start-local.sh",
+        "scripts/verify/verify-e2e.sh",
+        ".github/workflows/release.yml"
+      ],
+      "gate_script": ".github/workflows/release.yml (spec-drift-check / bundle-cross-platform-check / verify-gates)",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "部署-通用非容器跨系统架构平台服务启动编排规范",
+      "spec_file": "部署（强制要求）-通用非容器跨系统架构平台服务启动编排规范",
+      "version": "v1.1.0",
+      "carried_by": [
+        "scripts/diagnose/bundle.sh",
+        ".github/workflows/release.yml"
+      ],
+      "gate_script": ".github/workflows/release.yml (bundle-cross-platform-check / CI 三平台矩阵)",
+      "note": "单机单进程 Electron 形态，规范第二~五层（跨架构/跨服务/跨系统/跨平台）不适用；适用面为第八章门禁对齐 + B12（见合规报告 2.12）。",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "开发-通用统一运行底座平台架构设计规范",
+      "spec_file": "开发-通用统一运行底座平台架构设计规范",
+      "version": "V1.8.6",
+      "carried_by": [
+        "docs/runtime-base/COMPLETION_STANDARD.md",
+        "scripts/verify/verify-runtime-base.mjs"
+      ],
+      "gate_script": "scripts/verify/verify-runtime-base.mjs (NR-05/NR-03/NR-06/NR-09/NR-12/NR-15/NR-16 双锚点)",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "监控告警可观测性规范-2.14-R14",
+      "spec_file": "规范 2.14 监控告警可观测性 + R14 三级分级（page/ticket/logging 禁止全量广播）",
+      "version": "2.14 / R14",
+      "carried_by": [
+        "monitoring/prometheus/alerts.yml",
+        "docker-compose.monitoring.yml"
+      ],
+      "gate_script": "monitoring/alertmanager.yml (分级路由) + monitoring/prometheus/alerts.yml (13 条规则 labels.tier)",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "军械库性能工程分层检查标准-IA85",
+      "spec_file": "军械库性能工程分层检查标准（IA85 性能运行管控登记）",
+      "version": "IA85",
+      "carried_by": [
+        "docs/perf/CAP-PERF-DIM.md",
+        "scripts/verify/verify-perf-evid.mjs"
+      ],
+      "gate_script": "scripts/verify/verify-perf-evid.mjs (verify:perf-evid)",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "编码合规规范-2.5.2",
+      "spec_file": "规范 2.5.2 / 2.5.2-7（UTF-8 无 BOM + check-encoding + CI 必跑）",
+      "version": "2.5.2",
+      "carried_by": [
+        "scripts/verify/verify-encoding-clean.py",
+        ".editorconfig",
+        ".gitattributes"
+      ],
+      "gate_script": "scripts/verify/verify-encoding-clean.py (verify:encoding) + CI Static gates",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "门禁对齐与一票否决-B12",
+      "spec_file": "编排规范第八章门禁对齐 + B12 一票否决",
+      "version": "B12",
+      "carried_by": [
+        ".github/workflows/release.yml"
+      ],
+      "gate_script": ".github/workflows/release.yml (publish-release.needs -> verify-gates -> 9 门禁 Job，0 continue-on-error)",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "隐私合规与AI约束-2.8-2.9",
+      "spec_file": "规范 2.8 / 2.9 隐私合规与 AI 约束（脱敏 + AI 改写禁止）",
+      "version": "2.8 / 2.9",
+      "carried_by": [
+        "scripts/redact/redact.sh",
+        "scripts/redact/redact.ps1",
+        "docs/ai/data-classification.md"
+      ],
+      "gate_script": "scripts/verify/verify-redact-dryrun.mjs (redact-check) + scripts/redact/redact.sh",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "研发效能度量-2.7-devloop",
+      "spec_file": "规范 2.7 研发效能度量（devloop 四件套 + jsonl 度量口径）",
+      "version": "2.7",
+      "carried_by": [
+        "scripts/devloop/devloop.sh",
+        "docs/perf/devloop-dashboard.md"
+      ],
+      "gate_script": "scripts/devloop/devloop.sh (start/rerun --tag/locate/fix-check) + docs/perf/devloop-dashboard.md",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "文档即代码与门禁-2.12",
+      "spec_file": "规范 2.12 文档即代码与门禁（adr/compliance/slo/retro/postmortem 文档面）",
+      "version": "2.12",
+      "carried_by": [
+        "docs/adr/README.md",
+        "docs/compliance/README.md",
+        "docs/slo/README.md"
+      ],
+      "gate_script": "docs/ (adr/compliance/ai/slo/retro/postmortem 七目录齐备) + CI docs-lint",
+      "last_checked": "2026-10-05"
+    },
+    {
+      "spec_name": "gate_token门禁-3.1.1",
+      "spec_file": "规范 3.1.1 gate_token 门禁（授权签发面 + 落盘归档 180 天）",
+      "version": "3.1.1",
+      "carried_by": [
+        "scripts/gate/issue-gate-token.sh",
+        "scripts/gate/README.md"
+      ],
+      "gate_script": "scripts/gate/issue-gate-token.sh (issue-gate) + CI issue-gate Job",
+      "last_checked": "2026-10-05"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+---
+description: CYP-memo 氛围 SSOT + 壳层磨砂齐套（禁假完成 · R-THEME-002）
+alwaysApply: true
+---
+
+# CYP-memo · 氛围与壳层磨砂门禁（强制 · R-THEME-002）
+
+权威：军械库 `cyp-ui-theme-system` v1.4 T05a–T05d / TK19 / TK21–TK23 · 主题规范 v2.9 · 违规防止清单步骤 31 · 反例 R-THEME-002。
+
+## 问题（本仓已发生）
+
+宣称全站氛围已落地后仍缺：业务面板未接 chrome、桌面紫渐变第二套皮肤、浅色 EP 半套、紫系 rgba 残留；曾误用关掉业务壳氛围或 `--bg-primary: transparent` 冒充已优化。
+
+## 设计口径（不可分叉）
+
+- 页底氛围 SSOT：`--cyp-atmosphere-*`（蓝光晕+细网格+暗角）；禁止纯色平铺；禁止紫渐变认证/落地壳。
+- 可读性靠壳层磨砂：`--cyp-chrome-bg` / `*-soft` / `*-panel` + 全局 blur；顶栏/侧栏/页脚/工具条/卡片/弹层须半透明透出氛围。
+- **禁止**用「关掉业务壳氛围」冒充布局已修好；**禁止**只改 Token 不扩展真实面板类名选择器。
+- 桌面（`packages/desktop`）与 web 同 `--cyp-*`；禁止 Setup/Layout `#667eea→#764ba2` / `#409eff` 第二套皮肤。
+- 浅色偏好：氛围与 chrome 同步；EP card/dialog/table/input/menu/pagination/tag/date/textarea/drawer 与深色同族覆盖。
+- 输入填充实体（`--cyp-bg-input`）；页壳透出用 body / `--el-bg-color-page`；**禁止** `--bg-primary: transparent`。
+
+## 强制做法
+
+1. 改主题/壳层/桌面 UI 前：先核 `theme.css` 是否仍有 atmosphere + chrome Token 与 blur 选择器。
+2. 宣称氛围/磨砂/主题闭环前：Grep 无 `#409eff` / `#667eea` / `#764ba2` / `rgba(102,126,234`；核 desktop 与 light EP；核关键面板已接 chrome。
+3. 故意保留的白底（如打印预览）须在审计备注中标明，不得混入壳层默认。

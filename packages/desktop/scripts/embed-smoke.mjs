@@ -6,6 +6,8 @@ import { app } from 'electron'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const port = Number(process.env.CYP_EMBED_SMOKE_PORT || 5198)
 const deadlineMs = Number(process.env.CYP_EMBED_SMOKE_DEADLINE_MS || 60000)
@@ -35,7 +37,7 @@ app.whenReady().then(async () => {
     const mod = await import(pathToFileURL(modPath).href)
     const embedded = mod.getEmbeddedServer()
     const used = await embedded.start(port)
-    const base = `http://127.0.0.1:${used}`
+    const base = `https://127.0.0.1:${used}`
     await waitReady(base)
     console.log(`PASS_ELECTRON_EMBED port=${used} items=35 completeForm=true`)
     await embedded.stop()

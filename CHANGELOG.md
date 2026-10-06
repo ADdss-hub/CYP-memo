@@ -5,13 +5,101 @@
 
 ## [2.0.0] - 2026-08-16
 
+### 功能
+
+- 存活探针 `GET /health/live` 与 `GET /live` 返回进程存活 JSON（不走 SPA 壳页）
+- Server 发行包与 tar 备份写出 `.sha256`；有 `CYP_GPG_SIGN_KEY` 才叠加 gpg 分离签名（无密钥不伪造 sidecar）
+- 恢复/回滚前校验完整性：tar 须 sha256（有 sidecar 再验 gpg）；快照须 `MANIFEST.sha256`；Windows 用 `restore-local.ps1`；公钥槽 `deploy/signing/`
+- 采证脚本只打唯一 HTTPS 入口；须隔离 dataDir，禁止默认写入产品库；Release 打包后校验 sha256 并上传 sidecar
+- 打包架构名 `loongarch64` 登记为 `loong64`（桌面 electron-builder 仍无龙芯 target）
+- Windows SCM 注册/卸载（NSSM 或 WinSW）；失败自动重启；禁止用登录计划任务冒充服务
+- Linux 单元改为 `Type=notify` 并设 `TimeoutStartSec`；监听成功后通告 `READY=1`
+- 桌面构建矩阵补 Windows/Linux arm64（macOS 仍为 universal）
+- MCP 协议入站收口：旁路只绑环回；局域网经产品入口 `/mcp` 反代（运行底座网关中心门面）；契约 CDC 消费者期望可机检
+- TLS 签发收口到 `shared/src/tls/issue.ts`；开放协作门户页 `/tenant/open-portal`（唯一产品入口内）
+- 嵌入式 5.7 等价：调度工单审计、对账回放跟配置口径、进程内服务发现（NR-12；不等于完善）
+- 数据处理核算补聚合计数；服务协作补进程内路由拒绝核验
+
+### 修复
+
+- `verify-e2e` 只强制产品口 `:5170`；`:5173` 仅为可选热重载，不再当产品壳门禁
+- 一键启动写出规范字段的 `logs/start-time.json`
+- `scripts/` 根目录不再散落 `.sh`/`.ps1`；备份/恢复/打包/镜像脚本迁入 snapshot 与 install
+- `scripts/` 根目录 Node 入口迁入 start/install/verify/diagnose/_internal
+- 快照 PowerShell 用通配拷贝（`-LiteralPath *` 不会展开，曾只拍到空目录）
+
 ### 文档
 
+- 一键启停/诊断说明与唯一产品入口对齐；快照/回滚补 Unix 入口
+- 运行底座完成判定收口为唯一执行面 `COMPLETION_STANDARD.md`；军械库架构 4.2 / ANTI-90 / R-029 禁闭集落地平行口径；只认 `pnpm verify:runtime-base` 与 `RB_VERDICT`
+- 运行底座交付物对齐 V1.8.6；十二 3 合规台账不进闭集、不挡完成判定；completeForm 为完成判定子集
+- 嵌入式 5.7 等价表：`docs/runtime-base/EMBEDDED_EQUIVALENTS.md`（完成判定子集；NR-12）
+- 闭集 35 张组件卡片落 `docs/runtime-base/component-cards/`（十一交付物；完成判定子集）
+- 残留整改续：U1 按计划每窗 1 万；累计 access 70000/400000；产品库未污染；仍未满额
+- 残留整改：产品唯一入口 V2 登录/分享/上传后删除夹具；交互窗 4 工人 p95=77；`pnpm audit --prod` 0 条；U1 累计 2 万/40 万仍缺口
+- 波次 3（B8）复检：隔离压测门禁强制 API_BASE；交互窗 p95=399、U1 短窗 1 万/40 万；产品库未污染；PERF-EVID 缺口如实保留
+- 波次 2 复检：CSP/HSTS/LIMIT/MCP TLS 机检通过；`pnpm audit --prod` 余 2（node-forge 无补丁末级回退、tiptap 2→3 重大改版暂缓）；5170 未监听未做入口实机
+- 安全与性能分批整改计划：`docs/design/CYP-memo-P5-安全优化分批整改与复合检验计划.md`（B1–B8 + V0–V4 复合检验；未实施代码）
+- 清理产品与活动文档中残留的编排部署字眼；品牌与部署口径统一为原生进程（`ServerConfig` 取代旧配置类型名）
+- 全站联调 HTTPS（R-TLS-001）：App `:5173` / API `:5170` / MCP `:5175` 一律 TLS（同套 `{dataDir}/tls`）；环回 MCP 不再明文；README / LOCAL_DEV / 启动主链接改 `https://`
+- 主 API HTTPS（R-TLS-001）：正规 `{dataDir}/tls/official` 优先否则产品叶子 `{dataDir}/tls/leaf`（主题 CYP-memo）；README / LOCAL_DEV / DEPLOY / 启动脚本主链接改 `https://<网卡IP>:5170`
+- 军械库 TLS 规范 v1.2 §〇 镜像：产品门禁 `cyp-memo-tls-cert-fallback-gate` 同步「产品名 CN（禁 MCP）+ 内容完备」
+- MCP 功能域 P3 设计审计报告：`docs/design/CYP-memo-P3-MCP设计审计报告.md`（安全/权限/分段/观测 4/4 通过）；设计 §16 修订⑬
+- 设计报告 §17 修订⑫：O1–O7 产品侧按建议默认落地；机检 `OPEN_ITEMS_O1_O7_PASS`；老板书面确认标可选
+- 设计报告 §11.1 修订⑪ / README / DEPLOY：嵌入 server 同进程 MCP 明示不做；协议面仅旁路 packages/mcp
+- 设计报告 §11.1 / README / DEPLOY：旧 HTTP+SSE 独立端点明示不做；Streamable HTTP 内 SSE 通道为唯一 SSE 形态（修订⑩）
+- 设计报告 §8.4 补 file Resources：`cypmemo://file/{id}/{layer}`（修订⑨）
+- MCP 客户端接入说明：`pnpm mcp:local` 环回 HTTPS、`pnpm mcp:stdio`；局域网 `allow_lan` 同套证书 HTTPS；公开轨与 PAT；Cursor stdio 样例；协议发现基线与 SDK 会话双轨；见 README / LOCAL_DEV / DEPLOY
+- MCP 设计报告修订⑤：诚实标注官方 SDK@2.x 会话不认 2026-07-28、网关 accepted 双轨；A8 对齐 O6
+- 本机联调访问口径对齐生产：绑定 `0.0.0.0`，对外用实机网卡 IP（禁 localhost / 禁以环回冒充生产访问）；CORS/启动输出同步
+- 设计报告归口（R-028）：产品功能设计正文 SSOT 落 `docs/design/`；军械库资料库仅指针；禁写入技能目录、禁双正文；alwaysApply 门禁 `cyp-memo-design-doc-placement-gate`
+- MCP 服务 P2 设计报告：`docs/design/CYP-memo-P2-MCP服务设计报告.md`（公开查询可配、全功能个人令牌审核、允许连接器、强制分段阅读）
 - 对齐军械库规则 24.25：文案批准字符集；`verify:font-glyph` / `verify:gates`（字形+禁第二套字族，不检图标）；`--cyp-font-*`；桌面同栈；Release 静态门禁挂接；**禁止借字形治理擅自改图标**
 - 文案字形全面扫收口：CLI 装饰前缀改 `[info]`；encoding 门禁改挂 gcc phase-gate，并跳过 logs/uploads/运行时 data；`pnpm verify:gates` 全绿（**不改产品图标**；规范中的状态图标位已恢复）
+- 运行底座对齐军械库架构 **V1.8.5**：对象存储明确为外部依赖不进闭集 35（与通知三键同档）；接线/README/门禁镜像同步
+- 运行底座对齐军械库架构 **V1.8.4 完全满足**：SSOT 引用收口；出站生效名单禁 raw `CYP_EGRESS_ALLOWLIST`（R-018）；`verify:gates` 并入 runtime-base / complete-form / automation-matrix / storage-ssot / gateway-egress（half-open+chaos）；桌面禁族外「日志中心」；台账热键与实现五键一致
+- 性能优化新标准清单收口：登记 `CAP-PERF-DIM=A2+S2+V2/C2` + PERF-EVID；`verify:perf-evid` / `verify:r008-save-path` / `verify:perf-*` 并入 `verify:gates`；质量抄 1.6.3、U 档抄 1.7；缺口如实进 EVID `gap`
+- PERF-EVID：U0 实机满额通过（访问/存储各 10 万、hard=0、ready 绿、`fullLadderPass=true` stopAfter=U0）；缺口改为 U1～U3 与访问混合 p95 微调
 
 ### 优化
 
+- MCP 旁路随 `local:all` / start-local 自动同启（:5175）；`APP_ENV=prod` 自动局域网绑定；禁再要求手工第二条命令（规则 24.21）
+- 帮助中心 MCP 页布局：接入 / 策略 / 审核三分区；客户端配置上移至接入区；公开投影与能力开关并排；长提示收折；`?tab=` 可深链
+- MCP 个人令牌轮换：帮助中心可一键轮换（吊销旧签同标签新令牌，有效期 30 天说明）；知识 stdio 样例改为帮助中心 MCP 页签发
+- MCP 审核流水可视：帮助中心可查 mcp.audit 回传与 source=mcp 告警；运行日志可筛「MCP 审核」；GET /api/mcp/audit + JSONL 保留 180 天
+- MCP 公开配置补 requireFlag 壳内开关：tag/ids 是否仍须勾选公开可读写；旁路热叠读快照纳入 requireFlag
+- MCP 配置热叠读：旁路监视 dataDir 的 mcp-public-config / mcp-cap-config，变更后无需重启即可生效；写能力新开时注册工具并通知 list_changed；关写时运行时 MCP_CAP_OFF
+- MCP 公开投影收口：文件库勾选「允许 MCP 公开」；帮助中心 MCP 页增加公开最高层/选择器配置（落 dataDir）；公开列表尊重 selector=none
+- MCP 公开选择器 tag/ids：产品壳可填白名单；REST 与旁路按 mode 过滤；旁路叠读同套 mcp-public-config.json
+- MCP 能力开关矩阵：帮助中心可配 enabled/query/写/公开轨/分段/连接器；落 mcp-cap-config.json；旁路叠读；关公开轨时 REST 公开面 404
+- MCP OAuth 同意页：浏览器打开授权端点进 `/help/mcp/oauth/consent` 批准/拒绝；机检 JSON+Bearer 仍可直接发码
+- 新增帮助中心「知识」与独立「MCP」界面：侧栏 `/help/knowledge`、`/help/mcp`（令牌签发、端点、Cursor stdio 可复制）；系统设置仅保留跳转入口
+- 备忘录编辑页布局：标签与 MCP 公开查询同排元信息条；去掉与返回重复的取消；编辑器主区占满余高，附件收为底栏
+- 子账号权限改为下拉多选（按业务/运维/隔离分组）；创建表单账号与权限分块、密码双列
+- 产品入口唯一面（R-PROD-004）：`local:all` 仅 API `:5170` 同域静态；文档/启动只广告一个主链接；可选 `local:hmr`（`:5173`）为内部工具
+- 重置密码安全问题提示图标固定 18px（`el-icon` + 宽高），避免 InfoFilled 撑满信息框
+- 备忘录列表窗口分页：首屏 50 条 +「加载更多」；标签计数一次扫描；避免大库一次挂满 DOM
+- CI02 访问形态对齐生产：Vite 默认 `0.0.0.0`；服务端 CORS/启动日志广告实机网卡 IP
+- 业务壳页底分面：登录后 `AppLayout` 稳工作面（禁认证级网格光晕冲淡列表）；认证/欢迎/分享/404 仍强氛围
+- 全站页底氛围与认证壳同构：`body` 固定氛围层（蓝光晕+细网格+暗角）；布局/欢迎/分享/404/法务透出；认证卡片毛玻璃；浅色同步
+- 业务壳布局：列表/编辑/详情全幅贴边（取消内容区内边距悬浮岛）；表单页仍自带边距；氛围底保留
+- 壳层磨砂面：顶栏/主侧栏/页脚/搜索栏/标签栏/列表区统一 `--cyp-chrome-*` 半透明模糊，透出氛围底
+- 磨砂面全局化：`--cyp-bg-card/muted/elevated` 半透明化；布局壳/业务页根/Element 卡片浮层统一 blur
+- 磨砂面补齐：详情/协议弹窗去硬编码浅底与紫渐变；编辑/分享/法务/Modal/监控 KPI/编辑器壳接 `--cyp-chrome-*`；全局 blur 选择器扩至表单面板与浮层
+- 磨砂面复检收口：欢迎页去紫灰硬编码；会话过期/通知铃/Tooltip/更新条/解析弹窗接 chrome；认证提示框边框改语义色；404 跟主题字色
+- 桌面端主题对齐：去掉紫渐变与 `#409eff`；Setup/Layout/TitleBar/更新条/桌面设置接 `--cyp-chrome-*` 与品牌 token；首屏透出氛围底
+- 主题终扫收口：桌面 `--bg-primary` 恢复控件实体底（禁透明穿透输入框）；`--el-bg-color-page` 透明透出氛围；Loading/滚动条/登录注册 Tab 接 chrome
+- 主题全面补扫：Setup 去紫 rgba；浅色主题 el-card/dialog/表格/输入/下拉接 chrome；运行日志工具条磨砂
+- 浅色 EP 皮肤齐套：菜单/分页/标签/日期/文本域/抽屉/Tooltip 与深色同口径；Setup 成败提示改语义色；监控健康模块接 chrome
+- 认证壳背景：登录/注册/找回/重置由纯色改为品牌蓝光晕 + 细网格 + 暗角；卡片半透明毛玻璃；浅色主题同步
+- 压测硬隔离：U200/压力脚本未设 CYP_LOAD_ISOLATED+专用 DATA_DIR 一律拒绝；禁止写入产品 packages/server/data；提供 purge-u-ladder-fixtures 清理夹具
+- 全局轻提示（Toast / ElMessage / Notification / MessageBox）一律视口正中，禁止顶中底中与左右贴边
+- 健康判定：接口时延当前达标即正常（历史越阈不染状态）；自动派单仅工作未就绪才不正常，持有告警仍为正常
+- 运维概览「整体健康」文案二元化：正常 / 不正常（去掉「关注」「异常」中间态称谓）
+- 运维 IA：概览展示全模块与底座组件健康；侧栏隐藏运行监控（经概览窗口进入）；取消数据维护入口，系统设置增加「注销后清除相关内容」并接线删除 API
+- 运维监控：接口时延卡只看当前窗达标；历史越阈累计迁入「整体健康」模块；整体健康可点开查看就绪/存储/时延/错误/派单/底座组件/文件存储/治理
+- 性能路由分型：交互/标准/重写 SLA（交互 p95=300）；`classifyPerfRoute` / `resolveRouteSla`；U 阶梯负载端默认 maxWorkers=24、429 退避与 status=0 重试一次
+- U 阶梯分批短窗：`CYP_U_BATCH_SIZE` + 累计状态文件；退出码 3=本批成功需续批；禁长连跑时可分批凑满 U 档次数
 - 全覆盖性能收口（二）：列表 `getMemosListByUserIds` 在 SQL 层 substr 投影正文；`/api/data/statistics` 改 COUNT 不计全表；运维日志默认 limit=200（上限 2000）；补 `parentUserId`/`logs.userId`/列表排序复合索引；编辑页复用已加载标签
 - 全覆盖性能收口：租户备忘录列表 `getMemosByUserIds` 一次批查 + `(userId,deletedAt)` 复合索引；无变更 PATCH 跳过历史写；附件关联扫描改 `getMemoAttachmentLinks` 轻量列；用户列表一次 enrich；统计页四请求 `Promise.all`；监控/日志轮询 3s/6s；`verify:perf-coverage`
 - 性能升级（对照 sql.js/REST list/Opossum 业界实践）：sql.js 落盘防抖默认 500ms+脏写合并；列表接口正文投影截断 256；新建带附件改为先上传再单次 create；`/api/ops/snapshot` 等观测路由不进时长 SLA 窗
@@ -20,8 +108,58 @@
 - 运维四页信息架构与壳层收口：概览改为健康 KPI + 快捷入口；监控默认总览、底座/调度折叠；日志去掉跨页重复的数据流转；统一 OpsPageShell；监控轮询改单请求 `GET /api/ops/snapshot`
 - 全站界面设计系统收口：`--cyp-*` 语义 token（含 success/warning/danger/elevated）；共享 Button/Modal/Toast 等去并行暗色 hex；Element Plus 双通道皮肤上移 `theme.css`；壳层 BrandMark 统一；底栏/侧栏优先 SVG；桌面侧栏消费 `menu.ts`；删除未挂路由 HomeView / TenantUsersView
 
+### 修复
+
+- 残留整改：去掉 `selfsigned`/`node-forge`，末级 TLS 改 `@peculiar/x509`；编辑器 TipTap 升至 3.30.5（表扩展改具名导入）
+- 波次 3（B8）：压测隔离门禁强制 `CYP_API_BASE` 与 `/api/config` dataDir 核对；阶梯/压力脚本不再默认打产品 `:5170`；新增交互窗 p95 短对账脚本
+- 波次 2（B4/B5/B6/B7）：去掉 CSP `connect-src https:` 并补 HSTS/XFO；观测库与评论 LIMIT 绑定参数；MCP 客户端按请求放宽局域网 TLS（禁全局 `NODE_TLS_REJECT_UNAUTHORIZED`）；uuid≥11.1.1、markdown-it/body-parser 覆盖收口（tiptap 重大改版与 node-forge 无补丁记残留）
+- 波次 1（B1–B3）：分享/详情/桌面更新日志 HTML 净化后再渲染；会话令牌 HttpOnly Cookie（`cyp_at`）且禁止 localStorage 持久化 apiKey；上传文件名净化 + 扩展名白名单 + 魔数校验
+- MCP 旁路设置：系统设置「MCP 旁路」签发补 Idempotency-Key（缺键曾 400 假失败）；`ensure-app-dist` 源码新于 dist 时自动重建（旧壳无 MCP 区块）；编辑页公开查询 PATCH 同步防重头
+- 恢复系统设置「MCP 个人令牌」与备忘录「允许 MCP 公开查询」；重新启用 PAT 签发/列表/吊销、换发与 IAM 双轨认证
+- 找回账号去掉安全问题路径，仅保留个人令牌找回；选择页文案同步
+- 找回/重置密码选择页功能图标框缩小（32px 图标框 + 16px SVG）
+- App Vite 联调壳与 MCP 环回一律 HTTPS（复用 `ensureApiTlsMaterial` / `ensureMcpTlsMaterial`；同端口拒绝明文）
+
+- TLS 证书身份统一为项目名：叶子/CA 主题 `CN=CYP-memo` / `CN=CYP-memo TLS CA`（含 O/OU/C）；禁 MCP 字样；自动叶子改落 `{dataDir}/tls/leaf`
+- 公开投影 REST 默认不回传备忘录全文（O5 max_layer=summary）；服务端计算用途摘要；`?layer=full` 超层 404
+- 公开文件 blob 在公开最高层非 full 时 404；文件元数据按 layer 返回用途摘要
+- MCP HTTP：缺/错 `MCP-Protocol-Version` 一律 400/-32020；新增 `/discover`；accepted 含产品基线 `2026-07-28` 与官方 SDK 会话版 `2025-11-25`
+- MCP 跳层错误载荷同时带 JSON-RPC `code` 与 `reason`；allow_lan 时 Origin 绑网卡 IP，并自动签发自签证书走 HTTPS
+- MCP 工具业务错误统一 `isError` + JSON `reason`（含 `MCP_READ_LAYER_SKIP`）；连接器 `requireName` 生效
+- 设计报告 A8 与 O6 对齐为 `MCP_NOT_FOUND` 防枚举
+
+### 测试
+
+- 残留整改：产品入口 `v2-product-entry-chain` PASS；交互窗 n=3000 workers=4 p95=77；fileBodyParse 6 条过 TipTap 3
+- 波次 3（B8）：load-isolation-refuse；隔离实例交互窗/U1 短窗报告落 `reports/P6/`
+- 波次 2 复合检验：csp 禁裸 https:；security-headers HSTS/XFO；sql-limit-bind；MCP 源码禁全局 TLS 放宽
+- 波次 1 复合检验：sanitizeHtml XSS 夹具；storage-config 禁持久化 apiKey；upload-guard / auth-cookie 机检；AuthManager 回归 39 条
+- 嵌入冒烟：联调跳过无 TLS 的陈旧 `server/dist`，回退 tsx src；探针与实启对齐 HTTPS（R-TLS-001）
+- R-008 保存路径静态核验认 `Promise.all` 内单次 `updateMemo`；大载荷复测默认 `https://127.0.0.1:5170`
+- 性能单测：10000 条列表改为断言窗口分页首屏 ≤50 卡且耗时 <5s（去掉假虚拟滚动口径）
+- 主 API `api-tls-probe`：HTTPS health 200 + 明文拒绝/非 200；打印 `API_TLS_PROBE_PASS`（`pnpm api:tls-probe`）
+- MCP open-items：O1–O7 建议默认机检脚本 `mcp-open-items-o1-o7`（`OPEN_ITEMS_O1_O7_PASS`）
+- MCP http-probe：`CYP_MCP_EMBED_SERVER=1` 拒绝；业务 API `/mcp` 非协议面；discover `embeddedInServer=false`
+- MCP http-probe：Streamable HTTP 内 SSE 通道（`event: message`）；`/sse` 404 + `MCP_SSE_LEGACY_DISABLED`；`CYP_MCP_SSE_LEGACY=1` 拒绝加载；discover.transports
+- MCP file Resources：`cypmemo://file/{id}/{layer}` 模板 + 分段 read；accept A_res_file；crosscheck 断言 file 模板
+- MCP accept 补 A3c：`file_write` 实机 upload → update metadata → delete（`list_changed` + `MCP_ACCEPT_PASS`）
+- MCP A1–A10 实机验收：写工具 create/update/delete + 环回 HTTP list/title + A10 禁用 503；通过打印 `MCP_ACCEPT_PASS`
+- MCP `mcp-tls-probe`：正规优先 / 私有 CA ECDSA HTTPS 探活；明文 HTTP 拒绝；证书 SAN 含环回；official 材料优先验证
+- MCP 交叉复核与 `mcp-http-probe` / `mcp-stdio-probe`：公开 blob 门禁、协议缺/错头、discover、HTTP list、A10 禁用、选择器 ids/tag、O4 全文后不阻断、stdio 真连 `tools/list`、PAT 禁转发、exchange、OAuth PKCE、Resources 模板
+- 公开选择器 `flag`/`tag`/`ids`/`none` 在 MCP 公开轨 list/get 生效（未命中 → `MCP_NOT_FOUND`）
+- MCP A9 静稳：夹具写后等业务库 mtime 连续静稳再压 audit，避免防抖落盘误伤
+
 ### 功能
 
+- 主 API 默认 HTTPS：`ensureApiTlsMaterial`（official → `tls/leaf` → 私有 CA / openssl / selfsigned）；同端口不再提供明文 HTTP
+- TLS 产品身份 SSOT：主题 `CN=CYP-memo`（禁 MCP）；完整 DN + SAN + KU/EKU；API/MCP 共用 `{dataDir}/tls/leaf`
+- MCP 部署收口：明示不做嵌入 server 同进程；协议面仅旁路；`CYP_MCP_EMBED_SERVER=1` 拒绝；discover.deployment=sidecar-packages-mcp
+- MCP 传输收口：明示不做独立旧 HTTP+SSE；`/discover.transports`；`CYP_MCP_SSE_LEGACY=1` 拒绝；`/sse` 返回 `MCP_SSE_LEGACY_DISABLED`
+- MCP 局域网：正规证书优先（`dataDir/tls/official`）；未配置则自动私有 CA / ECDSA P-256 自签 HTTPS；证书口径对齐全产品/全平台（凡需 TLS 一律用证）
+- MCP 旁路服务 `@cyp-memo/mcp`：stdio + 环回 Streamable HTTP；默认仅 query；强制分段阅读与诚实报告；用途摘要 ≤50 字；个人令牌（PAT）全功能轨；公开投影 `mcpPublic`；公开选择器 flag/tag/ids/none；写工具默认不注册；运行时 `enableWriteCaps` 补发 `tools/list_changed`
+- MCP 禁 PAT 原样转发：`POST /api/mcp/exchange` 签发 audience=`cyp-memo-rest` 下游令牌；OAuth 2.1 授权码+PKCE+DCR；Resources 模板 `cypmemo://memo/{id}/{layer}`
+- 系统设置签发/吊销 MCP 个人令牌；备忘录编辑「允许 MCP 公开查询」
+- 子账号权限增加「备忘录子账号隔离」「文件库子账号隔离」：默认关闭（主+全部子共用）；勾选后该子账号仅见本人
 - 备忘录编辑器工具栏中文化与双行分组布局（历史/字符/段落/列表/样式/插入）
 - 备忘录编辑器办公档富文本：对齐/文字色/高亮/任务列表/上下标/分割线/撤销重做/清除格式；工具栏分组；详情与分享页同步渲染样式
 - 运维监控聚合快照接口 `GET /api/ops/snapshot`：一次返回健康/就绪/配置/告警工单/调度/弹性/性能/发布/文件存储/治理，减少监控页多 GET 串行轮询
@@ -29,8 +167,24 @@
 - 运行底座网关中心编制落地：六网关子中心全必建（业务/系统/策略控制/出站治理/事件与可观测/安全准入）；HOST-BIZ 门面与数据面车道分离；出站 half-open；ops 可观测预算地板；命名扫描 `verify:gateway-center-naming`
 - 版本探测必建：`api.github.com` 出站由 bootstrap 自动放行，禁止依赖手工 `CYP_EGRESS_ALLOWLIST` 才启用
 
+### 测试
+
+- R-008 大载荷保存整链复测脚本与 `verify:r008-large-payload` 入 gates（无新附件 1×PATCH）
+- U200×4 阶梯：U0 实机证据 `reports/P6/capacity-u200-ladder-1790571099450.json`
+
 ### 修复
 
+- 文件库与备忘录附件双向同步：文件库删除只从备忘录去掉附件（不删备忘录）；备忘录去掉独占附件时删除文件库文件；多备忘录共用则保留
+- 退出当前账号与账号注销口径分清：顶栏菜单改「退出当前账号」并提示不注销不清数据；设置项改「账号注销后清除内容」
+- 系统设置补「退出当前账号」「注销本账号」按钮；自助注销 API `POST /api/users/me/cancel-account`
+- 文件库本范围共享：主+子账号同一文件库与占用合计（仅主账户之间隔离）；列表标上传者；体积单位「字节」
+- 文件库存储卡：主显示本范围文件占用；卷已用/总量/可用单独标注（R-010）
+- 存储口径分称：系统存储空间=dataDir 所在卷；文件库存储空间=本范围附件合计；禁止混用数字（R-010）
+- 系统设置「注销本账号」改用应用内确认框（禁依赖 window.confirm）；补 Bearer 回填与危险按钮对比色
+- 运维概览 / 运行日志 / 运行监控：OpsPageShell 水平居中（max-width + margin auto）
+- 备忘录删除（软删）时级联撤销该备忘录分享记录与评论；硬删 Saga 同口径
+- 自助注销 API 登记业务路由目录，避免底座以「未登记」拒绝（503→可鉴权）
+- 站内通知标题简体中文：`entity_update` 等机读键改为「数据已更新」等；读写两侧均中文化展示（既有 outbox 一并生效）
 - 首次使用协议对话框改接 `content/legal.ts` 与 `/terms` 同源，去掉被整文件回滚打回的过期「禁止商业用途」等旧文案；详情页分享失败展示真实错误
 - 门禁 R-024：禁止用 `git checkout`/`restore` 整文件打回 HEAD 收回误改，避免未提交产品修复被清盘（并强化 R-022/版本史联动）
 - 分享管理前端缺口回补：公开页恢复复制工具条与右侧评论反馈；管理页恢复访客评论折叠/计数/回复；列表接口返回 `hasPassword`；清理过期分享允许 `share_manage`

@@ -84,16 +84,20 @@ onMounted(() => {
 
 <style scoped>
 .toast {
+  /* 视口正中：禁止顶/底/左/右贴边 */
   position: fixed;
-  top: 20px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   min-width: 300px;
   max-width: 500px;
   padding: 16px 20px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -157,13 +161,9 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
-.toast-fade-enter-from {
-  opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
-}
-
+.toast-fade-enter-from,
 .toast-fade-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
+  transform: translate(-50%, -50%) scale(0.96);
 }
 </style>

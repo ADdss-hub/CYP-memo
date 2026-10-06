@@ -34,6 +34,7 @@ export const ACTION_ZH: Record<string, string> = {
   memo_soft_delete_files_fail: '备忘录软删附件失败',
   memo_delete_files_fail: '备忘录删除附件失败',
   public_access_deny: '公开访问拒绝',
+  'mcp.audit': 'MCP 审核回传',
   bootstrap_ready: '底座就绪',
   log_ready: '日志服务就绪',
   'bootstrap.audit_ready': '审计服务就绪',

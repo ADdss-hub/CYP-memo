@@ -13,13 +13,11 @@ import { useAuthStore } from '../src/stores/auth'
 import { db } from '@cyp-memo/shared'
 
 // Mock Element Plus icons
-vi.mock('@element-plus/icons-vue', () => ({
-  View: { name: 'View' },
-  Hide: { name: 'Hide' },
-  SuccessFilled: { name: 'SuccessFilled' },
-  WarningFilled: { name: 'WarningFilled' },
-  DocumentCopy: { name: 'DocumentCopy' }
-}))
+// Mock Element Plus icons：基于真实模块展开，避免白名单式 mock 缺失图标（View/Hide 等）导致失败
+vi.mock('@element-plus/icons-vue', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return { ...actual }
+})
 
 // Mock toast composable
 vi.mock('../src/composables/useToast', () => ({

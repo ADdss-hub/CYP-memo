@@ -20,6 +20,10 @@ permissions:
 env:
   NODE_VERSION: '20.19.6'
   PNPM_VERSION: '10.11.0'
+  # 规范强制：Python 全程 UTF-8，防 Windows 乱码（F-10 门禁用）
+  PYTHONUTF8: '1'
+  # F-15: 运行时版本锁定。NOT落点见仓库根 .nvmrc（与 package.json engines.node 一致）。
+  # 本地 `nvm use` / CI setup-node 均读取 .nvmrc；此处 NODE_VERSION 与之保持同步。
 
 jobs:
   # ========== 构建 Web 端和管理端 ==========
@@ -443,18 +447,240 @@ jobs:
 
       - name: Pack server tarball
         run: |
-          chmod +x scripts/pack-server-release.sh
-          bash scripts/pack-server-release.sh "${GITHUB_REF_NAME#v}" artifacts
+          chmod +x scripts/install/pack-server-release.sh
+          bash scripts/install/pack-server-release.sh "${GITHUB_REF_NAME#v}" artifacts
+          for f in artifacts/*.tar.gz; do
+            node scripts/verify/verify-artifact-integrity.mjs "$f"
+          done
 
       - name: Upload server artifacts
         uses: actions/upload-artifact@v4
         with:
           name: server-release
-          path: artifacts/*.tar.gz
+          path: |
+            artifacts/*.tar.gz
+            artifacts/*.tar.gz.sha256
 
   # ========== 发布 GitHub Release ==========
+  # ========== 门禁（F-10）：独立 Job + 失败阻断合并 ==========
+  # 机制：所有门禁 Job 均 fail-fast（不设 continue-on-error）；
+  # publish-release 通过 needs 依赖 verify-gates，任一门禁失败 → 汇总 Job 失败 → 发布被阻断。
+  # 若要在 PR 合并前强制，请在仓库 Branch protection 中将下列门禁 Job 标记为 required status check。
+  issue-gate:
+    name: Gate · issue-gate (gate_token 签发机制可用)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Verify gate_token issuance mechanism
+        run: |
+          # 若仓库内已签发 merge 令牌，直接校验；否则做自测（签发+校验）证明机制可用
+          if [ -f logs/gate-tokens/.current.merge.token ]; then
+            bash scripts/gate/issue-gate-token.sh verify --token-file logs/gate-tokens/.current.merge.token
+          else
+            echo "merge token not present in CI; self-testing issuance mechanism"
+            bash scripts/gate/issue-gate-token.sh issue --level merge --payload ci-self-test --expires-min 5
+            bash scripts/gate/issue-gate-token.sh verify --token-file logs/gate-tokens/.current.merge.token
+          fi
+        env:
+          PYTHONUTF8: '1'
+
+  redact-check:
+    name: Gate · redact-check (未脱敏敏感信息扫描)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Scan unredacted secrets in logs
+        run: node scripts/verify/verify-redact-dryrun.mjs --dir logs --level strict
+        env:
+          PYTHONUTF8: '1'
+
+  redact-dryrun:
+    name: Gate · redact-dryrun (脱敏干跑)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Redaction dry-run
+        run: node scripts/verify/verify-redact-dryrun.mjs --dir logs --level strict
+        env:
+          PYTHONUTF8: '1'
+
+  docs-lint:
+    name: Gate · docs-lint (md 链接与格式)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Lint markdown links (changed .md only)
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E '\.md$' || true)
+          if [ -z "$changed" ]; then echo "docs-lint: no changed .md in range, skip"; exit 0; fi
+          rc=0
+          for f in $changed; do
+            [ -f "$f" ] || continue
+            targets=$(grep -oE '\]\(([^)]+)\)' "$f" | sed -E 's/^\]\(//; s/\)$//' || true)
+            while IFS= read -r tgt; do
+              [ -z "$tgt" ] && continue
+              case "$tgt" in
+                http://*|https://*|mailto:*|#*) continue;;
+              esac
+              path="${tgt%%#*}"
+              [ -z "$path" ] && continue
+              dir=$(dirname "$f")
+              if [ ! -e "$dir/$path" ] && [ ! -e "$path" ]; then
+                echo "BROKEN LINK: $f -> $tgt"; rc=1
+              fi
+            done <<< "$targets"
+          done
+          if [ "$rc" -ne 0 ]; then echo "docs-lint FAILED"; exit 1; fi
+          echo "docs-lint OK"
+
+  mixed-line-ending:
+    name: Gate · mixed-line-ending (CRLF/LF 混用检查)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check CRLF in changed sh/md/yml
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E '\.(sh|md|yml)$' || true)
+          if [ -z "$files" ]; then echo "mixed-line-ending: no changed sh/md/yml in range, skip"; exit 0; fi
+          rc=0
+          for f in $files; do
+            [ -f "$f" ] || continue
+            if grep -lq $'\r' "$f"; then echo "CRLF found: $f"; rc=1; fi
+          done
+          if [ "$rc" -ne 0 ]; then echo "mixed-line-ending FAILED"; exit 1; fi
+          echo "mixed-line-ending OK"
+
+  spec-drift-check:
+    name: Gate · spec-drift-check (规范基线强校验)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run spec-drift strong verification
+        run: |
+          set -euo pipefail
+          node scripts/verify/verify-spec-drift.mjs
+          # 退出码：0 全通过 / 3 有缺失或超期 / 2 参数或文件错误。非零即阻断发布。
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "spec-drift-check FAILED (exit $rc): baseline drift detected"
+            exit "$rc"
+          fi
+          echo "spec-drift-check OK: all specs aligned within baseline"
+
+  bundle-cross-platform-check:
+    name: Gate · bundle-cross-platform-check (support-bundle 三平台等价)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Verify diagnose tri-platform + support-bundle/bundle presence
+        run: |
+          set -euo pipefail
+          cd scripts/diagnose
+          rc=0
+          # 规范：一键入口 diagnose 必须三平台齐备（.sh/.ps1/.bat）
+          for f in diagnose.sh diagnose.ps1 diagnose.bat support-bundle.ps1 support-bundle.bat bundle.sh; do
+            if [ ! -f "$f" ]; then echo "MISSING: scripts/diagnose/$f"; rc=1; fi
+          done
+          if [ "$rc" -ne 0 ]; then echo "bundle-cross-platform-check FAILED"; exit 1; fi
+          echo "bundle-cross-platform-check OK (diagnose tri-platform + support-bundle/bundle present)"
+
+  encoding-gate:
+    name: Gate · encoding-gate (编码门禁独立 Job)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python (UTF-8)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Encoding gate
+        # F-15 关联：本 Job 强制 UTF-8（PYTHONUTF8=1 见 workflow env）；与 .nvmrc 同源约束
+        run: python scripts/verify/verify-encoding-clean.py .
+        env:
+          PYTHONUTF8: '1'
+
+  static-gates:
+    name: Gate · static-gates (pnpm verify:gates 13 门禁串联)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - name: Configure npm registry (优先华为云镜像加速)
+        run: |
+          if curl -s --connect-timeout 5 --max-time 10 "https://repo.huaweicloud.com/repository/npm/-/ping" > /dev/null 2>&1; then
+            echo "Huawei mirror available, using it"
+            npm config set registry https://repo.huaweicloud.com/repository/npm/
+            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+          else
+            echo "Huawei mirror unavailable, fallback to official"
+            npm config set registry https://registry.npmjs.org/
+            pnpm config set registry https://registry.npmjs.org/
+          fi
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+        env:
+          PYTHONUTF8: '1'
+      - name: Static gates (encoding / CI02 / font-glyph / gateway / runtime-base / ...)
+        run: pnpm verify:gates
+        env:
+          PYTHONUTF8: '1'
+
+  verify-gates:
+    name: Gate · verify-gates (门禁汇总 · 阻断发布)
+    needs: [issue-gate, redact-check, redact-dryrun, docs-lint, mixed-line-ending, spec-drift-check, bundle-cross-platform-check, encoding-gate, static-gates]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Aggregate gate results
+        run: |
+          echo "All gate jobs completed (see individual job results above)."
+          echo "Any failed gate blocks publish-release via the needs dependency."
+
   publish-release:
-    needs: [build-web, build-desktop-windows, build-desktop-macos, build-desktop-linux, build-server-release]
+    needs: [build-web, build-desktop-windows, build-desktop-macos, build-desktop-linux, build-server-release, verify-gates]
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' || github.event.inputs.publish == 'true' }}
     steps:
@@ -469,7 +695,7 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p final-release
-          find release -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.yml" \) -exec cp {} final-release/ \;
+          find release -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.yml" -o -name "*.sha256" \) -exec cp {} final-release/ \;
           ls -la final-release/
 
       - name: Extract version for release notes

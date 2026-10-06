@@ -108,9 +108,12 @@ const handleConfirm = () => {
 }
 
 .modal-container {
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   max-width: 90vw;
   max-height: 90vh;
   display: flex;

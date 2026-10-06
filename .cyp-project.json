@@ -227,18 +227,25 @@
       "go_live_at": "2026-08-16T21:22:27"
     }
   },
-    "updated_at": "2026-09-19T11:30:00",
+    "updated_at": "2026-10-04T18:55:00",
     "complete_form": {
       "rule": "24.13/R-011",
-      "status": "done",
-      "hot_keys": ["logLevel", "infoSamplePercent", "retentionDays"],
-      "verify": ["pnpm verify:complete-form", "scripts/verify/verify-config-complete-form.ps1"]
+      "status": "subset",
+      "architecture": "V1.8.6",
+      "hot_keys": ["logLevel", "infoSamplePercent", "retentionDays", "riskThresholds", "perfSla"],
+      "verify": ["pnpm verify:runtime-base"]
     },
   "runtime_base": {
     "closed_set": "6+2+10+10+5+2=35",
-    "architecture_ssot": "d:\\\\kf\\\\CYP-skill-arsenal\\\\dmc\\\\kb\\\\library\\\\cyp-arsenal\\\\design-docs\\\\CYP-unified-runtime-base-platform-architecture.md",
+    "architecture_version": "V1.8.6",
+    "architecture_ssot": "d:\\\\kf\\\\CYP-skill-arsenal\\\\dmc\\\\spec\\\\kf-specs\\\\开发-通用统一运行底座平台架构设计规范.md",
+    "completion": {
+      "ssot": "docs/runtime-base/COMPLETION_STANDARD.md",
+      "command": "pnpm verify:runtime-base",
+      "verdict_token": "RB_VERDICT"
+    },
     "roster": "packages/server/src/runtime-base/l0/coord/plt/ready.ts",
-    "excluded": "质量门禁子平台、生产Mock约束、一键部署启动、系统通知与对象存储不进闭集",
+    "excluded": "质量门禁子平台、生产Mock约束、一键部署启动、系统通知与对象存储不进闭集（对象存储=外部依赖扩展点，禁止独立就绪键）",
     "基础设施平台": {
       "配置组件": "packages/server/src/runtime-base/l0/infra/cfg/ready.ts",
       "初始化组件": "packages/server/src/runtime-base/l0/infra/init/ready.ts",

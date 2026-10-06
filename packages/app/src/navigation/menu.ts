@@ -15,12 +15,12 @@ import {
   Share,
   User,
   Odometer,
-  Coin,
-  Histogram,
   Document,
   Setting,
   UserFilled,
   Monitor,
+  Reading,
+  Connection,
 } from '@element-plus/icons-vue'
 import { Permission } from '@cyp-memo/shared'
 
@@ -97,22 +97,16 @@ export const APP_MENU_SECTIONS: readonly AppMenuSection[] = [
         permissions: [Permission.TENANT_DASHBOARD],
       },
       {
-        path: '/tenant/database',
-        label: '数据维护',
-        icon: Coin,
-        permissions: [Permission.TENANT_DATABASE],
-      },
-      {
-        path: '/tenant/monitor',
-        label: '运行监控',
-        icon: Histogram,
-        permissions: [Permission.TENANT_MONITOR],
-      },
-      {
         path: '/tenant/logs',
         label: '运行日志',
         icon: Document,
         permissions: [Permission.TENANT_LOGS],
+      },
+      {
+        path: '/tenant/open-portal',
+        label: '开放门户',
+        icon: Connection,
+        permissions: [Permission.TENANT_MONITOR],
       },
     ],
   },
@@ -125,6 +119,22 @@ export const APP_MENU_SECTIONS: readonly AppMenuSection[] = [
         label: '系统设置',
         icon: Setting,
         permissions: [Permission.SETTINGS_MANAGE],
+      },
+    ],
+  },
+  {
+    id: 'help',
+    title: '帮助中心',
+    items: [
+      {
+        path: '/help/knowledge',
+        label: '知识',
+        icon: Reading,
+      },
+      {
+        path: '/help/mcp',
+        label: 'MCP',
+        icon: Connection,
       },
     ],
   },

@@ -1,0 +1,21 @@
+# CYP-memo WinSW 服务描述（须与 winsw.exe 同目录；可执行文件不入库）
+# 用法: 将 WinSW 二进制命名为 CYP-memo.exe 后: CYP-memo.exe install
+<service>
+  <id>CYP-memo</id>
+  <name>CYP-memo</name>
+  <description>CYP-memo API HTTPS unique product entry</description>
+  <executable>node</executable>
+  <arguments>--conditions=cyp-node dist/index.js</arguments>
+  <workingdirectory>%BASE%\packages\server</workingdirectory>
+  <stoptimeout>30 sec</stoptimeout>
+  <env name="APP_ENV" value="prod" />
+  <env name="NODE_ENV" value="production" />
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="none" />
+  <resetfailure>1 hour</resetfailure>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

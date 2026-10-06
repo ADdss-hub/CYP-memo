@@ -31,12 +31,9 @@ pnpm add sql.js
 
 然后修改代码使用 sql.js（性能略低但无需编译）。
 
-### 方法 3: 使用 Docker（最简单）
+### 方法 3: 使用已构建发行包
 
-```bash
-# 直接使用 Docker，无需本地编译
-docker-compose up -d
-```
+若本机无法编译原生模块，下载 GitHub Release 中的 `cyp-memo-server-*.tar.gz`，按 `DEPLOY.md` / `scripts/install/` 安装。
 
 ---
 
@@ -93,10 +90,8 @@ A: 尝试以下方法：
    pnpm install
    ```
 
-2. **使用 Docker**（推荐）
-   ```bash
-   docker-compose up -d
-   ```
+2. **使用已构建发行包**（推荐）
+   下载 GitHub Release 中的 `cyp-memo-server-*.tar.gz`，按 `DEPLOY.md` 安装。
 
 3. **使用 sql.js**（纯 JS 实现）
    - 无需编译
@@ -106,7 +101,7 @@ A: 尝试以下方法：
 ### Q: Windows 上编译很慢？
 
 A: 这是正常的，better-sqlite3 需要编译 C++ 代码。建议：
-- 使用 Docker 部署
+- 使用已构建的 Server 发行包（见 `DEPLOY.md`）
 - 或者等待编译完成（首次约 5-10 分钟）
 
 ### Q: 可以不用 SQLite 吗？
@@ -123,11 +118,10 @@ A: 可以继续使用 JSON 存储，但：
 ## 推荐方案
 
 ### 本机联调（生产配置基准）
-- **Windows**: 使用 Docker
-- **Linux/Mac**: 直接编译
+- **所有平台**: `scripts/start/start-local.*` / `pnpm local:all`
 
 ### 生产环境
-- **所有平台**: 使用 Docker（最简单、最可靠）
+- **所有平台**: `DEPLOY.md` + `scripts/install/` 原生进程通道
 
 ---
 

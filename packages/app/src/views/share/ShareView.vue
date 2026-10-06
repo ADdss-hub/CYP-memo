@@ -87,7 +87,7 @@
 
             <div class="divider" />
 
-            <div class="memo-body" v-html="memo.content" />
+            <div class="memo-body" v-html="safeContent" />
 
             <div v-if="memo.attachments && memo.attachments.length > 0" class="attachments-notice">
               <div class="notice-icon">📎</div>
@@ -177,7 +177,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Button, Loading } from '../../components'
-import { shareManager } from '@cyp-memo/shared'
+import { shareManager, sanitizeHtml } from '@cyp-memo/shared'
 import type { Memo, ShareCommentFeedback, ShareCommentItem } from '@cyp-memo/shared'
 
 const route = useRoute()
@@ -212,6 +212,8 @@ const wordCount = computed(() => {
   const text = memo.value.content.replace(/<[^>]*>/g, '')
   return text.length
 })
+
+const safeContent = computed(() => (memo.value ? sanitizeHtml(memo.value.content) : ''))
 
 const feedbackLabel = (f: ShareCommentFeedback): string => {
   return feedbackOptions.find((o) => o.value === f)?.label || f
@@ -382,7 +384,7 @@ onMounted(async () => {
 <style scoped>
 .share-view {
   min-height: 100vh;
-  background: var(--cyp-bg-page);
+  background: transparent;
   padding: 40px 20px;
 }
 
@@ -412,11 +414,14 @@ onMounted(async () => {
 
 .password-form,
 .error-container {
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
   padding: 48px;
   text-align: center;
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .form-icon,
@@ -479,10 +484,13 @@ onMounted(async () => {
 }
 
 .memo-container {
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
   overflow: hidden;
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .memo-toolbar {
@@ -491,8 +499,8 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 20px;
-  border-bottom: 1px solid var(--cyp-border);
-  background: var(--cyp-bg-muted);
+  border-bottom: 1px solid var(--cyp-chrome-border);
+  background: var(--cyp-chrome-bg-soft);
 }
 
 .toolbar-hint {
@@ -532,8 +540,8 @@ onMounted(async () => {
 }
 
 .memo-aside {
-  border-left: 1px solid var(--cyp-border);
-  background: var(--cyp-bg-muted);
+  border-left: 1px solid var(--cyp-chrome-border);
+  background: var(--cyp-chrome-bg-soft);
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
@@ -620,9 +628,9 @@ onMounted(async () => {
 
 .comment-card {
   padding: 10px;
-  border: 1px solid var(--cyp-border);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-soft);
 }
 
 .comment-head {

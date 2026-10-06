@@ -116,14 +116,50 @@ export class SubAccountManager {
     // 验证子账号归属
     const subAccount = await authValidator.validateSubAccountOwnership(parentUserId, subAccountId)
 
-    // 删除子账号
+    // 远程：DELETE /users/:id 由服务端按 purgeRelatedOnAccountDelete 级联
+    // 本地：在此按同名设置清除相关内容后再删账号
+    const { getStorage } = await import('../../storage/StorageManager')
+    const { LocalStorageAdapter } = await import('../../storage/LocalStorageAdapter')
+    const storage = getStorage()
+    let purgeRelated = true
+    try {
+      const raw = localStorage.getItem('cyp-memo-settings')
+      if (raw) {
+        const parsed = JSON.parse(raw) as { purgeRelatedOnAccountDelete?: boolean }
+        if (typeof parsed.purgeRelatedOnAccountDelete === 'boolean') {
+          purgeRelated = parsed.purgeRelatedOnAccountDelete
+        }
+      }
+    } catch {
+      purgeRelated = true
+    }
+
+    if (purgeRelated && storage instanceof LocalStorageAdapter) {
+      const memos = await storage.getMemosByUserId(subAccountId)
+      for (const m of memos) {
+        await storage.deleteMemo(m.id)
+      }
+      const deleted = await storage.getDeletedMemos(subAccountId)
+      for (const m of deleted) {
+        await storage.deleteMemo(m.id)
+      }
+      const files = await storage.getFilesByUserId(subAccountId)
+      for (const f of files) {
+        await storage.deleteFile(f.id)
+      }
+      const shares = await storage.getSharesByUserId(subAccountId)
+      for (const s of shares) {
+        await storage.deleteShare(s.id)
+      }
+    }
+
     await userDAO.delete(subAccountId)
 
-    // 记录日志
     await logManager.info('删除子账号', {
       parentUserId,
       subAccountId,
       username: subAccount.username,
+      purgeRelated,
     })
   }
 

@@ -15,8 +15,11 @@ import type { User } from '../../../../types.js'
 import { database } from '../../../l0/infra/db/ready.js'
 import { getMachineCapacity } from '../../../l0/infra/cfg/ready.js'
 import { fail, Err } from '../code/ready.js'
+import { readAccessCookie } from '../../../../auth-cookie.js'
 import { log as log } from '../../../l0/infra/log/ready.js'
 import { getAppliedElasticity } from '../../host/resil/ready.js'
+import { getUserByMcpDownstreamToken, isMcpPatAllowedPath } from '../../../../mcp-token.js'
+import { gradeAndEmitAlertCandidate } from '../../host/alert/ready.js'
 
 const HCM_RE = /^HCM-([A-Za-z0-9_\-.]{4,8})(-[A-Za-z0-9_\-.]{4,8})+$/
 const LBN_RE = /^LBN-.+$/
@@ -621,7 +624,7 @@ const egressAutoAllowHosts = new Set<string>(['api.github.com'])
 
 /**
  * 注册出站自动放行主机（bootstrap / 产品必建探测用）。
- * 与 CYP_EGRESS_ALLOWLIST 合并；自动项不可被空 env 取消。
+ * 规则 24.21 / R-018：生效名单仅自动注册项；禁止 raw CYP_EGRESS_ALLOWLIST 扩信任边界。
  */
 export function registerEgressAutoAllow(hosts: string[]): string[] {
   for (const h of hosts) {
@@ -633,19 +636,12 @@ export function registerEgressAutoAllow(hosts: string[]): string[] {
   return getEgressAllowlist()
 }
 
-function allowlistFromEnv(): string[] {
-  return String(process.env.CYP_EGRESS_ALLOWLIST || '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-/** 生效名单 = 自动必建放行 ∪ 环境附加 */
+/** 生效名单 = 仅自动必建放行（内置 ∪ registerEgressAutoAllow）；空 env 不能取消 */
 export function getEgressAllowlist(): string[] {
-  return Array.from(new Set([...egressAutoAllowHosts, ...allowlistFromEnv()]))
+  return Array.from(egressAutoAllowHosts)
 }
 
-/** 出站允许：本机始终允许；外网 = 自动必建放行 ∪ CYP_EGRESS_ALLOWLIST */
+/** 出站允许：本机始终允许；外网仅自动放行名单（禁 raw env 注入主机） */
 export function assertEgressAllowed(target: string): { ok: boolean; reason?: string } {
   const host = hostOf(String(target || '')).toLowerCase()
   if (!host) return { ok: false, reason: 'empty' }
@@ -947,6 +943,9 @@ const WHITELIST_EXACT: ReadonlyArray<{ method: string; path: string }> = [
   { method: 'GET', path: '/users/check-token' },
   /** SIX-LOG：前端错误上报（限流 + 服务端脱敏；可选 Bearer） */
   { method: 'POST', path: '/logs/client-error' },
+  { method: 'GET', path: '/mcp/oauth/metadata' },
+  { method: 'POST', path: '/mcp/oauth/register' },
+  { method: 'POST', path: '/mcp/oauth/token' },
 ]
 
 const WHITELIST_PREFIX: ReadonlyArray<{ method: string; prefix: string }> = [
@@ -955,6 +954,8 @@ const WHITELIST_PREFIX: ReadonlyArray<{ method: string; prefix: string }> = [
   /** 公开分享访问 / 评论（访客无需登录） */
   { method: 'POST', prefix: '/public/shares/' },
   { method: 'GET', prefix: '/public/shares/' },
+  /** MCP 公开投影（T4 环回匿名只读；服务端路径本身无认证） */
+  { method: 'GET', prefix: '/public/mcp/' },
 ]
 
 function apiPath(req: Request): string {
@@ -1026,20 +1027,64 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
     return
   }
 
-  const header = req.headers.authorization
+  let header = req.headers.authorization
+  const path = apiPath(req)
+  /** MCP 审核回传允许无令牌；OAuth authorize 无令牌则进同意页重定向，有令牌可 API 发码 */
+  const mcpOptional =
+    (req.method.toUpperCase() === 'POST' &&
+      (path === '/mcp/audit' || path === '/mcp/selector-snapshot')) ||
+    (req.method.toUpperCase() === 'GET' && path === '/mcp/oauth/authorize')
+
   if (!header || !header.startsWith('Bearer ')) {
+    const cookieToken = readAccessCookie(req)
+    if (cookieToken) {
+      header = `Bearer ${cookieToken}`
+    }
+  }
+
+  if (!header || !header.startsWith('Bearer ')) {
+    if (mcpOptional) {
+      next()
+      return
+    }
     fail(res, 401, Err.UNAUTH, '未认证：需要 Authorization Bearer', req)
     return
   }
 
   const token = header.slice('Bearer '.length).trim()
   if (!token) {
+    if (mcpOptional) {
+      next()
+      return
+    }
     fail(res, 401, Err.UNAUTH, '未认证：Bearer 为空', req)
     return
   }
 
-  const user = database.getUserByToken(token)
+  // 会话 token / MCP 下游令牌；PAT 仅允许换发入口（禁 passthrough）
+  let user = database.getUserByToken(token)
+  if (!user && token.startsWith('cypmcpds_')) {
+    user = getUserByMcpDownstreamToken(token)
+  }
+  if (!user && token.startsWith('cypmcp_')) {
+    if (!isMcpPatAllowedPath(req.method, path)) {
+      gradeAndEmitAlertCandidate({
+        signal: 'MCP_TOKEN_PASSTHROUGH',
+        source: 'mcp',
+        title: 'MCP PAT forwarded to REST',
+        detail: path,
+        grade: 'warn',
+      })
+      fail(res, 401, Err.TOKEN_INVALID, '禁止将个人令牌原样转给业务接口，请先换发下游令牌', req)
+      return
+    }
+    user = database.getUserByMcpPat(token)
+  }
   if (!user) {
+    if (mcpOptional) {
+      next()
+      return
+    }
     fail(res, 401, Err.TOKEN_INVALID, '令牌无效或已失效', req)
     return
   }
@@ -1082,6 +1127,20 @@ export function guardTenantUser(
   return true
 }
 
+/** 子账号隔离判定（避免与 rbac 循环依赖；口径与 resolveVisibleUserIds 一致） */
+function actorIsolatesPeersLocal(
+  actor: { permissions?: string[]; role?: string; isMainAccount?: boolean } | null | undefined,
+  kind: 'memo' | 'attachment'
+): boolean {
+  if (!actor) return false
+  if (actor.role === 'owner' || actor.isMainAccount) return false
+  if (Array.isArray(actor.permissions) && actor.permissions.includes('account_manage')) {
+    return false
+  }
+  const flag = kind === 'memo' ? 'memo_isolate_peers' : 'attachment_isolate_peers'
+  return Array.isArray(actor.permissions) && actor.permissions.includes(flag)
+}
+
 export function guardMemoAccess(
   req: Request,
   res: Response,
@@ -1093,6 +1152,10 @@ export function guardMemoAccess(
     return null
   }
   if (!guardTenantUser(req, res, memo.userId)) return null
+  if (actorIsolatesPeersLocal(req.authUser, 'memo') && memo.userId !== req.authUser!.id) {
+    fail(res, 403, Err.FORBIDDEN, '权限不足：备忘录已启用子账号隔离', req)
+    return null
+  }
   return memo
 }
 
@@ -1107,6 +1170,10 @@ export function guardFileAccess(
     return null
   }
   if (!guardTenantUser(req, res, file.userId)) return null
+  if (actorIsolatesPeersLocal(req.authUser, 'attachment') && file.userId !== req.authUser!.id) {
+    fail(res, 403, Err.FORBIDDEN, '权限不足：文件库已启用子账号隔离', req)
+    return null
+  }
   return file
 }
 

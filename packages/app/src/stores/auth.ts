@@ -172,7 +172,26 @@ export const useAuthStore = defineStore('auth', () => {
       await authManager.logout()
       currentUser.value = null
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '注销失败'
+      error.value = err instanceof Error ? err.message : '退出失败'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * 注销本账号（删除账号；是否清内容看系统设置）
+   */
+  async function cancelOwnAccount() {
+    isLoading.value = true
+    error.value = null
+    try {
+      const result = await authManager.cancelOwnAccount()
+      currentUser.value = null
+      databaseInitialized.value = false
+      return result
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '注销账号失败'
       throw err
     } finally {
       isLoading.value = false
@@ -281,6 +300,7 @@ export const useAuthStore = defineStore('auth', () => {
     registerWithPassword,
     registerWithToken,
     logout,
+    cancelOwnAccount,
     autoLogin,
     resetPassword,
     clearError,

@@ -9,23 +9,26 @@ alwaysApply: true
 
 ## 设计口径（不可分叉）
 
-- **对外正式名一律「存储空间」**（业务页与运维页同名；禁止「服务器磁盘 / 运维磁盘」分叉称呼）。
 - **服务器 `dataDir` = 数据存储唯一根**（sqlite、uploads、logs 等均在其下）。**严禁第二套**存储根或第二套容量口径。
-- 初始化完成的是**路径绑定 + 可写校验 + 子目录创建**；容量是对该根**所在卷**的 OS 探测（跨 Win/macOS/Linux）。
-- 配置管控 + 启动依赖管控须完整：Phase0 注入/校验/存储空间门禁；Phase1 登记文件存储服务。
+- **两项指标必须分称，禁止混用数字**：
+  - **系统存储空间**：`dataDir` 唯一根**所在卷**的 OS 容量（`used` / `total` / `available`）。业务页与运维页同名；禁止再称「服务器磁盘 / 运维磁盘 / 磁盘」分叉。API 正式字段 `health.storageSpace`（`diskSpace` 仅兼容别名）。
+  - **文件库存储空间**：本可见范围内附件文件体积合计（`accountUsed`；默认主+子合计，子账号隔离时仅本人）。**不是**整卷已用；禁止用其冒充系统存储空间已用。
+- 初始化完成的是**路径绑定 + 可写校验 + 子目录创建**；系统存储空间是对该根所在卷的 OS 探测（跨 Win/macOS/Linux）。
+- 配置管控 + 启动依赖管控须完整：Phase0 注入/校验/系统存储空间门禁；Phase1 登记文件存储服务。
 
 ## 强制做法
 
-1. 产品「存储空间」的 `used` / `total` / `available` **必须**来自服务器 dataDir 卷；`health.storageSpace` 为正式字段（`diskSpace` 仅兼容别名）。
-2. 本账号文件体积只能用独立字段（如 `accountUsed`），**禁止**当作整盘已用且不标明。
-3. **禁止**在远程产品路径用 `navigator.storage.estimate`（或其它浏览器配额）作存储空间分母/总量。
+1. 产品「系统存储空间」的 `used` / `total` / `available` **必须**来自服务器 dataDir 卷；`health.storageSpace` 为正式字段。
+2. 「文件库存储空间」只能用独立字段 `accountUsed`，UI 须标明为文件库占用，**禁止**当作整盘已用。
+3. **禁止**在远程产品路径用 `navigator.storage.estimate`（或其它浏览器配额）作系统存储空间分母/总量。
 4. **禁止** multer / sqlite / blob 根再按 `process.cwd()` 或第二套 `DATA_DIR` 解析旁路；唯一根 = `getConfig().dataDir`（及 `{dataDir}/uploads`）。
-5. 探测实现唯一：配置组件 `getDiskSpace`（`packages/server/src/runtime-base/l0/infra/cfg/ready.ts`）。主路径 `fs.statfsSync`（Win / macOS / Linux，x64 / arm64 等同口径，块计数用 bigint）；CLI（Windows PowerShell/wmic、POSIX `df -kP`）仅失败兜底，禁止第二套容量定义。health / storage / bootstrap 同调。
-6. Phase0 须校验存储空间可用量，不足则拒绝就绪；服务须在跨系统/跨平台/跨架构下可启动可使用。
+5. 探测实现唯一：配置组件 `getDiskSpace`（`packages/server/src/runtime-base/l0/infra/cfg/ready.ts`）。主路径 `fs.statfsSync`；CLI 仅失败兜底。health / storage / bootstrap 同调。
+6. Phase0 须校验系统存储空间可用量，不足则拒绝就绪。
 7. 宣称已对齐前：须跑 `verify:storage-ssot` 与 `verify-storage-disk-align`。
 
 ## 反例（本仓已发生）
 
 - 文件库用浏览器配额；运维用 dataDir 卷 → 两套数字。
+- 文件库页把卷已用写成「存储空间」主数字，冒充文件库占用。
 - multer 回退 cwd；sqlite 另读 DATA_DIR。
 - UI 业务写「服务器磁盘」、运维写「磁盘」→ 对外名称分叉。

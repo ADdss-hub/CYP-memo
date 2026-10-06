@@ -1,5 +1,6 @@
 /**
  * 完整形态静态门禁（闭集 35 锚点 + 开发设计约束 2 + 配置·缓存·告警闭环）
+ * 完成判定子集。单独绿不算完成。总判定见 docs/runtime-base/COMPLETION_STANDARD.md 与 verify:runtime-base。
  * 实机：verify-config-complete-form.ps1 + verify-runtime-base-cutin.ps1 + 告警指派/关闭探针
  */
 import fs from 'fs'
@@ -164,6 +165,20 @@ for (const ev of ['AlertAssigned', 'AlertClosed', 'AlertDispatched']) {
 }
 
 const index = read('packages/server/src/index.ts')
+const ctr = read('packages/server/src/runtime-base/l1/col/ctr/ready.ts')
+for (const need of [
+  'registerConsumerExpectation',
+  'verifyConsumerDrivenContracts',
+  'runCdcProbe',
+]) {
+  if (!ctr.includes(need)) fails.push(`cdc missing: ${need}`)
+}
+
+const mcpGw = read('packages/server/src/runtime-base/l1/host/biz/mcp-proxy.ts')
+for (const need of ['gateway-proxy', '127.0.0.1', 'isMcpProtocolIngress']) {
+  if (!mcpGw.includes(need)) fails.push(`mcp-proxy missing: ${need}`)
+}
+if (!index.includes('mcpGatewayProxyMiddleware')) fails.push('index missing mcp gateway proxy')
 for (const need of [
   '/api/config/hot',
   '/api/config/rollback',
@@ -259,12 +274,86 @@ const cmpAuto = read('packages/server/src/runtime-base/l0/coord/cmp/ready.ts')
 if (!cmpAuto.includes('getAutomationIntelligenceState')) {
   fails.push('runtime projection missing automation matrix')
 }
+if (!exists('docs/runtime-base/COMPLIANCE_LEDGER.md')) {
+  fails.push('missing compliance ledger')
+}
+const ledger = read('docs/runtime-base/COMPLIANCE_LEDGER.md')
+if (!ledger.includes('不进闭集') || !ledger.includes('不进入运行底座完成判定')) {
+  fails.push('compliance ledger must stay off closed-set completion')
+}
+for (const rel of [
+  'docs/runtime-base/INFRA_FORM_SELECTION.md',
+  'docs/runtime-base/SECURITY_DEPTH_EVIDENCE.md',
+  'docs/runtime-base/MODULE_DESCRIPTORS.md',
+  'docs/runtime-base/GATEWAY_CENTER.md',
+]) {
+  const t = read(rel)
+  if (!t.includes('V1.8.6')) fails.push(`${rel} must cite V1.8.6`)
+}
+if (read('docs/runtime-base/INFRA_FORM_SELECTION.md').includes('对齐军械库架构 V1.8.3')) {
+  fails.push('INFRA_FORM_SELECTION still cites V1.8.3 as current')
+}
+if (!exists('packages/shared/src/tls/issue.ts')) fails.push('missing tls issue SSOT')
+if (!read('packages/server/src/tls/material.ts').includes('ensureProductTlsMaterial')) {
+  fails.push('api tls must call ensureProductTlsMaterial')
+}
+if (!read('packages/mcp/src/tls/material.ts').includes('ensureProductTlsMaterial')) {
+  fails.push('mcp tls must call ensureProductTlsMaterial')
+}
+if (!exists('packages/app/src/views/tenant/TenantOpenPortalView.vue')) {
+  fails.push('missing open portal view')
+}
+if (!read('packages/app/src/router/index.ts').includes('/tenant/open-portal')) {
+  fails.push('missing open portal route')
+}
+if (!read('packages/server/src/runtime-base/l0/coord/cmp/ready.ts').includes('不等于 NR-05')) {
+  fails.push('completeForm must disclaim NR-05')
+}
+if (!index.includes('/api/open-collab/catalog')) {
+  fails.push('route missing: /api/open-collab/catalog')
+}
 if (!index.includes('/api/automation/status')) {
   fails.push('route missing: /api/automation/status')
 }
+if (!exists('docs/runtime-base/component-cards/README.md')) {
+  fails.push('missing component-cards index')
+}
+for (const id of [
+  'RB-L0-INFRA-CFG-01',
+  'RB-L1-MGMT-PERF-01',
+  'RB-L1-PUB-OPEN-01',
+]) {
+  const rel = `docs/runtime-base/component-cards/${id}.md`
+  if (!exists(rel)) fails.push(`missing card ${id}`)
+  else if (!read(rel).includes('自动化 ACL')) fails.push(`card ${id} missing 自动化 ACL`)
+}
+if (!exists('docs/runtime-base/EMBEDDED_EQUIVALENTS.md')) {
+  fails.push('missing embedded equivalents ledger')
+}
+const eqDoc = read('docs/runtime-base/EMBEDDED_EQUIVALENTS.md')
+if (!eqDoc.includes('NR-12') || !eqDoc.includes('不等于')) {
+  fails.push('embedded equivalents must cite NR-12 and not claim 完善完成')
+}
+const schedSrc = read('packages/server/src/runtime-base/l1/host/sched/ready.ts')
+if (!schedSrc.includes('listTicketAudit') || !schedSrc.includes('runScheduleTicketProbe')) {
+  fails.push('schedule missing ticket audit')
+}
+const acctSrc = read('packages/server/src/runtime-base/l1/host/acct/ready.ts')
+if (!acctSrc.includes('replayLimitFromConfig') || !acctSrc.includes('runAcctReplayProbe') || !acctSrc.includes('aggregateSyncLog')) {
+  fails.push('acct missing config-bound replay/aggregate')
+}
+const svcSrc = read('packages/server/src/runtime-base/l1/col/svc/ready.ts')
+if (!svcSrc.includes('discoverEmbeddedMesh') || !svcSrc.includes('independentMesh') || !svcSrc.includes('routeEmbeddedCall')) {
+  fails.push('svc missing embedded mesh discover/route')
+}
+if (!index.includes('/api/schedule/tickets')) fails.push('route missing: /api/schedule/tickets')
+if (!index.includes('/api/collab/svc/discover')) fails.push('route missing: /api/collab/svc/discover')
 const autoMod = read('packages/server/src/runtime-base/automation-matrix.ts')
 for (const need of ['AUTOMATION_A3_IDS', 'opsObservesOnly', '系统处置单', 'getAutomationIntelligenceState']) {
   if (!autoMod.includes(need)) fails.push(`automation-matrix missing: ${need}`)
+}
+if (!exists('docs/runtime-base/COMPLETION_STANDARD.md')) {
+  fails.push('missing COMPLETION_STANDARD.md')
 }
 if (fails.length) {
   console.error('FAIL_COMPLETE_FORM')
@@ -273,3 +362,4 @@ if (fails.length) {
 }
 console.log('PASS_COMPLETE_FORM')
 console.log(`anchors=${Object.keys(ANCHORS).length}`)
+console.log('NOTE_COMPLETE_FORM_SUBSET')

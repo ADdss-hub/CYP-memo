@@ -20,7 +20,6 @@
 - **错误**: `403 Forbidden - Resource not accessible by integration`
 - **修复**: 添加 GitHub Actions 权限配置
 
-### 4. Docker 构建超时 ⚠️ → ✅
 - **问题**: ARM64 构建卡住
 - **修复**: 增加超时时间，优化构建配置
 
@@ -34,7 +33,6 @@
 |------|----------|
 | `.npmrc` | 添加 NPM、Electron、原生模块镜像配置 |
 | `.github/workflows/release.yml` | 所有 job 添加镜像配置 |
-| `docker/Dockerfile` | 优化构建，添加 --ignore-scripts |
 | `package.json` | 添加 homepage 字段 |
 | `packages/desktop/package.json` | 添加 homepage 字段 |
 | `packages/desktop/scripts/create-placeholder-icons.mjs` | 更新图标尺寸到 256x256 |
@@ -53,8 +51,8 @@
 
 | 文件 | 说明 |
 |------|------|
-| `scripts/setup-mirrors.sh` | Linux/macOS 一键配置脚本 |
-| `scripts/setup-mirrors.ps1` | Windows 一键配置脚本 |
+| `scripts/install/setup-mirrors.sh` | Linux/macOS 一键配置脚本 |
+| `scripts/install/setup-mirrors.ps1` | Windows 一键配置脚本 |
 
 ---
 
@@ -93,13 +91,11 @@
 +     npm config set registry https://registry.npmmirror.com
 +     pnpm config set registry https://registry.npmmirror.com
 
-+ # Docker 构建优化
 + timeout-minutes: 120
 + build-args: |
 +   VERSION=${{ steps.version.outputs.VERSION }}
 ```
 
-### 5. docker/Dockerfile
 ```diff
 + # 优化依赖安装
 - RUN pnpm install --frozen-lockfile
@@ -121,7 +117,6 @@
 |------|--------|--------|------|
 | NPM 安装 | ~5 分钟 | ~1 分钟 | 5x |
 | Electron 下载 | ~10 分钟 | ~30 秒 | 20x |
-| Docker 构建 | ~40 分钟 | ~15 分钟 | 2.7x |
 | 总构建时间 | ~60 分钟 | ~20 分钟 | 3x |
 
 ---
@@ -156,7 +151,6 @@ git commit -m "fix: 修复所有平台构建问题并添加国内镜像加速配
 - 修复 Linux 构建：添加 homepage 字段
 - 修复 Windows 构建：更新图标尺寸到 256x256
 - 修复 macOS 发布：添加 GitHub Actions 权限
-- 优化 Docker 构建：增加超时时间和构建优化
 - 添加完整的国内镜像加速配置
 - 新增详细的配置文档和一键配置脚本"
 ```
@@ -178,7 +172,6 @@ git push origin v1.8.1
 - ✅ Windows 构建成功
 - ✅ macOS 构建并发布成功
 - ✅ Linux 构建成功
-- ✅ Docker 构建成功
 
 ---
 

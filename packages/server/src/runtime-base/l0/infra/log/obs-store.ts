@@ -26,8 +26,11 @@ function scheduleSave(): void {
   saveTimer = setTimeout(() => {
     if (!db || !dbPath) return
     try {
+      const t0 = Date.now()
       const data = db.export()
       fs.writeFileSync(dbPath, Buffer.from(data))
+      const el = Date.now() - t0
+      if (process.env.CYP_MC_DEBUG && el > 80) console.error(`[FLUSH obs ${new Date().toISOString()}] ${el}ms`)
     } catch (err) {
       console.error(
         '[obs-store] save failed',
@@ -132,7 +135,8 @@ export function listObservabilityLogs(limit = 1000): LogEntry[] {
   if (!db) return []
   const n = Math.min(Math.max(Math.floor(limit), 1), 2000)
   const result = db.exec(
-    `SELECT * FROM obs_logs ORDER BY createdAt DESC LIMIT ${n}`
+    'SELECT * FROM obs_logs ORDER BY createdAt DESC LIMIT ?',
+    [n]
   )
   return rowsToObjects(result).map(toLogEntry)
 }
@@ -141,8 +145,8 @@ export function listObservabilityLogsByTrace(traceId: string, limit = 1000): Log
   if (!db || !traceId) return []
   const n = Math.min(Math.max(Math.floor(limit), 1), 2000)
   const result = db.exec(
-    `SELECT * FROM obs_logs WHERE traceId = ? ORDER BY createdAt DESC LIMIT ${n}`,
-    [traceId]
+    'SELECT * FROM obs_logs WHERE traceId = ? ORDER BY createdAt DESC LIMIT ?',
+    [traceId, n]
   )
   return rowsToObjects(result).map(toLogEntry)
 }
@@ -151,8 +155,18 @@ export function listObservabilityLogsByLevel(level: string, limit = 1000): LogEn
   if (!db) return []
   const n = Math.min(Math.max(Math.floor(limit), 1), 2000)
   const result = db.exec(
-    `SELECT * FROM obs_logs WHERE level = ? ORDER BY createdAt DESC LIMIT ${n}`,
-    [level]
+    'SELECT * FROM obs_logs WHERE level = ? ORDER BY createdAt DESC LIMIT ?',
+    [level, n]
+  )
+  return rowsToObjects(result).map(toLogEntry)
+}
+
+export function listObservabilityLogsByAction(action: string, limit = 1000): LogEntry[] {
+  if (!db || !action) return []
+  const n = Math.min(Math.max(Math.floor(limit), 1), 2000)
+  const result = db.exec(
+    'SELECT * FROM obs_logs WHERE action = ? ORDER BY createdAt DESC LIMIT ?',
+    [action, n]
   )
   return rowsToObjects(result).map(toLogEntry)
 }
@@ -163,8 +177,11 @@ export function flushObservabilityStore(): void {
     saveTimer = null
   }
   if (!db || !dbPath) return
+  const t0 = Date.now()
   const data = db.export()
   fs.writeFileSync(dbPath, Buffer.from(data))
+  const el = Date.now() - t0
+  if (process.env.CYP_MC_DEBUG && el > 80) console.error(`[FLUSH obs-now ${new Date().toISOString()}] ${el}ms`)
 }
 
 export function resetObservabilityStore(): void {

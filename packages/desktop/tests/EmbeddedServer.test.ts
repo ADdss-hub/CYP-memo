@@ -73,9 +73,9 @@ describe('EmbeddedServer', () => {
   })
 
   describe('getUrl', () => {
-    it('should return localhost URL with default port', () => {
+    it('should return loopback IP URL with default port', () => {
       const url = server.getUrl()
-      expect(url).toBe('http://localhost:5170')
+      expect(url).toBe('https://127.0.0.1:5170')
     })
   })
 

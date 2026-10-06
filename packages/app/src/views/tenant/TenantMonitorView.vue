@@ -20,12 +20,104 @@
         style="margin-bottom: 16px"
       />
 
-      <!-- 核心指标区 -->
+      <!-- 核心指标区：整体健康汇总各模块；时延卡只看当前窗 -->
       <div class="kpi-grid">
-        <div class="kpi-card" :class="toneClass(overallTone)">
+        <div class="kpi-card kpi-card--wide kpi-card--health" :class="toneClass(overallTone)">
           <div class="kpi-label">整体健康</div>
-          <div class="kpi-value">{{ healthLabel }}</div>
-          <div class="kpi-sub">{{ ready ? '就绪探针 ready' : '未就绪' }}</div>
+          <div class="kpi-value-row">
+            <div class="kpi-value">{{ healthLabel }}</div>
+            <el-tag size="small" :type="overallTagType" effect="plain">
+              {{ healthModuleSummary }}
+            </el-tag>
+          </div>
+          <div class="kpi-sub">{{ healthLead }}</div>
+          <div class="health-modules" role="list">
+            <button
+              v-for="m in healthModules"
+              :key="m.id"
+              type="button"
+              class="health-mod"
+              :class="[toneClass(m.tone), { 'is-active': expandedHealthId === m.id }]"
+              role="listitem"
+              :aria-pressed="expandedHealthId === m.id"
+              :aria-label="`${m.name} ${m.label}`"
+              @click="toggleHealthModule(m.id)"
+            >
+              <span class="health-mod-name">{{ m.name }}</span>
+              <span class="health-mod-status">{{ m.label }}</span>
+            </button>
+          </div>
+          <div
+            v-if="expandedHealth"
+            class="health-detail"
+            role="region"
+            :aria-label="`${expandedHealth.name}明细`"
+          >
+            <p class="health-detail-lead">{{ expandedHealth.detail }}</p>
+            <template v-if="expandedHealth.id === 'base'">
+              <div class="health-detail-groups">
+                <div>
+                  <h3 class="health-detail-h">L0 基础设施与协调</h3>
+                  <div class="roster-grid">
+                    <div
+                      v-for="c in l0Items"
+                      :key="c.id"
+                      class="roster-card"
+                      :class="c.ok ? 'ok' : 'bad'"
+                    >
+                      <span class="roster-id">{{ c.id }}</span>
+                      <span class="roster-name">{{ c.name }}</span>
+                      <el-tag size="small" :type="c.ok ? 'success' : 'danger'" effect="plain">
+                        {{ c.ok ? '就绪' : '未就绪' }}
+                      </el-tag>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="health-detail-h">L1 管控</h3>
+                  <div class="chip-grid">
+                    <div
+                      v-for="item in mgmtItems"
+                      :key="item.id"
+                      class="status-chip"
+                      :class="item.ok ? 'ok' : 'bad'"
+                    >
+                      <span class="dot" />
+                      {{ item.name }}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="health-detail-h">L1 托管业务</h3>
+                  <div class="chip-grid">
+                    <div
+                      v-for="item in hostItems"
+                      :key="item.id"
+                      class="status-chip"
+                      :class="item.ok ? 'ok' : 'bad'"
+                    >
+                      <span class="dot" />
+                      {{ item.name }}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="health-detail-h">L1 协作与公开</h3>
+                  <div class="chip-grid">
+                    <div
+                      v-for="item in collabItems"
+                      :key="item.id"
+                      class="status-chip"
+                      :class="item.ok ? 'ok' : 'bad'"
+                    >
+                      <span class="dot" />
+                      {{ item.name }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">运行时长</div>
@@ -33,7 +125,7 @@
           <div class="kpi-sub">版本 {{ versionLabel }}</div>
         </div>
         <div class="kpi-card" :class="toneClass(diskTone)">
-          <div class="kpi-label">存储空间可用</div>
+          <div class="kpi-label">系统存储空间可用</div>
           <div class="kpi-value">{{ diskAvailableLabel }}</div>
           <div class="kpi-sub">{{ diskTotalLabel }}</div>
         </div>
@@ -67,8 +159,8 @@
               <span class="kpi-metric-v">{{ sampleCount }}</span>
             </div>
             <div class="kpi-metric">
-              <span class="kpi-metric-k">越阈累计</span>
-              <span class="kpi-metric-v">{{ breachCount }}</span>
+              <span class="kpi-metric-k">最近</span>
+              <span class="kpi-metric-v">{{ lastSampleMs }}</span>
             </div>
           </div>
         </div>
@@ -103,11 +195,6 @@
           <div class="kpi-sub">
             持有 {{ alertAssigned }} · 开 {{ alertOpen }} · 抑制 {{ alertSuppressed }}
           </div>
-        </div>
-        <div class="kpi-card" :class="toneClass(baseTone)">
-          <div class="kpi-label">运行底座</div>
-          <div class="kpi-value">{{ baseReadyCount }}/35</div>
-          <div class="kpi-sub">L0 {{ l0ReadyCount }} · L1 {{ l1ReadyCount }}</div>
         </div>
       </div>
 
@@ -339,7 +426,7 @@
       </div>
 
       <p class="hint">
-        自动闭环：感知 → 判定 → 调压 → 落地 → 回升 → 提高 → 固化 → 收尾 → 派单。详细底座与调度见下方展开区；运行流水见
+        整体健康汇总各模块；历史越阈痕迹只出现在「接口时延」模块，不再把当前时延卡染成预警。自动闭环与调度见下方；运行流水见
         <router-link to="/tenant/logs">运行日志</router-link>
         。
       </p>
@@ -583,20 +670,18 @@ function toneClass(t: Tone): string {
 
 const ready = computed(() => Boolean(asRecord(readyData.value).ready ?? health.value?.ready))
 const healthStatus = computed(() => String(health.value?.status || (ready.value ? 'ok' : 'unknown')))
-const healthLabel = computed(() => {
-  const s = healthStatus.value
-  if (s === 'ok') return '正常'
-  if (s === 'degraded') return '降级'
-  if (s === 'unhealthy') return '异常'
-  return ready.value ? '就绪' : '未知'
-})
-const overallTone = computed<Tone>(() => {
-  const s = healthStatus.value
-  if (s === 'ok' && ready.value) return 'ok'
-  if (s === 'degraded') return 'warn'
-  if (s === 'unhealthy' || !ready.value) return 'bad'
+const expandedHealthId = ref<string | null>(null)
+
+function toggleHealthModule(id: string) {
+  expandedHealthId.value = expandedHealthId.value === id ? null : id
+}
+
+function worstTone(tones: Tone[]): Tone {
+  if (tones.some((t) => t === 'bad')) return 'bad'
+  if (tones.some((t) => t === 'warn')) return 'warn'
+  if (tones.some((t) => t === 'ok')) return 'ok'
   return 'neutral'
-})
+}
 
 const uptimeLabel = computed(() => formatUptime(health.value?.uptime))
 const versionLabel = computed(
@@ -815,13 +900,29 @@ const topSlowRoutes = computed(() => {
   return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : []
 })
 const perfReady = computed(() => Boolean(perf.value.ready))
+/** 时延卡只反映当前窗；历史越阈累计归整体健康模块明细 */
 const perfTone = computed<Tone>(() => {
   if (!perfReady.value) return 'warn'
   if (!slaOk.value) return 'bad'
-  if (breachCount.value > 0) return 'warn'
-  const ms = Number(p95.value)
-  if (Number.isFinite(ms) && ms > Number(asRecord(perf.value.sla).p95Ms || 500)) return 'bad'
   return 'ok'
+})
+/** 当前窗达标即正常；历史越阈只写明细，不染状态 */
+const latencyHealthTone = computed<Tone>(() => {
+  if (!perfReady.value) return 'bad'
+  if (!slaOk.value) return 'bad'
+  return 'ok'
+})
+const latencyHealthLabel = computed(() => {
+  if (!perfReady.value) return '不正常'
+  if (!slaOk.value) return '不正常'
+  return '正常'
+})
+const latencyHealthDetail = computed(() => {
+  const phase = String(perf.value.loopPhase || 'steady')
+  const phaseName =
+    phase === 'breach' ? '越阈处置中' : phase === 'recovered' ? '已自动恢复' : '稳态'
+  const last = perf.value.lastBreachAt ? formatTs(perf.value.lastBreachAt) : '无'
+  return `当前 P95 ${p95Label.value} · 判定 ${effectiveP95Label.value} · 目标 ${appliedSla.value.p95Ms} ms · ${slaOkLabel.value} · 闭环 ${phaseName} · 越阈累计 ${breachCount.value}（进程内，不影响当前是否正常）· 最近越阈 ${last}`
 })
 const qpsTone = computed<Tone>(() => {
   const r = Number(perf.value.errorRate)
@@ -848,11 +949,16 @@ const alertAssigned = computed(() => Number(alertState.value.assignedCount) || 0
 const lastAlertLabel = computed(() =>
   alertState.value.lastAlertAt ? `最近 ${formatTs(alertState.value.lastAlertAt)}` : '暂无告警'
 )
+/** 仅派单工作本身异常才不正常；持有/开告警属工作中，仍为正常 */
 const alertTone = computed<Tone>(() => {
-  if (!alertState.value.ready || !alertState.value.dispositionReady) return 'warn'
-  if (alertOpen.value > 0) return 'warn'
-  if (alertAssigned.value > 0) return 'warn'
+  if (alertState.value.ready === false || alertState.value.dispositionReady === false) {
+    return 'bad'
+  }
   return 'ok'
+})
+const alertHealthLabel = computed(() => {
+  if (alertTone.value !== 'ok') return '不正常'
+  return '正常'
 })
 
 type AlertTicketRow = {
@@ -907,6 +1013,158 @@ const fileStorageReady = computed(() => Boolean(fileStorage.value.ready))
 const uploadRoot = computed(() =>
   String(fileStorage.value.uploadRoot || fileStorage.value.rootDir || '')
 )
+
+type HealthModule = {
+  id: string
+  name: string
+  tone: Tone
+  label: string
+  detail: string
+}
+
+const probeTone = computed<Tone>(() => {
+  if (!ready.value) return 'bad'
+  const s = healthStatus.value
+  if (s === 'unhealthy') return 'bad'
+  if (s === 'degraded') return 'warn'
+  if (s === 'ok') return 'ok'
+  return 'warn'
+})
+
+const healthModules = computed<HealthModule[]>(() => {
+  const probeLabel =
+    healthStatus.value === 'ok' && ready.value
+      ? '正常'
+      : healthStatus.value === 'degraded'
+        ? '降级'
+        : healthStatus.value === 'unhealthy' || !ready.value
+          ? '异常'
+          : '未知'
+  const diskLabel =
+    diskTone.value === 'ok'
+      ? '充足'
+      : diskTone.value === 'warn'
+        ? '偏紧'
+        : diskTone.value === 'bad'
+          ? '紧张'
+          : '未知'
+  const errLabel =
+    qpsTone.value === 'ok' ? '正常' : qpsTone.value === 'warn' ? '偏高' : '越限'
+  const alertLabel = alertHealthLabel.value
+  const baseLabel =
+    baseReadyCount.value === 35
+      ? '全部就绪'
+      : `${baseReadyCount.value}/35 就绪`
+  const fileLabel = fileStorageReady.value ? '就绪' : '未就绪'
+  const govLabel = killSwitch.value ? '紧急停机' : '正常'
+
+  return [
+    {
+      id: 'probe',
+      name: '就绪探针',
+      tone: probeTone.value,
+      label: probeLabel,
+      detail: ready.value
+        ? `健康状态 ${healthStatus.value} · 就绪探针通过 · 版本 ${versionLabel.value} · 运行 ${uptimeLabel.value}`
+        : `健康状态 ${healthStatus.value} · 就绪探针未通过，请检查底座与数据库`,
+    },
+    {
+      id: 'storage',
+      name: '系统存储空间',
+      tone: diskTone.value,
+      label: diskLabel,
+      detail: `${diskTotalLabel.value} · 可用 ${diskAvailableLabel.value}`,
+    },
+    {
+      id: 'latency',
+      name: '接口时延',
+      tone: latencyHealthTone.value,
+      label: latencyHealthLabel.value,
+      detail: latencyHealthDetail.value,
+    },
+    {
+      id: 'errors',
+      name: '近窗错误',
+      tone: qpsTone.value,
+      label: errLabel,
+      detail: `错误率 ${errorRateLabel.value} · 上限 ${appliedSla.value.errorRatePct.toFixed(1)}% · QPS ${qpsLabel.value} · 最近 ${lastSampleRoute.value} ${lastSampleMs.value}`,
+    },
+    {
+      id: 'alerts',
+      name: '自动派单',
+      tone: alertTone.value,
+      label: alertLabel,
+      detail:
+        alertTone.value === 'ok'
+          ? `工作正常 · 已投递 ${alertDelivered.value} · 持有 ${alertAssigned.value} · 开 ${alertOpen.value} · 抑制 ${alertSuppressed.value} · ${lastAlertLabel.value}`
+          : `派单工作不正常（服务未就绪或处置未就绪）· 已投递 ${alertDelivered.value} · 持有 ${alertAssigned.value} · 开 ${alertOpen.value}`,
+    },
+    {
+      id: 'base',
+      name: '运行底座',
+      tone: baseTone.value,
+      label: baseLabel,
+      detail: `L0 ${l0ReadyCount.value} 就绪 · L1 ${l1ReadyCount.value} 就绪 · 合计 ${baseReadyCount.value}/35。展开本项可查看各组件就绪状态。`,
+    },
+    {
+      id: 'files',
+      name: '文件存储',
+      tone: fileStorageReady.value ? 'ok' : 'bad',
+      label: fileLabel,
+      detail: fileStorageReady.value
+        ? `上传根目录 ${uploadRoot.value || '—'}`
+        : '文件存储服务未就绪',
+    },
+    {
+      id: 'governance',
+      name: '治理开关',
+      tone: killSwitch.value ? 'bad' : 'ok',
+      label: govLabel,
+      detail: killSwitch.value
+        ? '紧急停机已启用，写路径可能被阻断'
+        : '紧急停机未启用 · 治理正常',
+    },
+  ]
+})
+
+const expandedHealth = computed(() => {
+  const id = expandedHealthId.value
+  if (!id) return null
+  return healthModules.value.find((m) => m.id === id) || null
+})
+
+const overallTone = computed<Tone>(() =>
+  worstTone(healthModules.value.map((m) => m.tone))
+)
+
+const healthLabel = computed(() => {
+  const t = overallTone.value
+  if (t === 'ok') return '正常'
+  if (t === 'warn' || t === 'bad') return '不正常'
+  return '不正常'
+})
+
+const healthModuleSummary = computed(() => {
+  const mods = healthModules.value
+  const badN = mods.filter((m) => m.tone === 'bad' || m.tone === 'warn').length
+  if (badN > 0) return `${badN} 项不正常`
+  return `${mods.length} 项正常`
+})
+
+const overallTagType = computed(() => {
+  const t = overallTone.value
+  if (t === 'ok') return 'success'
+  if (t === 'warn') return 'warning'
+  if (t === 'bad') return 'danger'
+  return 'info'
+})
+
+const healthLead = computed(() => {
+  const t = overallTone.value
+  if (t === 'ok') return '各模块当前正常。点模块可看明细与底座组件。'
+  if (t === 'warn' || t === 'bad') return '存在不正常项，请点开对应模块查看原因与组件状态。'
+  return '健康数据加载中。'
+})
 const lastElasticityAction = computed(() => {
   const exec = asRecord(asRecord(perf.value.automation).execute)
   if (exec.action) {
@@ -935,12 +1193,12 @@ const banner = computed(() => {
     return { type: 'error' as const, title: '服务未就绪或健康检查异常，请检查底座与数据库' }
   }
   if (healthStatus.value === 'degraded' || diskTone.value === 'bad') {
-    return { type: 'warning' as const, title: '服务降级或存储空间紧张，请关注存储与告警' }
+    return { type: 'warning' as const, title: '服务降级或系统存储空间紧张，请关注存储与告警' }
   }
   if (baseReadyCount.value < 35) {
     return {
       type: 'warning' as const,
-      title: `运行底座未全部就绪（${baseReadyCount.value}/35），详见下方 L0 / L1`,
+      title: `运行底座未全部就绪（${baseReadyCount.value}/35），请在整体健康中点开「运行底座」`,
     }
   }
   return null
@@ -1253,17 +1511,107 @@ onUnmounted(() => {
 }
 
 .kpi-card {
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
   padding: 14px 16px;
   min-height: 108px;
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .kpi-card--wide {
   grid-column: span 2;
   min-height: 168px;
   padding: 16px 18px;
+}
+
+.kpi-card--health {
+  grid-column: 1 / -1;
+  min-height: auto;
+}
+
+.health-modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.health-mod {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--cyp-chrome-border);
+  background: var(--cyp-chrome-bg-soft);
+  color: var(--cyp-text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  box-shadow: var(--cyp-chrome-shadow);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.health-mod:hover {
+  border-color: color-mix(in srgb, var(--cyp-brand) 40%, var(--cyp-border));
+}
+
+.health-mod.is-active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cyp-brand) 45%, transparent);
+}
+
+.health-mod.tone-ok {
+  border-color: color-mix(in srgb, var(--cyp-success) 45%, var(--cyp-border));
+}
+
+.health-mod.tone-warn {
+  border-color: color-mix(in srgb, var(--cyp-warning) 55%, var(--cyp-border));
+}
+
+.health-mod.tone-bad {
+  border-color: color-mix(in srgb, var(--cyp-danger) 55%, var(--cyp-border));
+}
+
+.health-mod-name {
+  font-size: 12px;
+  color: var(--cyp-text-muted);
+}
+
+.health-mod-status {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cyp-text);
+}
+
+.health-detail {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--cyp-border);
+  background: var(--cyp-bg-input);
+}
+
+.health-detail-lead {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--cyp-text-secondary);
+}
+
+.health-detail-h {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cyp-text);
+}
+
+.health-detail-groups {
+  display: grid;
+  gap: 14px;
 }
 
 .kpi-card.tone-ok {
@@ -1338,11 +1686,14 @@ onUnmounted(() => {
 }
 
 .panel {
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
   padding: 14px 16px;
   margin-bottom: 16px;
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .panel-title {

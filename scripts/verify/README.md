@@ -6,7 +6,11 @@ Local readiness checks.
 
 | 脚本 | 用途 |
 |------|------|
-| `verify-e2e.ps1` / `.bat` / `.sh` | R5 基线：端口 / health / ready / Trace+CSP / 异常码 |
+| `verify-version.js` | 全仓 VERSION 一致；`pnpm version:info` |
+| `verify-artifact-sha256.mjs` | 比对文件与 `.sha256` sidecar |
+| `verify-artifact-integrity.mjs` | sha256 后再验 gpg sidecar；无签名打印 UNSIGNED；`CYP_REQUIRE_GPG=1` 则拒绝 |
+| `verify-dir-manifest.mjs` | 快照 `MANIFEST.sha256` 完整性；回滚前强制 |
+| `capture-p6-shots.mjs` | 唯一入口 HTTPS 采证；须隔离 env，禁止默认写产品库 |
 | `verify-five-centers.ps1` | 闭集 35 稳定 ID；禁止旧编制键与并行 modules 清单 |
 | `verify-runtime-base.ps1` | 底座探针别名（转调 five-centers） |
 | `verify-no-prod-mock.ps1` | 生产Mock约束 生产零 Mock |
@@ -22,8 +26,8 @@ Local readiness checks.
 
 ## verify-e2e 要点
 
-- Ports **5170 / 5173** listening（5174 已废止）
-- `GET /api/health` · `GET /healthz/ready`
+- Ports **5170** listening（产品入口；5174 已废止；5173 仅为可选 `local:hmr`，不作为门禁）
+- `GET /api/health` · `GET /healthz/ready` · `GET /health/live`
 - Exit `1` on any failure
 
 S-03 九类全量断言仍归 **P6**。

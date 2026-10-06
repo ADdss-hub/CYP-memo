@@ -253,12 +253,12 @@ export class DragDropHandler {
    * Format file size for display
    */
   formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes'
-    
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 字节'
+
     const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    
+    const sizes = ['字节', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 

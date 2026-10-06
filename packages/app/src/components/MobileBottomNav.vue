@@ -55,8 +55,11 @@ const isActive = (path: string) => {
   left: 0;
   right: 0;
   height: 60px;
-  background: var(--cyp-bg-card);
-  border-top: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg);
+  border-top: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   display: flex;
   align-items: center;
   justify-content: space-around;

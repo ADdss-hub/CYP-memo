@@ -51,59 +51,6 @@ ELECTRON_MIRROR=https://repo.huaweicloud.com/electron/ pnpm install
 
 ---
 
-## 🐳 Docker 镜像加速
-
-### Docker Hub 镜像
-
-在 `/etc/docker/daemon.json` 中配置：
-
-```json
-{
-  "registry-mirrors": [
-    "https://hub-mirror.c.163.com",
-    "https://mirror.baidubce.com",
-    "https://docker.mirrors.ustc.edu.cn"
-  ]
-}
-```
-
-重启 Docker 服务：
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart docker
-```
-
-### Docker 镜像源速度测试 (2026-01-11)
-
-| 镜像源 | 响应时间 | 推荐 |
-|--------|----------|------|
-| **网易** | 5ms | ⭐⭐⭐⭐⭐ |
-| 百度云 | 10ms | ⭐⭐⭐⭐⭐ |
-| 中科大 | 55ms | ⭐⭐⭐⭐ |
-| 华为云 | 217ms | ⭐⭐⭐ |
-| DaoCloud | 419ms | ⭐⭐ |
-
-### Alpine 镜像源
-
-Dockerfile 中已配置阿里云镜像（速度最快）：
-
-```dockerfile
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
-```
-
-### Alpine APK 镜像源速度测试 (2026-01-11)
-
-| 镜像源 | 响应时间 | 推荐 |
-|--------|----------|------|
-| **阿里云** | 108ms | ⭐⭐⭐⭐⭐ |
-| 网易 | 199ms | ⭐⭐⭐⭐ |
-| 华为云 | 257ms | ⭐⭐⭐⭐ |
-| 腾讯云 | 5020ms | ❌ |
-| 中科大 | 5012ms | ❌ |
-| 清华 | 5022ms | ❌ |
-
----
-
 ## 🖥️ GitHub Actions 加速配置
 
 ### Node.js 依赖加速
@@ -141,17 +88,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 | 腾讯云 | 5014ms | ❌ |
 | 中科大 | 5018ms | ❌ |
 
-### Docker Buildx 加速
-
-```yaml
-- name: Set up Docker Buildx
-  uses: docker/setup-buildx-action@v3
-  with:
-    config-inline: |
-      [registry."docker.io"]
-        mirrors = ["https://hub-mirror.c.163.com"]
-```
-
 ---
 
 ## 🌐 可用的国内镜像源
@@ -164,24 +100,10 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 | 淘宝镜像 | https://registry.npmmirror.com | ⭐⭐ 5000ms+ |
 | 腾讯云 | https://mirrors.cloud.tencent.com/npm/ | ⭐⭐⭐ |
 
-### Docker 镜像
-
-| 镜像源 | 地址 | 速度测试 |
-|--------|------|----------|
-| **网易** | https://hub-mirror.c.163.com | ⭐⭐⭐⭐⭐ 5ms |
-| 百度云 | https://mirror.baidubce.com | ⭐⭐⭐⭐⭐ 10ms |
-| 中科大 | https://docker.mirrors.ustc.edu.cn | ⭐⭐⭐⭐ 55ms |
-| 华为云 | https://mirrors.huaweicloud.com | ⭐⭐⭐ 217ms |
-| DaoCloud | https://docker.m.daocloud.io | ⭐⭐ 419ms |
-| 阿里云 | https://[your-id].mirror.aliyuncs.com | 需注册 |
-
 ### Linux 软件源
 
 | 发行版 | 镜像源 | 地址 | 速度测试 |
 |--------|--------|------|----------|
-| Alpine | **阿里云** | https://mirrors.aliyun.com/alpine/ | ⭐⭐⭐⭐⭐ 108ms |
-| Alpine | 网易 | https://mirrors.163.com/alpine/ | ⭐⭐⭐⭐ 199ms |
-| Alpine | 华为云 | https://mirrors.huaweicloud.com/alpine/ | ⭐⭐⭐⭐ 257ms |
 | Ubuntu | **阿里云** | https://mirrors.aliyun.com/ubuntu/ | ⭐⭐⭐⭐⭐ 50ms |
 | Ubuntu | 华为云 | https://mirrors.huaweicloud.com/ubuntu/ | ⭐⭐⭐⭐⭐ 67ms |
 | Ubuntu | 网易 | https://mirrors.163.com/ubuntu/ | ⭐⭐⭐⭐ 177ms |
@@ -235,18 +157,6 @@ git config --global https.proxy http://127.0.0.1:7890
 
 # 或只对 GitHub 使用代理
 git config --global http.https://github.com.proxy http://127.0.0.1:7890
-```
-
-### 4. 配置 Docker 镜像
-
-编辑 `~/.docker/daemon.json`（macOS/Linux）或 Docker Desktop 设置（Windows）：
-
-```json
-{
-  "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn"
-  ]
-}
 ```
 
 ---

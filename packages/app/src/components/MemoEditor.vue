@@ -370,10 +370,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Underline from '@tiptap/extension-underline'
-import Table from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
+import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -934,9 +931,9 @@ onBeforeUnmount(() => {
   height: 100%;
   width: 100%;
   border: none;
-  border-top: 1px solid var(--cyp-border);
+  border-top: 1px solid var(--cyp-chrome-border);
   border-radius: 0;
-  background: var(--cyp-bg-card);
+  background: transparent;
   color: var(--cyp-text);
   overflow: hidden;
 }
@@ -965,8 +962,10 @@ onBeforeUnmount(() => {
   z-index: 10000;
   border: none;
   border-radius: 0;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
   color: var(--cyp-text);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .memo-editor:fullscreen,
@@ -984,8 +983,8 @@ onBeforeUnmount(() => {
   width: 100%;
   min-width: 0;
   padding: 0.5rem 0.625rem;
-  border-bottom: 1px solid var(--cyp-border);
-  background: var(--cyp-bg-muted);
+  border-bottom: 1px solid var(--cyp-chrome-border);
+  background: var(--cyp-chrome-bg-soft);
 }
 
 .toolbar-row {
@@ -1161,8 +1160,8 @@ onBeforeUnmount(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  border-left: 1px solid var(--cyp-border);
-  background: var(--cyp-bg-muted);
+  border-left: 1px solid var(--cyp-chrome-border);
+  background: var(--cyp-chrome-bg-soft);
 }
 
 .preview-content {
@@ -1173,11 +1172,13 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 60px;
   right: 20px;
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--cyp-chrome-shadow), 0 4px 12px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   z-index: 100;
 }
 
@@ -1401,9 +1402,12 @@ onBeforeUnmount(() => {
   width: min(440px, 92vw);
   padding: 20px;
   border-radius: 8px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   color: var(--cyp-text);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .file-parse-title {

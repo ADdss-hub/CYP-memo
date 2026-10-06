@@ -84,8 +84,11 @@ const controlsPosition = computed(() => {
   align-items: center;
   justify-content: space-between;
   height: 32px;
-  background: var(--bg-secondary, #f5f7fa);
-  border-bottom: 1px solid var(--border-color, #dcdfe6);
+  background: var(--cyp-chrome-bg);
+  border-bottom: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   user-select: none;
   -webkit-app-region: drag;
 }
@@ -105,7 +108,7 @@ const controlsPosition = computed(() => {
 
 .title-bar__title {
   font-size: 12px;
-  color: var(--text-secondary, #606266);
+  color: var(--cyp-text-secondary);
   font-weight: 500;
 }
 
@@ -127,7 +130,7 @@ const controlsPosition = computed(() => {
   height: 100%;
   border: none;
   background: transparent;
-  color: var(--text-primary, #303133);
+  color: var(--cyp-text);
   cursor: pointer;
   transition: background-color 0.15s;
 }
@@ -138,14 +141,14 @@ const controlsPosition = computed(() => {
 
 .title-bar__button--close:hover {
   background: #e81123;
-  color: white;
+  color: #ffffff;
 }
 
 /* 深色主题 */
 :root[data-theme='dark'] .title-bar,
 html.dark .title-bar {
-  background: var(--bg-secondary, #262727);
-  border-bottom-color: var(--border-color, #414243);
+  background: var(--cyp-chrome-bg);
+  border-bottom-color: var(--cyp-chrome-border);
 }
 
 :root[data-theme='dark'] .title-bar__button:hover,
@@ -156,6 +159,6 @@ html.dark .title-bar__button:hover {
 :root[data-theme='dark'] .title-bar__button--close:hover,
 html.dark .title-bar__button--close:hover {
   background: #e81123;
-  color: white;
+  color: #ffffff;
 }
 </style>

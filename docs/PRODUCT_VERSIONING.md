@@ -6,7 +6,7 @@
 | 日期 | 2026-08-16 |
 | 军械库权威 | `d:\kf\CYP-skill-arsenal\mgs\docs\cyp-product-versioning-regulation.md` |
 | 本仓落地 | 本文件 + `DEPLOY.md` 六 + 改版清单 0.4 + 契约 六 |
-| 自动化 | `scripts/version-bump.js` · `scripts/verify-version.js` · `scripts/release.js` |
+| 自动化 | `scripts/install/version-bump.js` · `scripts/verify/verify-version.js` · `scripts/install/release.js` |
 
 > **强制**：
 > 1. **已提交/已 tag 的 VERSION 基线**：后续修改须**先自动升版并写历史，再改码**（官方 `version:bump`）。
@@ -29,7 +29,7 @@
 | 2 | **先升版写史** | `pnpm version:bump -- <patch\|minor\|major> --change "type:说明" --yes`（**仅正式升版**） |
 | 2′ | **同批并入** | 用 **Edit/StrReplace** 向当前 VERSION 的 CHANGELOG / `.version/changelog.json` / VERSION_HISTORY 追加；**禁止**临时脚本代写（P12） |
 | 3 | 改码 / 删除 | 实现与历史条目一致 |
-| 4 | 生产优先验证 | `start-local` / 安装脚本 + 真实 API（`APP_ENV=prod`）；禁沙箱；禁 Docker 冒充 |
+| 4 | 生产优先验证 | `start-local` / 安装脚本 + 真实 API（`APP_ENV=prod`）；禁沙箱；禁用非产品部署形态冒充验证 |
 | 5 | 校验 | `pnpm version:info` 必须 0 |
 | 6 | 发版（可选） | `pnpm release:<type> -- --yes` 或打 `v*` tag |
 
@@ -121,14 +121,14 @@
 |--------------------------------------|------|
 | `README.md` · `DEPLOY.md` · `LOCAL_DEV.md` · `CHANGELOG.md` · `VERSION` · `LICENSE` | 交付/运维必要 |
 | `.env.example` · `package.json` / lock · 源码与测试 | 工程本体 |
-| `deploy/**` · `scripts/install/**` · `scripts/verify/verify-five-centers.*` | 非容器部署形态 |
+| `deploy/**` · `scripts/install/**` · `scripts/verify/verify-five-centers.*` | 面板/NAS/Windows/Unix 原生部署形态 |
 | `.github/workflows/*` | CI；secrets 只引用名称不写真值 |
 | `.version/*` · `docs/PRODUCT_VERSIONING.md` | 版本权威 |
 | `scripts/**/*` 可执行与简短 README（**不含** `scripts/**/CHANGELOG.md`） | 一键运维 |
 | `ops/README.md` | 运维清单 |
 
 **原则**：凡描述「如何绕过/如何签名取证/如何打点现网/未修复缺陷复现」的 Markdown，不论目录，一律禁交；有疑义默认不提交。  
-**禁止**：`docker/**`（目录已废止，不得再提交容器编排）。
+**禁止**：再提交已废止的编排目录或平行部署通道。
 
 ---
 
@@ -137,7 +137,7 @@
 | 要求 | 说明 |
 |------|------|
 | 主环境 | 生产配置或本机一键等价路径（真实 5170、真实 dataDir） |
-| 禁止 | 沙箱、假 health、未启动进程的「纸面通过」、用 Docker 冒充验证 |
+| 禁止 | 沙箱、假 health、未启动进程的「纸面通过」、用非产品形态冒充验证 |
 | 发版后 | 线上消费经 **server tarball / 安装脚本 / 桌面 updater**；commit ≠ 已更新线上 |
 
 ---
@@ -146,7 +146,7 @@
 
 | 项 | 约定 |
 |----|------|
-| 产物权威 | Release `cyp-memo-server-<VERSION>-*.tar.gz` 或桌面包；**禁止**容器镜像 |
+| 产物权威 | Release `cyp-memo-server-<VERSION>-*.tar.gz` 或桌面包；**禁止**平行镜像通道 |
 | 升档 | 实例批次 `canary→batch-1→batch-2→all`（面板/NAS 逐台换包） |
 | 观察窗 | canary ≥30min · batch-1 ≥1h · batch-2 ≥2h · all 稳态 24h |
 | 通过 | `pnpm verify:runtime-base` + `/healthz/ready` + 核心读写抽检 |

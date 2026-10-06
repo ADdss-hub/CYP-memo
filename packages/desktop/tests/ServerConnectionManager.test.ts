@@ -15,7 +15,7 @@ vi.mock('../src/main/EmbeddedServer', () => ({
     isServerRunning: vi.fn().mockReturnValue(false),
     start: vi.fn().mockResolvedValue(5170),
     stop: vi.fn().mockResolvedValue(undefined),
-    getUrl: vi.fn().mockReturnValue('http://localhost:5170'),
+    getUrl: vi.fn().mockReturnValue('https://127.0.0.1:5170'),
   }),
 }))
 
@@ -128,9 +128,9 @@ describe('ServerConnectionManager', () => {
     })
 
     it('should accept valid HTTP URL for localhost', () => {
-      const result = manager.validateUrl('http://localhost:5170')
+      const result = manager.validateUrl('http://127.0.0.1:5170')
       expect(result.valid).toBe(true)
-      expect(result.normalizedUrl).toBe('http://localhost:5170')
+      expect(result.normalizedUrl).toBe('http://127.0.0.1:5170')
     })
 
     it('should accept valid HTTP URL for 127.0.0.1', () => {
@@ -277,7 +277,7 @@ describe('ServerConnectionManager', () => {
       }
       vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
-      const result = await manager.testConnection('http://localhost:5170')
+      const result = await manager.testConnection('http://127.0.0.1:5170')
       
       expect(result.success).toBe(true)
       expect(result.version).toBe('1.0.0')
@@ -291,7 +291,7 @@ describe('ServerConnectionManager', () => {
       }
       vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
-      const result = await manager.testConnection('http://localhost:5170')
+      const result = await manager.testConnection('http://127.0.0.1:5170')
       
       expect(result.success).toBe(false)
       expect(result.error).toContain('500')
@@ -304,7 +304,7 @@ describe('ServerConnectionManager', () => {
       }
       vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
-      const result = await manager.testConnection('http://localhost:5170')
+      const result = await manager.testConnection('http://127.0.0.1:5170')
       
       expect(result.success).toBe(false)
       expect(result.error).toContain('格式无效')
@@ -313,7 +313,7 @@ describe('ServerConnectionManager', () => {
     it('should return error for network failure', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('Network error'))
 
-      const result = await manager.testConnection('http://localhost:5170')
+      const result = await manager.testConnection('http://127.0.0.1:5170')
       
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
@@ -324,7 +324,7 @@ describe('ServerConnectionManager', () => {
       abortError.name = 'AbortError'
       vi.mocked(fetch).mockRejectedValue(abortError)
 
-      const result = await manager.testConnection('http://localhost:5170')
+      const result = await manager.testConnection('http://127.0.0.1:5170')
       
       expect(result.success).toBe(false)
       expect(result.error).toContain('超时')
@@ -369,17 +369,17 @@ describe('ServerConnectionManager', () => {
       }
       vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
 
-      const result = await manager.switchMode('remote', 'http://localhost:5170')
+      const result = await manager.switchMode('remote', 'http://127.0.0.1:5170')
       
       expect(result).toBe(true)
       expect(manager.getConnectionMode()).toBe('remote')
-      expect(manager.getServerUrl()).toBe('http://localhost:5170')
+      expect(manager.getServerUrl()).toBe('http://127.0.0.1:5170')
     })
 
     it('should fail to switch to remote mode when connection test fails', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('Connection failed'))
 
-      const result = await manager.switchMode('remote', 'http://localhost:5170')
+      const result = await manager.switchMode('remote', 'http://127.0.0.1:5170')
       
       expect(result).toBe(false)
       // Mode should not change
@@ -405,7 +405,7 @@ describe('ServerConnectionManager', () => {
       }
       vi.mocked(fetch).mockResolvedValue(stubResponse as unknown as Response)
       
-      await manager.switchMode('remote', 'http://localhost:5170')
+      await manager.switchMode('remote', 'http://127.0.0.1:5170')
       
       expect(mockEmbeddedServer.stop).toHaveBeenCalled()
     })

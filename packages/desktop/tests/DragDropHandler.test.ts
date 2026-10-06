@@ -226,8 +226,8 @@ describe('DragDropHandler', () => {
 
   describe('File Size Formatting', () => {
     it('should format bytes', () => {
-      expect(handler.formatFileSize(0)).toBe('0 Bytes')
-      expect(handler.formatFileSize(500)).toBe('500 Bytes')
+      expect(handler.formatFileSize(0)).toBe('0 字节')
+      expect(handler.formatFileSize(500)).toBe('500 字节')
     })
 
     it('should format kilobytes', () => {

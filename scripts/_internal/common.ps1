@@ -6,6 +6,36 @@ Set-StrictMode -Version Latest
 # UTF-8 session + safe writers (root-cause control for Windows mojibake)
 . (Join-Path $PSScriptRoot 'encoding-utf8.ps1')
 
+# 本机自签 HTTPS（R-TLS-001）：联调探针跳过证书校验；仅限本机脚本
+$script:CypInsecureHttpsArmed = $false
+function Enable-CypInsecureLocalHttps {
+  if ($script:CypInsecureHttpsArmed) { return }
+  try {
+    # .NET Framework / PS 5.1：CertificatePolicy 比 ValidationCallback 更稳
+    if (-not ([System.Management.Automation.PSTypeName]'CypTrustAllCerts').Type) {
+      Add-Type -TypeDefinition @"
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
+public class CypTrustAllCerts : ICertificatePolicy {
+  public bool CheckValidationResult(ServicePoint sp, X509Certificate certificate, WebRequest request, int certificateProblem) {
+    return true;
+  }
+}
+"@ -ErrorAction SilentlyContinue
+    }
+    if ([System.Management.Automation.PSTypeName]'CypTrustAllCerts'.Type) {
+      [System.Net.ServicePointManager]::CertificatePolicy = New-Object CypTrustAllCerts
+    }
+    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+    [System.Net.ServicePointManager]::SecurityProtocol = (
+      [System.Net.SecurityProtocolType]::Tls12 -bor 3072
+    )
+  } catch { }
+  $script:CypInsecureHttpsArmed = $true
+}
+
+. (Join-Path $PSScriptRoot 'cyp-https-api.ps1')
+
 function Get-Root {
   param([string]$StartPath = $PSScriptRoot)
   $dir = $StartPath
@@ -55,7 +85,33 @@ function Invoke-Health {
     [switch]$RequireSuccessJson
   )
   try {
-    $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
+    if ($Url -match '^https://') { Enable-CypInsecureLocalHttps }
+    $resp = $null
+    try {
+      $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
+    } catch {
+      # PS5.1 自签偶发「连接已关闭」：curl -k 兜底
+      if ($Url -match '^https://' -and (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+        $tmp = [System.IO.Path]::GetTempFileName()
+        $code = 0
+        try {
+          & curl.exe -k -fsS --max-time $TimeoutSec -o $tmp -w '%{http_code}' $Url 2>$null | ForEach-Object { $code = [int]$_ }
+        } catch { $code = 0 }
+        if ($code -ge 200 -and $code -lt 300 -and (Test-Path -LiteralPath $tmp)) {
+          $body = [System.IO.File]::ReadAllText($tmp)
+          Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+          if ($RequireSuccessJson) {
+            $json = $body | ConvertFrom-Json -ErrorAction Stop
+            if (-not $json.success) {
+              return [pscustomobject]@{ Ok = $false; StatusCode = $code; Body = $body; Error = 'JSON success != true' }
+            }
+          }
+          return [pscustomobject]@{ Ok = $true; StatusCode = $code; Body = $body; Error = $null }
+        }
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+      }
+      throw
+    }
     if ($resp.StatusCode -lt 200 -or $resp.StatusCode -ge 300) {
       return [pscustomobject]@{ Ok = $false; StatusCode = [int]$resp.StatusCode; Body = $resp.Content; Error = "HTTP $($resp.StatusCode)" }
     }
@@ -144,7 +200,8 @@ function Get-PnpmCmd {
 $script:CypInjectKeys = @(
   "PORT", "LOG_LEVEL", "TZ", "DATA_DIR",
   "CYP_BOOTSTRAP_OWNER_PASSWORD",
-  "VITE_API_BASE", "VITE_API_PROXY_TARGET"
+  "VITE_API_BASE", "VITE_API_PROXY_TARGET",
+  "KMS_PORT", "KMS_AUTH_TOKEN", "CYP_KMS_REMOTE", "CYP_KMS_MASTER_KEY"
 )
 
 function Get-CypInjectKeys {
@@ -261,15 +318,12 @@ function New-CypSupportBundle {
   New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
   try {
-    $meta = @(
-      "reason=$Reason"
-      ("ts=" + (Get-Date).ToUniversalTime().ToString("o"))
-      "commit=$sha"
-      "root=$Root"
-    ) -join "`n"
-    Set-Content -LiteralPath (Join-Path $stage "META.txt") -Value $meta -Encoding utf8
-    # normalize BOM-less
-    Repair-CypTextFile -Path (Join-Path $stage "META.txt") | Out-Null
+    # meta 行列表，后续收集过程中追加，归档前统一写入 META.txt
+    $metaLines = [System.Collections.Generic.List[string]]::new()
+    $metaLines.Add("reason=$Reason")
+    $metaLines.Add(("ts=" + (Get-Date).ToUniversalTime().ToString("o")))
+    $metaLines.Add("commit=$sha")
+    $metaLines.Add("root=$Root")
 
     $envInfo = [ordered]@{}
     $envInfo["os"] = [System.Environment]::OSVersion.VersionString
@@ -282,10 +336,73 @@ function New-CypSupportBundle {
     $envInfo["ports"] = $ports
     Write-CypUtf8Text -Path (Join-Path $stage "env.json") -Value (($envInfo | ConvertTo-Json -Depth 5) + "`n")
 
-    $h = Invoke-Health -Url "http://127.0.0.1:5170/api/health" -TimeoutSec 3 -RequireSuccessJson
-    $r = Invoke-Health -Url "http://127.0.0.1:5170/healthz/ready" -TimeoutSec 3 -RequireSuccessJson
+    $h = Invoke-Health -Url "https://127.0.0.1:5170/api/health" -TimeoutSec 3 -RequireSuccessJson
+    $r = Invoke-Health -Url "https://127.0.0.1:5170/healthz/ready" -TimeoutSec 3 -RequireSuccessJson
     $snap = @{ health = $h; ready = $r }
     Write-CypUtf8Text -Path (Join-Path $stage "health-snapshot.json") -Value (($snap | ConvertTo-Json -Depth 6) + "`n")
+
+    # ---- Nomad 环境信息（若检测到 Nomad 则收集） ----
+    $isNomadEnv = $false
+    if ($env:NOMAD_ALLOC_ID -or $env:NOMAD_JOB_NAME -or (Test-CommandExists "nomad")) {
+      $isNomadEnv = $true
+      $nomadDir = Join-Path $stage "nomad"
+      New-Item -ItemType Directory -Force -Path $nomadDir | Out-Null
+
+      # 1. Nomad 环境变量（脱敏）
+      $nomadEnv = @{}
+      foreach ($k in @("NOMAD_ALLOC_ID","NOMAD_JOB_NAME","NOMAD_GROUP_NAME","NOMAD_TASK_NAME",
+                       "NOMAD_NAMESPACE","NOMAD_REGION","NOMAD_DC","NOMAD_ALLOC_INDEX",
+                       "NOMAD_CPU_LIMIT","NOMAD_MEMORY_LIMIT","NOMAD_PORT_api",
+                       "NOMAD_PORT_mcp","NOMAD_PORT_http","NOMAD_META_version")) {
+        if ($env:$k) { $nomadEnv[$k] = $env:$k }
+      }
+      Write-CypUtf8Text -Path (Join-Path $nomadDir "env.json") -Value (($nomadEnv | ConvertTo-Json -Depth 3) + "`n")
+
+      # 2. 收集 deploy/nomad/ 下的 job spec 文件
+      $nomadSpecDir = Join-Path $Root "deploy\nomad"
+      if (Test-Path -LiteralPath $nomadSpecDir) {
+        $specCopyDir = Join-Path $nomadDir "specs"
+        New-Item -ItemType Directory -Force -Path $specCopyDir | Out-Null
+        Get-ChildItem -LiteralPath $nomadSpecDir -Filter "*.nomad" -ErrorAction SilentlyContinue |
+          ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $specCopyDir $_.Name) -Force }
+      }
+
+      # 3. 如果 nomad CLI 可用，查询 job / alloc 状态（非阻塞，失败则跳过）
+      if (Test-CommandExists "nomad") {
+        try {
+          $jobStatus = & nomad job status -json cyp-memo 2>$null
+          if ($jobStatus) {
+            Write-CypUtf8Text -Path (Join-Path $nomadDir "job-status.json") -Value ($jobStatus -join "`n")
+          }
+        } catch { }
+
+        if ($env:NOMAD_ALLOC_ID) {
+          try {
+            $allocStatus = & nomad alloc status -json $env:NOMAD_ALLOC_ID 2>$null
+            if ($allocStatus) {
+              Write-CypUtf8Text -Path (Join-Path $nomadDir "alloc-status.json") -Value ($allocStatus -join "`n")
+            }
+          } catch { }
+        }
+      }
+
+      # 4. Consul 服务目录（若 consul CLI 可用）
+      if (Test-CommandExists "consul") {
+        try {
+          $svcList = & consul catalog services 2>$null
+          if ($svcList) {
+            Write-CypUtf8Text -Path (Join-Path $nomadDir "consul-services.txt") -Value ($svcList -join "`n")
+          }
+        } catch { }
+      }
+
+      # 更新 meta
+      $metaLines.Add("nomad=1")
+      $metaLines.Add("nomad_job=$($env:NOMAD_JOB_NAME ?? 'n/a')")
+      $metaLines.Add("nomad_alloc=$($env:NOMAD_ALLOC_ID ?? 'n/a')")
+    } else {
+      $metaLines.Add("nomad=0")
+    }
 
     $logDir = Join-Path $Root "logs"
     if (Test-Path -LiteralPath $logDir) {
@@ -311,6 +428,11 @@ function New-CypSupportBundle {
         } catch { }
       }
     }
+
+    # ---- 写入 META.txt（所有 meta 信息收集完毕后统一写入） ----
+    $metaContent = $metaLines -join "`n"
+    Set-Content -LiteralPath (Join-Path $stage "META.txt") -Value $metaContent -Encoding utf8
+    Repair-CypTextFile -Path (Join-Path $stage "META.txt") | Out-Null
 
     $hashLines = New-Object System.Collections.Generic.List[string]
     Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object {

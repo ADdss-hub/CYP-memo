@@ -50,22 +50,11 @@ function mountAttachmentsView(piniaInstance: ReturnType<typeof createPinia>) {
 }
 
 // Mock Element Plus icons
-vi.mock('@element-plus/icons-vue', () => ({
-  Files: { name: 'Files' },
-  Picture: { name: 'Picture' },
-  Document: { name: 'Document' },
-  Folder: { name: 'Folder' },
-  FolderOpened: { name: 'FolderOpened' },
-  Delete: { name: 'Delete' },
-  Download: { name: 'Download' },
-  Clock: { name: 'Clock' },
-  Upload: { name: 'Upload' },
-  SuccessFilled: { name: 'SuccessFilled' },
-  CircleCloseFilled: { name: 'CircleCloseFilled' },
-  WarningFilled: { name: 'WarningFilled' },
-  InfoFilled: { name: 'InfoFilled' },
-  Close: { name: 'Close' }
-}))
+// Mock Element Plus icons：基于真实模块展开，避免白名单式 mock 缺失图标导致收集失败
+vi.mock('@element-plus/icons-vue', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return { ...actual }
+})
 
 // Mock Element Plus message components
 vi.mock('element-plus', async () => {

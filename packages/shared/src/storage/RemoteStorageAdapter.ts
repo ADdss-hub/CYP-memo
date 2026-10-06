@@ -1,6 +1,6 @@
 /**
  * CYP-memo 远程存储适配器
- * 基于 REST API 实现，适用于 NAS/容器环境
+ * 基于 REST API 实现，适用于本机与 NAS 远程环境
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
@@ -41,6 +41,11 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     return this.apiKey
   }
 
+  /** 会话恢复：写入 Bearer（刷新后从持久化配置回填） */
+  setAccessToken(token: string | undefined): void {
+    this.apiKey = token || undefined
+  }
+
   /**
    * 发送 API 请求
    */
@@ -77,6 +82,7 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     const response = await fetch(`${this.apiUrl}${endpoint}`, {
       method,
       headers,
+      credentials: 'include',
       body: isFormData ? (body as FormData) : (body ? JSON.stringify(body) : undefined),
     })
 
@@ -358,6 +364,20 @@ export class RemoteStorageAdapter implements IStorageAdapter {
     await this.request<void>('DELETE', `/users/${id}`)
   }
 
+  /** 自助注销本账号（服务端按 purge 设置决定是否清内容） */
+  async cancelOwnAccount(): Promise<{ message: string; purgeRelated: boolean }> {
+    // 空对象 body：保证 Content-Type JSON 与防重中间件稳定解析
+    const result = await this.request<{ message: string; purgeRelated: boolean }>(
+      'POST',
+      '/users/me/cancel-account',
+      {}
+    )
+    return {
+      message: result.message || '已注销本账号',
+      purgeRelated: Boolean(result.purgeRelated),
+    }
+  }
+
   async usernameExists(username: string): Promise<boolean> {
     const result = await this.request<{ exists: boolean }>(
       'GET', 
@@ -466,6 +486,7 @@ export class RemoteStorageAdapter implements IStorageAdapter {
   async getFileBlob(id: string): Promise<Blob | undefined> {
     try {
       const response = await fetch(`${this.apiUrl}/files/${id}/blob`, {
+        credentials: 'include',
         headers: this.apiKey ? { 'Authorization': `Bearer ${this.apiKey}` } : {},
       })
       if (!response.ok) return undefined
@@ -497,7 +518,7 @@ export class RemoteStorageAdapter implements IStorageAdapter {
       'GET',
       `/users/${userId}/storage`
     )
-    // 仅本账号占用；禁止回退到卷 used（R-010）
+    // 仅文件库存储空间（主+子合计）；禁止回退到系统存储空间 used（R-010）
     return result.accountUsed ?? 0
   }
 

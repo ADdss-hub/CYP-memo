@@ -193,8 +193,9 @@ describe('格式化工具', () => {
 
   describe('文件大小格式化', () => {
     it('应该格式化字节', () => {
-      expect(formatFileSize(0)).toBe('0 Bytes')
-      expect(formatFileSize(500)).toBe('500 Bytes')
+      expect(formatFileSize(0)).toBe('0 字节')
+      expect(formatFileSize(500)).toBe('500 字节')
+      expect(formatFileSize(-1)).toBe('0 字节')
     })
 
     it('应该格式化 KB', () => {
@@ -276,7 +277,7 @@ describe('性能优化工具', () => {
       const result = calculateVirtualScroll(0, {
         totalItems: 1000,
         itemHeight: 50,
-        containerHeight: 500,
+        viewportHeight: 500,
         bufferSize: 3
       })
 
@@ -289,7 +290,7 @@ describe('性能优化工具', () => {
       const result = calculateVirtualScroll(500, {
         totalItems: 1000,
         itemHeight: 50,
-        containerHeight: 500,
+        viewportHeight: 500,
         bufferSize: 3
       })
 
@@ -302,7 +303,7 @@ describe('性能优化工具', () => {
       const result = calculateVirtualScroll(0, {
         totalItems: 100,
         itemHeight: 50,
-        containerHeight: 500,
+        viewportHeight: 500,
         bufferSize: 3
       })
 

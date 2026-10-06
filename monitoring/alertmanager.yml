@@ -1,0 +1,88 @@
+# CYP-memo Alertmanager 分级路由配置（规范 2.14 + R14 硬要求）。
+# R14：禁止邮件式全量告警（等价于 /dev/null 的广播），必须按 tier 分级路由。
+#
+# 与 monitoring/prometheus/alerts.yml 的 label 映射关系：
+#   alerts.yml 每条规则带双字段 label：
+#     - tier:    page    -> 立即呼叫通道（receiver: cyp-page-webhook，高优先级）
+#                ticket  -> 工单通道（receiver: cyp-ticket）
+#                logging -> 本地日志通道（receiver: cyp-logging）
+#     - severity: critical / warning / info（仅作展示与抑制辅助，不参与路由分支）
+#   路由按 labels.tier 分支；page 级发生时不重复触发对应的 ticket/logging（inhibit_rules）。
+#
+# receiver 的 webhook 端点为占位接收端（已指向明确地址），上线前替换为真实
+# 呼叫/工单/日志系统集成地址即可，避免告警无声丢失或全量广播。
+
+global:
+  resolve_timeout: 5m
+
+route:
+  # 兜底 receiver：任何未匹配 tier 的告警归集此处，确保不丢失（catch-all）。
+  receiver: cyp-catch-all
+  group_by: ['alertname', 'tier', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # page 级：立即呼叫，最短等待、最短重复，必须有人响应。
+    - matchers:
+        - tier = "page"
+      receiver: cyp-page-webhook
+      group_by: ['alertname', 'tier']
+      group_wait: 10s
+      group_interval: 2m
+      repeat_interval: 1h
+      continue: false
+    # ticket 级：建单跟进，允许较长重复周期。
+    - matchers:
+        - tier = "ticket"
+      receiver: cyp-ticket
+      group_by: ['alertname', 'tier']
+      group_wait: 30s
+      group_interval: 10m
+      repeat_interval: 12h
+      continue: false
+    # logging 级：仅记录，低频汇总。
+    - matchers:
+        - tier = "logging"
+      receiver: cyp-logging
+      group_by: ['alertname', 'tier']
+      group_wait: 1m
+      group_interval: 30m
+      repeat_interval: 24h
+      continue: false
+
+receivers:
+  - name: cyp-page-webhook
+    webhook_configs:
+      # 高优先级呼叫端点（上线前替换为真实 PagerDuty/电话/IM 机器人 webhook）。
+      - url: 'http://host.docker.internal:9094/alerts/page'
+        send_resolved: true
+  - name: cyp-ticket
+    webhook_configs:
+      # 工单系统接入端点（上线前替换为真实 ITSM/工单 webhook）。
+      - url: 'http://host.docker.internal:9094/alerts/ticket'
+        send_resolved: true
+  - name: cyp-logging
+    webhook_configs:
+      # 本地日志收集端点（上线前替换为真实日志/SIEM webhook）。
+      - url: 'http://host.docker.internal:9094/alerts/logging'
+        send_resolved: true
+  - name: cyp-catch-all
+    webhook_configs:
+      # 兜底接收端：未匹配任何 tier 的告警统一归集，避免静默丢失。
+      - url: 'http://host.docker.internal:9094/alerts/catch-all'
+        send_resolved: true
+
+# 抑制规则：page 级告警触发时，抑制同一 alertname 的 ticket 与 logging 级重复告警，
+# 避免同一故障在三个通道同时刷屏（R14 禁止重复广播的落地手段）。
+inhibit_rules:
+  - source_matchers:
+      - tier = "page"
+    target_matchers:
+      - tier = "ticket"
+    equal: ['alertname']
+  - source_matchers:
+      - tier = "page"
+    target_matchers:
+      - tier = "logging"
+    equal: ['alertname']

@@ -1,6 +1,6 @@
 # 运行底座闭集核验（独立于旧编制探针）
 param(
-  [string]$BaseUrl = 'http://127.0.0.1:5170'
+  [string]$BaseUrl = 'https://127.0.0.1:5170'
 )
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '../..')

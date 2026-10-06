@@ -1,6 +1,6 @@
 <!--
   版本更新提示（Web）
-  非容器：仅刷新页面 / 查看 Release 日志
+  本机联调 / 原生部署：仅刷新页面 / 查看 Release 日志
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
@@ -32,7 +32,7 @@
         <span v-if="publishedAt" class="publish-date">{{ formatDate(publishedAt) }}</span>
       </p>
       <div class="notes-content">{{ releaseNotes || '暂无更新说明' }}</div>
-      <p class="deploy-hint">面板 / NAS / Windows / Unix 请使用 GitHub Release 中的 server 包或桌面安装包升级（已取消容器部署）。</p>
+      <p class="deploy-hint">面板 / NAS / Windows / Unix 请使用 GitHub Release 中的 server 包或桌面安装包升级。</p>
     </div>
     <template #footer>
       <el-button @click="showReleaseNotesDialog = false">关闭</el-button>
@@ -152,10 +152,11 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 9999;
-  background: #0099ff;
-  color: white;
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
   padding: 12px 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--cyp-chrome-shadow), 0 2px 12px rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid color-mix(in srgb, #ffffff 22%, transparent);
 }
 .update-content {
   display: flex;
@@ -177,28 +178,25 @@ onUnmounted(() => {
   gap: 12px;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--el-border-color-light);
+  border-bottom: 1px solid var(--cyp-border);
 }
-.publish-date { color: var(--el-text-color-secondary); font-size: 13px; }
+.publish-date { color: var(--cyp-text-muted); font-size: 13px; }
 .notes-content {
   font-size: 14px;
   line-height: 1.8;
-  color: var(--el-text-color-regular);
+  color: var(--cyp-text-secondary);
   max-height: 300px;
   overflow-y: auto;
 }
 .deploy-hint {
   margin-top: 12px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--cyp-text-muted);
 }
 .slide-down-enter-active,
 .slide-down-leave-active { transition: all 0.3s ease; }
 .slide-down-enter-from,
 .slide-down-leave-to { transform: translateY(-100%); opacity: 0; }
-.update-notification {
-  background: linear-gradient(135deg, var(--cyp-bg-elevated) 0%, var(--cyp-bg-page) 100%);
-}
 @media (max-width: 768px) {
   .update-content { flex-wrap: wrap; gap: 8px; }
   .update-text { width: 100%; text-align: center; }

@@ -1,0 +1,341 @@
+# =============================================================================
+# CYP-memo · 单节点集群（Docker Compose 备选方案）
+# =============================================================================
+# 核心原则：单节点不是简化版，而是最小完整集群。
+#   所有组件都在，只是跑在一台机器上。
+#
+# 适用场景：不想安装 Nomad/Consul 二进制的用户，纯 Docker 体验
+# 架构：Consul（服务发现）+ Nomad（可选，dev模式）+ 业务服务 + 监控栈
+#
+# 使用：
+#   docker compose -f deploy/single-node-cluster/docker-compose.unified.yml up -d
+#   docker compose -f deploy/single-node-cluster/docker-compose.unified.yml ps
+#   docker compose -f deploy/single-node-cluster/docker-compose.unified.yml down
+#
+# 访问：
+#   产品网关:   http://localhost:5170
+#   Consul UI:  http://localhost:8500
+#   Nomad UI:   http://localhost:4646   (启用 nomad 服务时)
+#   Grafana:    http://localhost:3000
+#   Prometheus: http://localhost:9090
+# =============================================================================
+
+name: cyp-memo-single-node
+
+networks:
+  cyp-memo-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  consul-data:
+  nomad-data:
+  cyp-memo-data:
+  cyp-memo-logs:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:
+
+services:
+
+  # ===========================================================================
+  # 基础设施层：Consul — 服务发现 + KV + 健康检查
+  # ===========================================================================
+  consul:
+    image: hashicorp/consul:latest
+    container_name: cyp-consul-single
+    restart: unless-stopped
+    command:
+      - agent
+      - -server
+      - -bootstrap-expect=1
+      - -data-dir=/consul/data
+      - -node=cyp-consul-single-01
+      - -datacenter=cyp-memo-dc1
+      - -bind=0.0.0.0
+      - -client=0.0.0.0
+      - -ui
+      - -log-level=INFO
+      - -enable-script-checks=false
+      - -enable-local-script-checks=true
+    ports:
+      - "8500:8500"   # HTTP API / UI
+      - "8600:8600/udp"  # DNS
+      - "8300:8300"   # Server RPC
+      - "8301:8301"   # Serf LAN
+      - "8302:8302"   # Serf WAN
+    volumes:
+      - consul-data:/consul/data
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8500/v1/status/leader"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  # ===========================================================================
+  # 基础设施层：Nomad（可选，dev 模式）
+  # 注释掉或用 profiles 控制是否启动
+  # ===========================================================================
+  nomad:
+    image: hashicorp/nomad:latest
+    container_name: cyp-nomad-single
+    restart: unless-stopped
+    profiles: ["nomad"]   # 默认不启动，需 --profile nomad 显式启用
+    command:
+      - agent
+      - -dev
+      - -bind=0.0.0.0
+      - -data-dir=/nomad/data
+      - -datacenter=cyp-memo-dc1
+      - -consul-address=consul:8500
+      - -network-interface=eth0
+    ports:
+      - "4646:4646"   # HTTP API / UI
+      - "4647:4647"   # RPC
+      - "4648:4648"   # Serf
+    volumes:
+      - nomad-data:/nomad/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      consul:
+        condition: service_healthy
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.3
+    privileged: true   # dev 模式需要较多权限
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:4646/v1/status/leader"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  # ===========================================================================
+  # 业务层：cyp-memo-api — 后端 API 服务
+  # ===========================================================================
+  cyp-memo-api:
+    image: ${CYP_MEMO_IMAGE:-registry.example.com/cyp-memo/server:latest}
+    container_name: cyp-memo-api
+    restart: unless-stopped
+    command: ["node", "--conditions=cyp-node", "dist/index.js"]
+    environment:
+      - APP_ENV=prod
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - TZ=Asia/Shanghai
+      - API_PORT=10170
+      - DATA_DIR=/data
+      - CYP_KMS_REMOTE=0
+      - KMS_PORT=12000
+    ports:
+      - "10170:10170"   # API
+      - "12000:12000"   # KMS
+      - "9091:9091"     # Metrics
+    volumes:
+      - cyp-memo-data:/data
+      - cyp-memo-logs:/var/log/cyp-memo
+    depends_on:
+      consul:
+        condition: service_healthy
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.10
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('https').get({hostname:'127.0.0.1',port:10170,path:'/healthz/ready',rejectUnauthorized:false},r=>{process.exit(r.statusCode===200?0:1)})"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ===========================================================================
+  # 接入层：cyp-memo-gateway — 前端网关（静态资源 + 反向代理）
+  # ===========================================================================
+  cyp-memo-gateway:
+    image: ${CYP_GATEWAY_IMAGE:-registry.example.com/cyp-memo/gateway:latest}
+    container_name: cyp-memo-gateway
+    restart: unless-stopped
+    ports:
+      - "5170:5170"   # 产品统一入口
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      cyp-memo-api:
+        condition: service_healthy
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.20
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://127.0.0.1:5170/healthz/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  # ===========================================================================
+  # 旁路层：cyp-memo-mcp — MCP 旁路服务
+  # ===========================================================================
+  cyp-memo-mcp:
+    image: ${CYP_MCP_IMAGE:-registry.example.com/cyp-memo/mcp:latest}
+    container_name: cyp-memo-mcp
+    restart: unless-stopped
+    command: ["node", "dist/index.js"]
+    environment:
+      - APP_ENV=prod
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - TZ=Asia/Shanghai
+      - MCP_PORT=13175
+      - API_BASE_URL=https://cyp-memo-api:10170
+    ports:
+      - "13175:13175"   # MCP 旁路
+    depends_on:
+      cyp-memo-api:
+        condition: service_healthy
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.30
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('https').get({hostname:'127.0.0.1',port:13175,path:'/healthz',rejectUnauthorized:false},r=>{process.exit(r.statusCode===200?0:1)})"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ===========================================================================
+  # 可观测层：Prometheus — 指标采集与存储
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cyp-memo-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+      - --web.enable-admin-api
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ../../monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      consul:
+        condition: service_healthy
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.40
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================================================
+  # 可观测层：Grafana — 可视化仪表板
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cyp-memo-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin   # 生产环境请修改
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../../dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.41
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================================================
+  # 可观测层：Alertmanager — 告警分级路由
+  # ===========================================================================
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: cyp-memo-alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - alertmanager-data:/alertmanager
+      - ../../monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.42
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================================================
+  # 可观测层：Node Exporter — 主机指标采集
+  # ===========================================================================
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: cyp-memo-node-exporter
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      cyp-memo-net:
+        ipv4_address: 172.28.0.43
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:9100/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================================================
+  # Consul 服务注册器 — 向 Consul 注册所有业务服务
+  # （轻量级 sidecar，运行注册脚本后退出，由健康检查维护状态）
+  # ===========================================================================
+  consul-register:
+    image: curlimages/curl:latest
+    container_name: cyp-consul-register
+    restart: "no"
+    depends_on:
+      consul:
+        condition: service_healthy
+    volumes:
+      - ../../deploy/consul/cyp-memo-service.json:/services.json:ro
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Registering services to Consul...';
+        curl -s --request PUT --data @/services.json http://consul:8500/v1/agent/service/register;
+        echo 'Done.';
+      "
+    networks:
+      - cyp-memo-net

@@ -1,16 +1,40 @@
-# 本机联调（生产配置基准）
+# 底座优先开发指南（本机联调 · 生产配置基准）
 
-> **CI02**：本机联调 = 生产配置基准。强制 `APP_ENV=prod`、`NODE_ENV=production`。  
+> **核心理念**：运行底座唯一，禁止第二套。所有开发都在统一运行底座上进行，工具链仅作旁路挂载，不替代底座。
+>
+> **CI02 铁律**：本机联调 = 生产配置基准。强制 `APP_ENV=prod`、`NODE_ENV=production`。  
 > **禁止**把本机联调表述成独立配置面；源码挂载与热重载只是工具链，不改变配置基准。
+>
+> **完整开发流程**：[底座优先开发流程指南](docs/development-workflow.md) · [运行底座一致性审计清单](docs/audit-runtime-base-checklist.md)
 
 Windows-first helpers under `scripts/`。根脚本统一 `local` / `local:all`（生产配置基准）；一键入口见下表。
+
+---
+
+## 底座优先四步开发法
+
+```
+┌──────────┬──────────┬──────────────────┬───────────────────────┐
+│ 第一步    │ 第二步    │ 第三步            │ 第四步                 │
+│ 启动底座  │ 挂载工具链 │ 在底座上开发验证  │ 卸载工具链·底座原生验证 │
+└──────────┴──────────┴──────────────────┴───────────────────────┘
+```
+
+**第一步 · 启动底座**：`scripts\start\start-local.bat` → 5170 端口（生产级，全能力）
+**第二步 · 挂载工具链**：`pnpm local:hmr` → 5173 端口（Vite HMR 旁路，代理到底座）
+**第三步 · 开发验证**：日常开发用 5173 享受 HMR，但所有 API 走底座 5170
+**第四步 · 底座原生验证**：关闭 5173，直接访问 5170，确认功能完整
+
+> ⚠️ **第四步是必须的**：任何功能必须经过无工具链验证，确认不依赖旁路工具。
 
 ## One commands
 
 | Action | Command |
 |--------|---------|
-| Start | `scripts\start\start-local.bat` |
+| Start | `scripts\start\start-local.bat`（**自动同启** API `:5170` + MCP `:13175`） |
 | Stop | `scripts\stop\stop-local.bat` |
+| MCP 单独排障 | `pnpm mcp:local`（日常勿手工；已含在 local:all） |
+| MCP stdio | `pnpm mcp:stdio`（Cursor 子进程） |
 | Verify | `scripts\verify\verify-e2e.bat` |
 | 运行底座闭集 35 | `verify-runtime-base.ps1` + `verify-runtime-base-cutin.ps1` + `verify-no-compat-dualpath.ps1` |
 | 负压压测 | `scripts\verify\verify-runtime-base-stress.ps1`（并发 CRUD + 410/400/503 洪水 + 防重风暴） |
@@ -28,18 +52,24 @@ PowerShell equivalents: same names with `.ps1`.
 
 ## URLs after start
 
+> **CI02 = 生产访问形态**：绑定 `0.0.0.0`，浏览器用**实机网卡 IP**；`127.0.0.1` 仅作本机探针可选。
+
 | Service | URL |
 |---------|-----|
-| App（唯一产品壳） | http://localhost:5173 |
-| API | http://localhost:5170 |
-| Health | http://localhost:5170/api/health |
-| Ready | http://localhost:5170/healthz/ready |
+| **产品入口（唯一）** | https://\<服务器IP\>:5170（API 同域静态 + 业务；正规 `{dataDir}/tls/official/` 优先，否则叶子 `{dataDir}/tls/leaf/`，主题 CN=CYP-memo） |
+| MCP（同启旁路 · 环回） | 旁路 `https://127.0.0.1:13175`；客户端用产品 `https://\<服务器IP\>:5170/mcp` |
+| MCP 探活 / 发现 | 产品 `/mcp/healthz` `/mcp/discover`；旁路环回 `/healthz` `/discover`（须 `MCP-Protocol-Version`） |
+
+Cursor stdio 样例见 README「MCP 客户端接入」。
+| Health | https://\<服务器IP\>:5170/api/health |
+| Live | https://\<服务器IP\>:5170/health/live （进程存活 JSON；别名 `/live`） |
+| Ready | https://\<服务器IP\>:5170/healthz/ready |
 | Ready · 底座投影 | `data.runtimeBase.items` 闭集 35 个稳定 ID |
-| Tenant 运维 | http://localhost:5173/tenant |
+| Tenant 运维 | https://\<服务器IP\>:5170/tenant |
 
 > **统一运行底座**：闭集 35。机检 `node scripts/verify/verify-runtime-base.mjs`。  
 > VIEW-05：独立管理端 **5174 已废止**；勿再启动 `packages/admin`。  
-> 5173 为本机 Vite 联调壳；生产由 API 同域或镜像静态提供。
+> **R-PROD-004**：不分联调与业务，始终同一个产品入口（`:5170`）。可选热重载 `pnpm local:hmr` 仅内部工具（`:5173`），**禁止**广告为产品壳。
 
 Owner 种子：`.env` 中设 `CYP_BOOTSTRAP_OWNER_PASSWORD`（空库）；留空则跳过种子，走自助注册。
 
@@ -51,12 +81,13 @@ Owner 种子：`.env` 中设 `CYP_BOOTSTRAP_OWNER_PASSWORD`（空库）；留空
 | `NODE_ENV` | `production` | 与生产一致；其它取值一律纠正为 production |
 | `LOG_LEVEL` | `info`（建议） | 勿默认 `debug` 冒充独立配置面 |
 
-Docker 源码挂载联调已取消；本机请用 `scripts/start/start-local.*`。
+本机请用 `scripts/start/start-local.*`（生产配置基准）。
 
 ## Notes
 
 - Start polls `/healthz/ready` until ready or timeout (`CYP_START_TIMEOUT`, default 120 seconds).
-- Stop kills listeners on 5170/5173（兼容清理残留 5174 若仍有旧进程）。
+- Stop kills listeners on 5170（兼容清理残留 5173/5174 若仍有旧进程）。
+- 单机原生进程不启用 Nomad/Consul；跨机多实例另开批次。
 
 ## Encoding (UTF-8 · 防乱码)
 

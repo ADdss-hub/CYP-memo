@@ -1,6 +1,6 @@
 /**
  * CYP-memo 存储适配器接口
- * 支持多种存储后端：IndexedDB（本地）、REST API（容器/NAS）
+ * 支持多种存储后端：IndexedDB（本地）、REST API（本机/NAS）
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
@@ -60,6 +60,8 @@ export interface IStorageAdapter {
   getSubAccounts(parentUserId: string): Promise<User[]>
   updateUser(id: string, updates: Partial<User>): Promise<number>
   deleteUser(id: string): Promise<void>
+  /** 自助注销本账号（可选；远程必实现） */
+  cancelOwnAccount?(): Promise<{ message: string; purgeRelated: boolean }>
   usernameExists(username: string): Promise<boolean>
   tokenExists(token: string): Promise<boolean>
 
@@ -88,7 +90,7 @@ export interface IStorageAdapter {
   updateFile(id: string, updates: Partial<FileMetadata>): Promise<number>
   deleteFile(id: string): Promise<void>
   getStorageUsed(userId: string): Promise<number>
-  /** 存储空间：远程以服务器 dataDir 卷为准；本账号占用见 accountUsed */
+  /** 系统存储空间：远程以服务器 dataDir 卷为准；文件库存储空间见 accountUsed */
   getStorageInfo(userId: string): Promise<StorageInfo>
 
   // ========== 分享链接 ==========

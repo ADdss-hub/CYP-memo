@@ -16,7 +16,6 @@ git commit -m "fix: 修复所有平台构建问题并添加国内镜像加速配
 - Linux: 添加 homepage 字段
 - Windows: 图标尺寸更新到 256x256
 - macOS: 添加 GitHub Actions 权限
-- Docker: 优化构建配置和超时时间
 
 新增功能:
 - 完整的国内镜像加速配置

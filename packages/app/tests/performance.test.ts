@@ -238,20 +238,24 @@ describe('性能测试', () => {
       }
 
       const memoStore = useMemoStore(pinia)
+      vi.spyOn(memoStore, 'loadMemos').mockResolvedValue(undefined as never)
       
       // 添加 1000 个备忘录
+      const base1k = Date.now()
+      const batch1k: typeof memoStore.memos = []
       for (let i = 0; i < 1000; i++) {
-        memoStore.memos.push({
+        batch1k.push({
           id: `memo-${i}`,
           userId: 'test-user',
           title: `测试备忘录 ${i}`,
           content: `这是测试内容 ${i}`,
           tags: [`标签${i % 10}`],
           attachments: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: new Date(base1k - i),
+          updatedAt: new Date(base1k - i),
         })
       }
+      memoStore.memos = batch1k
 
       const renderTime = await measureTime(async () => {
         const wrapper = mount(MemoListView, {
@@ -281,20 +285,24 @@ describe('性能测试', () => {
       }
 
       const memoStore = useMemoStore(pinia)
-      
-      // 添加 10000 个备忘录
+      // 禁网络/IndexedDB 回写，只测窗口分页挂载
+      vi.spyOn(memoStore, 'loadMemos').mockResolvedValue(undefined as never)
+
+      const base = Date.now()
+      const batch: typeof memoStore.memos = []
       for (let i = 0; i < 10000; i++) {
-        memoStore.memos.push({
+        batch.push({
           id: `memo-${i}`,
           userId: 'test-user',
           title: `测试备忘录 ${i}`,
           content: `这是测试内容 ${i}`,
           tags: [`标签${i % 10}`],
           attachments: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: new Date(base - i),
+          updatedAt: new Date(base - i),
         })
       }
+      memoStore.memos = batch
 
       const renderTime = await measureTime(async () => {
         const wrapper = mount(MemoListView, {
@@ -303,12 +311,15 @@ describe('性能测试', () => {
           },
         })
         await wrapper.vm.$nextTick()
+        const cards = wrapper.findAll('.memo-card')
+        expect(cards.length).toBeGreaterThan(0)
+        expect(cards.length).toBeLessThanOrEqual(50)
+        expect(wrapper.text()).toMatch(/已显示/)
         wrapper.unmount()
       })
 
-      console.log(`渲染 10000 个备忘录耗时: ${renderTime.toFixed(2)}ms`)
-      // 使用虚拟滚动后，即使 10000 个项目也应该快速渲染（10秒内）
-      expect(renderTime).toBeLessThan(10000)
+      console.log(`渲染 10000 个备忘录（窗口分页）耗时: ${renderTime.toFixed(2)}ms`)
+      expect(renderTime).toBeLessThan(5000)
     })
 
     it('滚动大列表时性能应该保持稳定', async () => {
@@ -324,6 +335,7 @@ describe('性能测试', () => {
       }
 
       const memoStore = useMemoStore(pinia)
+      vi.spyOn(memoStore, 'loadMemos').mockResolvedValue(undefined as never)
       
       // 添加 1000 个备忘录
       for (let i = 0; i < 1000; i++) {
@@ -377,6 +389,7 @@ describe('性能测试', () => {
       }
 
       const memoStore = useMemoStore(pinia)
+      vi.spyOn(memoStore, 'loadMemos').mockResolvedValue(undefined as never)
       
       // 添加 1000 个备忘录
       for (let i = 0; i < 1000; i++) {

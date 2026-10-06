@@ -13,12 +13,19 @@ export const USER_LANE_PATH_ROOTS: readonly string[] = [
   '/api/public/shares',
   '/api/settings',
   '/api/users',
+  '/mcp',
+  '/api/mcp/pat',
+  '/api/mcp/exchange',
+  '/api/mcp/oauth',
+  '/api/mcp/files',
+  '/api/public/mcp',
 ] as const
 
 /** 强制系统网关子中心（ops）的路径，即使落在 user 根下 */
 export const OPS_LANE_FORCE_PATHS: readonly string[] = [
   '/api/files/storage/status',
   '/api/ops/snapshot',
+  '/mcp/healthz',
 ] as const
 
 /** 长轮询路径（独立信号量，不占 user 业务槽） */

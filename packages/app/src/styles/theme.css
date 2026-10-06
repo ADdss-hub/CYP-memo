@@ -20,10 +20,33 @@ html.dark {
   --cyp-brand-tint-strong: rgba(0, 153, 255, 0.28);
 
   --cyp-bg-page: #0f172a;
-  --cyp-bg-card: #1e1e1e;
-  --cyp-bg-muted: #272727;
+  /* 实体底（输入框等需不透的场合） */
+  --cyp-bg-card-solid: #1e1e1e;
+  --cyp-bg-muted-solid: #272727;
+  --cyp-bg-elevated-solid: #2d2d2d;
+  /* 全局默认卡片/面板：半透明（透出氛围底） */
+  --cyp-bg-card: color-mix(in srgb, #1e1e1e 78%, transparent);
+  --cyp-bg-muted: color-mix(in srgb, #272727 62%, transparent);
   --cyp-bg-input: #121212;
-  --cyp-bg-elevated: #2d2d2d;
+  --cyp-bg-elevated: color-mix(in srgb, #2d2d2d 86%, transparent);
+
+  /* 全站页底氛围（与认证壳同构 · 禁纯色平铺） */
+  --cyp-atmosphere-base: #0a1220;
+  --cyp-atmosphere-mid: #0f172a;
+  --cyp-atmosphere-deep: #070d18;
+  --cyp-atmosphere-orb-a: rgba(0, 153, 255, 0.24);
+  --cyp-atmosphere-orb-b: rgba(0, 120, 200, 0.16);
+  --cyp-atmosphere-orb-c: rgba(51, 173, 255, 0.1);
+  --cyp-atmosphere-grid: rgba(0, 153, 255, 0.045);
+  --cyp-atmosphere-vignette: rgba(0, 0, 0, 0.42);
+
+  /* 壳层磨砂面（与卡片 Token 同源 · 全局复用） */
+  --cyp-chrome-bg: var(--cyp-bg-card);
+  --cyp-chrome-bg-soft: var(--cyp-bg-muted);
+  --cyp-chrome-bg-panel: var(--cyp-bg-elevated);
+  --cyp-chrome-border: color-mix(in srgb, var(--cyp-brand) 18%, var(--cyp-border));
+  --cyp-chrome-blur: 14px;
+  --cyp-chrome-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 
   --cyp-text: #ffffff;
   --cyp-text-secondary: #e0e0e0;
@@ -59,7 +82,7 @@ html.dark {
   --el-color-warning: var(--cyp-warning);
   --el-color-danger: var(--cyp-danger);
   --el-bg-color: var(--cyp-bg-card);
-  --el-bg-color-page: var(--cyp-bg-page);
+  --el-bg-color-page: transparent;
   --el-text-color-primary: var(--cyp-text);
   --el-text-color-regular: var(--cyp-text-secondary);
   --el-border-color: var(--cyp-border);
@@ -79,10 +102,26 @@ html.dark {
 /* 可选浅色（设置项）；默认不以浅色为产品壳 */
 [data-theme='light'] {
   --cyp-bg-page: #f5f5f5;
-  --cyp-bg-card: #ffffff;
-  --cyp-bg-muted: #f0f0f0;
+  --cyp-bg-card-solid: #ffffff;
+  --cyp-bg-muted-solid: #f0f0f0;
+  --cyp-bg-elevated-solid: #ffffff;
+  --cyp-bg-card: color-mix(in srgb, #ffffff 86%, transparent);
+  --cyp-bg-muted: color-mix(in srgb, #f0f0f0 72%, transparent);
   --cyp-bg-input: #ffffff;
-  --cyp-bg-elevated: #ffffff;
+  --cyp-bg-elevated: color-mix(in srgb, #ffffff 92%, transparent);
+  --cyp-atmosphere-base: #e8eef6;
+  --cyp-atmosphere-mid: #f3f6fb;
+  --cyp-atmosphere-deep: #d9e4f2;
+  --cyp-atmosphere-orb-a: rgba(0, 153, 255, 0.18);
+  --cyp-atmosphere-orb-b: rgba(0, 120, 200, 0.12);
+  --cyp-atmosphere-orb-c: rgba(51, 173, 255, 0.1);
+  --cyp-atmosphere-grid: rgba(0, 102, 170, 0.06);
+  --cyp-atmosphere-vignette: rgba(15, 23, 42, 0.08);
+  --cyp-chrome-bg: var(--cyp-bg-card);
+  --cyp-chrome-bg-soft: var(--cyp-bg-muted);
+  --cyp-chrome-bg-panel: var(--cyp-bg-elevated);
+  --cyp-chrome-border: color-mix(in srgb, var(--cyp-brand) 14%, var(--cyp-border));
+  --cyp-chrome-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset;
   --cyp-text: #303133;
   --cyp-text-secondary: #606266;
   --cyp-text-muted: #909399;
@@ -97,7 +136,7 @@ html.dark {
   --border-color: var(--cyp-border);
 
   --el-bg-color: var(--cyp-bg-card);
-  --el-bg-color-page: var(--cyp-bg-page);
+  --el-bg-color-page: transparent;
   --el-text-color-primary: var(--cyp-text);
   --el-text-color-regular: var(--cyp-text-secondary);
   --el-border-color: var(--cyp-border);
@@ -111,9 +150,170 @@ html.dark {
   --el-menu-border-color: transparent;
 }
 
+html {
+  min-height: 100%;
+  background-color: var(--cyp-atmosphere-base, var(--cyp-bg-page));
+}
+
 body {
-  background-color: var(--cyp-bg-page);
+  min-height: 100%;
   color: var(--cyp-text);
+  background-color: transparent;
+  position: relative;
+  isolation: isolate;
+}
+
+/*
+ * 页底氛围 SSOT：认证与登录后业务壳共用。
+ * 布局：业务内容区贴边铺满工作面；表单页由各视图自带内边距。
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: -2;
+  pointer-events: none;
+  background-color: var(--cyp-atmosphere-base);
+  background-image:
+    radial-gradient(ellipse 85% 65% at 10% 12%, var(--cyp-atmosphere-orb-a), transparent 58%),
+    radial-gradient(ellipse 75% 55% at 92% 88%, var(--cyp-atmosphere-orb-b), transparent 52%),
+    radial-gradient(ellipse 55% 42% at 72% 18%, var(--cyp-atmosphere-orb-c), transparent 48%),
+    radial-gradient(circle at 28% 38%, rgba(0, 153, 255, 0.14), transparent 36%),
+    radial-gradient(circle at 78% 62%, rgba(0, 136, 230, 0.11), transparent 40%),
+    linear-gradient(var(--cyp-atmosphere-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cyp-atmosphere-grid) 1px, transparent 1px),
+    linear-gradient(
+      165deg,
+      var(--cyp-atmosphere-mid) 0%,
+      var(--cyp-atmosphere-base) 48%,
+      var(--cyp-atmosphere-deep) 100%
+    );
+  background-size:
+    auto,
+    auto,
+    auto,
+    auto,
+    auto,
+    44px 44px,
+    44px 44px,
+    auto;
+  background-position: center;
+  animation: cyp-atmosphere-drift 20s ease-in-out infinite alternate;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 38%, var(--cyp-atmosphere-vignette) 100%);
+}
+
+@keyframes cyp-atmosphere-drift {
+  from {
+    transform: translate3d(-2.5%, -1.5%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2.5%, 2%, 0) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+}
+
+/* 壳层磨砂工具类 */
+.cyp-chrome-surface {
+  background: var(--cyp-chrome-bg);
+  border-color: var(--cyp-chrome-border);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
+  box-shadow: var(--cyp-chrome-shadow);
+}
+
+/*
+ * 全局磨砂：凡走卡片/面板 Token 的壳层与 Element 浮层统一模糊
+ * （颜色已在 --cyp-bg-card/muted/elevated 半透明化）
+ */
+.app-header,
+.app-sidebar,
+.app-footer,
+.mobile-bottom-nav,
+.auth-card,
+.tooltip,
+.update-notification,
+.file-parse-dialog,
+.welcome-container,
+.notify-panel,
+.session-expired-dialog,
+.cyp-toast,
+.app-layout .app-content > *,
+.settings-section,
+.ops-panel,
+.ops-kpi,
+.ops-error,
+.ops-empty,
+.ops-link-card,
+.toolbar,
+.action-bar,
+.search-bar,
+.memo-toolbar,
+.memo-container,
+.memo-aside,
+.form-content,
+.password-form,
+.error-container,
+.share-card,
+.share-panel,
+.legal-header,
+.legal-article,
+.modal-container,
+.panel,
+.kpi-card,
+.memo-editor,
+.editor-toolbar,
+.editor-preview,
+.profile-card,
+.stat-card,
+.attachment-card,
+.account-card,
+.detail-header,
+.detail-card,
+.detail-meta,
+.comment-panel,
+.comment-card,
+.memo-content-wrapper,
+.memo-article,
+.terms-section,
+.info-card,
+.welcome-card,
+html.dark .el-card,
+html[data-theme='dark'] .el-card,
+[data-theme='light'] .el-card,
+html.dark .el-dialog,
+html[data-theme='dark'] .el-dialog,
+[data-theme='light'] .el-dialog,
+html.dark .el-message-box,
+html[data-theme='dark'] .el-message-box,
+[data-theme='light'] .el-message-box,
+html.dark .el-drawer,
+html[data-theme='dark'] .el-drawer,
+[data-theme='light'] .el-drawer,
+.el-dropdown-menu,
+.el-select-dropdown,
+.el-picker__popper,
+.el-popover.el-popper,
+.el-autocomplete-suggestion,
+.cyp-toast,
+.toast,
+.toast-item,
+.session-expired-dialog,
+.notify-panel {
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 /* 品牌大图标 */
@@ -155,25 +355,41 @@ body {
   border-radius: 22px;
 }
 
-/* 认证壳通用（登录/注册/找回/重置） */
+/* 认证壳：透出全站氛围底 */
 .auth-shell {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--cyp-bg-page);
   padding: 20px;
+  position: relative;
+  background: transparent;
 }
 
 .auth-card {
   width: 100%;
   max-width: 420px;
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--cyp-bg-card-solid, #1e1e1e) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-brand) 24%, var(--cyp-border));
+  border-radius: 14px;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(0, 153, 255, 0.06),
+    0 0 64px rgba(0, 153, 255, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   padding: 40px;
   color: var(--cyp-text);
+}
+
+[data-theme='light'] .auth-card {
+  background: color-mix(in srgb, var(--cyp-bg-card) 92%, #ffffff);
+  box-shadow:
+    0 16px 40px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(0, 153, 255, 0.08),
+    0 0 48px rgba(0, 153, 255, 0.08);
 }
 
 /* 侧栏内 el-menu（附件类型 / 统计锚点 / 账号导航）对齐 AppSidebar 视觉 */
@@ -245,81 +461,99 @@ html[data-theme='dark'] .app-sidebar .sidebar-menu .el-menu-item.is-active,
  * （禁只靠 class 被清掉）
  */
 html.dark .el-card,
-html[data-theme='dark'] .el-card {
+html[data-theme='dark'] .el-card,
+[data-theme='light'] .el-card {
   --el-card-bg-color: var(--cyp-bg-card);
-  --el-card-border-color: var(--cyp-border);
+  --el-card-border-color: var(--cyp-chrome-border);
   background-color: var(--cyp-bg-card);
-  border-color: var(--cyp-border);
+  border-color: var(--cyp-chrome-border);
   color: var(--cyp-text);
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 html.dark .el-card__header,
-html[data-theme='dark'] .el-card__header {
+html[data-theme='dark'] .el-card__header,
+[data-theme='light'] .el-card__header {
   border-bottom-color: var(--cyp-border);
   color: var(--cyp-text);
 }
 
 html.dark .el-dialog,
-html[data-theme='dark'] .el-dialog {
-  --el-dialog-bg-color: var(--cyp-bg-card);
-  background-color: var(--cyp-bg-card);
+html[data-theme='dark'] .el-dialog,
+[data-theme='light'] .el-dialog {
+  --el-dialog-bg-color: var(--cyp-chrome-bg-panel);
+  background-color: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 html.dark .el-dialog__header,
-html[data-theme='dark'] .el-dialog__header {
+html[data-theme='dark'] .el-dialog__header,
+[data-theme='light'] .el-dialog__header {
   border-bottom-color: var(--cyp-border);
 }
 
 html.dark .el-dialog__title,
-html[data-theme='dark'] .el-dialog__title {
+html[data-theme='dark'] .el-dialog__title,
+[data-theme='light'] .el-dialog__title {
   color: var(--cyp-text);
 }
 
 html.dark .el-dialog__body,
-html[data-theme='dark'] .el-dialog__body {
+html[data-theme='dark'] .el-dialog__body,
+[data-theme='light'] .el-dialog__body {
   color: var(--cyp-text-secondary);
 }
 
 html.dark .el-message-box,
-html[data-theme='dark'] .el-message-box {
+html[data-theme='dark'] .el-message-box,
+[data-theme='light'] .el-message-box {
   --el-messagebox-title-color: var(--cyp-text);
-  background-color: var(--cyp-bg-card);
-  border-color: var(--cyp-border);
+  background-color: var(--cyp-chrome-bg-panel);
+  border-color: var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 html.dark .el-message-box__title,
-html[data-theme='dark'] .el-message-box__title {
+html[data-theme='dark'] .el-message-box__title,
+[data-theme='light'] .el-message-box__title {
   color: var(--cyp-text);
 }
 
 html.dark .el-message-box__content,
-html[data-theme='dark'] .el-message-box__content {
+html[data-theme='dark'] .el-message-box__content,
+[data-theme='light'] .el-message-box__content {
   color: var(--cyp-text-secondary);
 }
 
 html.dark .el-form-item__label,
-html[data-theme='dark'] .el-form-item__label {
+html[data-theme='dark'] .el-form-item__label,
+[data-theme='light'] .el-form-item__label {
   color: var(--cyp-text-secondary);
 }
 
 html.dark .el-input__wrapper,
-html[data-theme='dark'] .el-input__wrapper {
+html[data-theme='dark'] .el-input__wrapper,
+[data-theme='light'] .el-input__wrapper {
   background-color: var(--cyp-bg-input);
   box-shadow: 0 0 0 1px var(--cyp-border) inset;
 }
 
 html.dark .el-input__inner,
-html[data-theme='dark'] .el-input__inner {
+html[data-theme='dark'] .el-input__inner,
+[data-theme='light'] .el-input__inner {
   color: var(--cyp-text);
 }
 
 html.dark .el-input__inner::placeholder,
-html[data-theme='dark'] .el-input__inner::placeholder {
+html[data-theme='dark'] .el-input__inner::placeholder,
+[data-theme='light'] .el-input__inner::placeholder {
   color: var(--cyp-text-muted);
 }
 
 html.dark .el-select .el-input__wrapper,
-html[data-theme='dark'] .el-select .el-input__wrapper {
+html[data-theme='dark'] .el-select .el-input__wrapper,
+[data-theme='light'] .el-select .el-input__wrapper {
   background-color: var(--cyp-bg-input);
 }
 
@@ -330,16 +564,23 @@ html[data-theme='dark'] .el-dropdown-menu,
 html.dark .el-popper.is-light,
 html[data-theme='dark'] .el-popper.is-light,
 html.dark .el-popover.el-popper,
-html[data-theme='dark'] .el-popover.el-popper {
-  background-color: var(--cyp-bg-card) !important;
-  border-color: var(--cyp-border) !important;
+html[data-theme='dark'] .el-popover.el-popper,
+[data-theme='light'] .el-select-dropdown,
+[data-theme='light'] .el-dropdown-menu,
+[data-theme='light'] .el-popper.is-light,
+[data-theme='light'] .el-popover.el-popper {
+  background-color: var(--cyp-chrome-bg-panel) !important;
+  border-color: var(--cyp-chrome-border) !important;
   color: var(--cyp-text);
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 html.dark .el-select-dropdown__item,
 html[data-theme='dark'] .el-select-dropdown__item,
 html.dark .el-dropdown-menu__item,
-html[data-theme='dark'] .el-dropdown-menu__item {
+html[data-theme='dark'] .el-dropdown-menu__item,
+[data-theme='light'] .el-select-dropdown__item,
+[data-theme='light'] .el-dropdown-menu__item {
   color: var(--cyp-text-secondary);
 }
 
@@ -348,13 +589,17 @@ html.dark .el-select-dropdown__item:hover,
 html[data-theme='dark'] .el-select-dropdown__item.hover,
 html[data-theme='dark'] .el-select-dropdown__item:hover,
 html.dark .el-dropdown-menu__item:not(.is-disabled):hover,
-html[data-theme='dark'] .el-dropdown-menu__item:not(.is-disabled):hover {
+html[data-theme='dark'] .el-dropdown-menu__item:not(.is-disabled):hover,
+[data-theme='light'] .el-select-dropdown__item.hover,
+[data-theme='light'] .el-select-dropdown__item:hover,
+[data-theme='light'] .el-dropdown-menu__item:not(.is-disabled):hover {
   background-color: var(--cyp-bg-muted) !important;
   color: var(--cyp-brand);
 }
 
 html.dark .el-table,
-html[data-theme='dark'] .el-table {
+html[data-theme='dark'] .el-table,
+[data-theme='light'] .el-table {
   --el-table-bg-color: var(--cyp-bg-card);
   --el-table-tr-bg-color: var(--cyp-bg-card);
   --el-table-header-bg-color: var(--cyp-bg-muted);
@@ -367,17 +612,20 @@ html[data-theme='dark'] .el-table {
 }
 
 html.dark .el-table th.el-table__cell,
-html[data-theme='dark'] .el-table th.el-table__cell {
+html[data-theme='dark'] .el-table th.el-table__cell,
+[data-theme='light'] .el-table th.el-table__cell {
   background-color: var(--cyp-bg-muted);
 }
 
 html.dark .el-table tr,
-html[data-theme='dark'] .el-table tr {
+html[data-theme='dark'] .el-table tr,
+[data-theme='light'] .el-table tr {
   background-color: var(--cyp-bg-card);
 }
 
 html.dark .el-menu,
-html[data-theme='dark'] .el-menu {
+html[data-theme='dark'] .el-menu,
+[data-theme='light'] .el-menu {
   --el-menu-bg-color: var(--cyp-bg-card);
   --el-menu-text-color: var(--cyp-text-secondary);
   --el-menu-hover-bg-color: var(--cyp-bg-muted);
@@ -387,39 +635,46 @@ html[data-theme='dark'] .el-menu {
 }
 
 html.dark .el-menu-item,
-html[data-theme='dark'] .el-menu-item {
+html[data-theme='dark'] .el-menu-item,
+[data-theme='light'] .el-menu-item {
   color: var(--cyp-text-secondary);
 }
 
 html.dark .el-menu-item:hover,
-html[data-theme='dark'] .el-menu-item:hover {
+html[data-theme='dark'] .el-menu-item:hover,
+[data-theme='light'] .el-menu-item:hover {
   background-color: var(--cyp-bg-muted);
   color: var(--cyp-brand);
 }
 
 html.dark .el-menu-item.is-active,
-html[data-theme='dark'] .el-menu-item.is-active {
+html[data-theme='dark'] .el-menu-item.is-active,
+[data-theme='light'] .el-menu-item.is-active {
   color: var(--cyp-brand);
   background-color: var(--cyp-brand-tint);
 }
 
 html.dark .el-empty__description,
-html[data-theme='dark'] .el-empty__description {
+html[data-theme='dark'] .el-empty__description,
+[data-theme='light'] .el-empty__description {
   color: var(--cyp-text-muted);
 }
 
 html.dark .el-alert,
-html[data-theme='dark'] .el-alert {
+html[data-theme='dark'] .el-alert,
+[data-theme='light'] .el-alert {
   --el-alert-bg-color: var(--cyp-bg-muted);
 }
 
 html.dark .el-checkbox__label,
-html[data-theme='dark'] .el-checkbox__label {
+html[data-theme='dark'] .el-checkbox__label,
+[data-theme='light'] .el-checkbox__label {
   color: var(--cyp-text);
 }
 
 html.dark .el-pagination,
-html[data-theme='dark'] .el-pagination {
+html[data-theme='dark'] .el-pagination,
+[data-theme='light'] .el-pagination {
   --el-pagination-bg-color: var(--cyp-bg-card);
   --el-pagination-text-color: var(--cyp-text-secondary);
   --el-pagination-button-color: var(--cyp-text-secondary);
@@ -428,48 +683,57 @@ html[data-theme='dark'] .el-pagination {
 }
 
 html.dark .el-tag,
-html[data-theme='dark'] .el-tag {
+html[data-theme='dark'] .el-tag,
+[data-theme='light'] .el-tag {
   --el-tag-bg-color: var(--cyp-bg-muted);
   --el-tag-border-color: var(--cyp-border);
   --el-tag-text-color: var(--cyp-text-secondary);
 }
 
 html.dark .el-progress__text,
-html[data-theme='dark'] .el-progress__text {
+html[data-theme='dark'] .el-progress__text,
+[data-theme='light'] .el-progress__text {
   color: var(--cyp-text-secondary) !important;
 }
 
 html.dark .el-date-picker,
-html[data-theme='dark'] .el-date-picker {
-  --el-datepicker-bg-color: var(--cyp-bg-card);
-  --el-datepicker-border-color: var(--cyp-border);
+html[data-theme='dark'] .el-date-picker,
+[data-theme='light'] .el-date-picker {
+  --el-datepicker-bg-color: var(--cyp-chrome-bg-panel);
+  --el-datepicker-border-color: var(--cyp-chrome-border);
   --el-datepicker-text-color: var(--cyp-text);
 }
 
 html.dark .el-picker-panel,
-html[data-theme='dark'] .el-picker-panel {
-  background-color: var(--cyp-bg-card);
-  border-color: var(--cyp-border);
+html[data-theme='dark'] .el-picker-panel,
+[data-theme='light'] .el-picker-panel {
+  background-color: var(--cyp-chrome-bg-panel);
+  border-color: var(--cyp-chrome-border);
   color: var(--cyp-text);
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 html.dark .el-date-picker__header-label,
-html[data-theme='dark'] .el-date-picker__header-label {
+html[data-theme='dark'] .el-date-picker__header-label,
+[data-theme='light'] .el-date-picker__header-label {
   color: var(--cyp-text);
 }
 
 html.dark .el-picker-panel__content,
-html[data-theme='dark'] .el-picker-panel__content {
+html[data-theme='dark'] .el-picker-panel__content,
+[data-theme='light'] .el-picker-panel__content {
   color: var(--cyp-text);
 }
 
 html.dark .el-date-table td.available:hover,
-html[data-theme='dark'] .el-date-table td.available:hover {
+html[data-theme='dark'] .el-date-table td.available:hover,
+[data-theme='light'] .el-date-table td.available:hover {
   background-color: var(--cyp-bg-muted);
 }
 
 html.dark .el-textarea__inner,
-html[data-theme='dark'] .el-textarea__inner {
+html[data-theme='dark'] .el-textarea__inner,
+[data-theme='light'] .el-textarea__inner {
   background-color: var(--cyp-bg-input);
   color: var(--cyp-text);
   border-color: var(--cyp-border);
@@ -477,17 +741,29 @@ html[data-theme='dark'] .el-textarea__inner {
 }
 
 html.dark .el-textarea__inner::placeholder,
-html[data-theme='dark'] .el-textarea__inner::placeholder {
+html[data-theme='dark'] .el-textarea__inner::placeholder,
+[data-theme='light'] .el-textarea__inner::placeholder {
   color: var(--cyp-text-muted);
 }
 
 html.dark .el-tooltip__popper,
 html[data-theme='dark'] .el-tooltip__popper,
 html.dark .el-popper.is-dark,
-html[data-theme='dark'] .el-popper.is-dark {
-  background: var(--cyp-bg-muted) !important;
+html[data-theme='dark'] .el-popper.is-dark,
+[data-theme='light'] .el-tooltip__popper,
+[data-theme='light'] .el-popper.is-dark {
+  background: var(--cyp-chrome-bg-panel) !important;
   color: var(--cyp-text) !important;
-  border-color: var(--cyp-border) !important;
+  border-color: var(--cyp-chrome-border) !important;
+  box-shadow: var(--cyp-chrome-shadow);
+}
+
+html.dark .el-drawer,
+html[data-theme='dark'] .el-drawer,
+[data-theme='light'] .el-drawer {
+  --el-drawer-bg-color: var(--cyp-chrome-bg-panel);
+  background-color: var(--cyp-chrome-bg-panel);
+  color: var(--cyp-text);
 }
 
 ::-webkit-scrollbar {
@@ -511,4 +787,50 @@ html[data-theme='dark'] .el-popper.is-dark {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--cyp-scrollbar) transparent;
+}
+
+/*
+ * 轻提示 / 通知 / 确认框：一律视口正中
+ * 禁止顶中、底中、左、右贴边（含 Element Plus 默认 top / 四角 notification）
+ */
+.el-message,
+.el-message.cyp-tip-center {
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+.el-message-fade-enter-from,
+.el-message-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.96) !important;
+}
+
+.el-notification,
+.el-notification.right,
+.el-notification.left {
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+.el-notification-fade-enter-from,
+.el-notification-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.96) !important;
+}
+
+.el-overlay-message-box {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.el-message-box {
+  margin: 0 !important;
 }

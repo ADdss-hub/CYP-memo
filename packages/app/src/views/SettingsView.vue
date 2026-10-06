@@ -49,6 +49,55 @@
         </div>
       </section>
 
+      <!-- 账号与数据 -->
+      <section class="settings-section">
+        <h2 class="section-title">账号与数据</h2>
+
+        <div class="setting-item">
+          <label class="setting-label" for="purge-related-toggle">账号注销后清除内容</label>
+          <div class="setting-control">
+            <label class="setting-switch">
+              <input
+                id="purge-related-toggle"
+                v-model="localPurgeRelated"
+                type="checkbox"
+                @change="handlePurgeRelatedChange"
+              />
+              <span
+                >仅在账号被注销或删除时生效（退出当前账号不会清除数据）。开启后自动清除该账号全部相关内容（备忘录、文件、分享等）</span
+              >
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <label class="setting-label">退出当前账号</label>
+          <div class="setting-control">
+            <Button type="secondary" @click="handleLogoutSession">退出当前账号</Button>
+            <span class="setting-hint">仅退出登录会话，不注销账号，不清除数据</span>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <label class="setting-label">注销本账号</label>
+          <div class="setting-control">
+            <Button type="danger" @click="handleCancelAccount">注销本账号</Button>
+            <span class="setting-hint">{{
+              authStore.isMainAccount
+                ? '将注销主账号及全部子账号；是否清除内容取决于上方开关'
+                : '将注销当前子账号；是否清除内容取决于上方开关'
+            }}</span>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label class="setting-label">MCP</label>
+          <div class="setting-control">
+            <Button type="secondary" @click="router.push('/help/mcp')">打开 MCP 界面</Button>
+            <span class="setting-hint">令牌签发与客户端配置在独立 MCP 页</span>
+          </div>
+        </div>
+      </section>
+
       <!-- 系统数据管理 -->
       <section class="settings-section">
         <h2 class="section-title">系统数据管理</h2>
@@ -136,9 +185,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { useSettingsStore } from '../stores/settings'
-import { dataManager } from '@cyp-memo/shared'
+import { dataManager, resolveApiBaseUrl, storageManager } from '@cyp-memo/shared'
 import { VERSION } from '@shared/config/version'
 import { useToast } from '../composables/useToast'
 import AppLayout from '../components/AppLayout.vue'
@@ -154,9 +204,101 @@ const toast = useToast()
 const localTheme = ref(settingsStore.settings.theme)
 const localFontSize = ref(settingsStore.settings.fontSize)
 const localLanguage = ref(settingsStore.settings.language)
+const localPurgeRelated = ref(settingsStore.purgeRelatedOnAccountDelete)
 const showImportConfirm = ref(false)
 const importFileInput = ref<HTMLInputElement | null>(null)
 const pendingImportData = ref<string | null>(null)
+
+async function syncPurgeSettingToServer(value: boolean) {
+  try {
+    const adapter = storageManager.getAdapter() as {
+      getAccessToken?: () => string | undefined
+      setSetting?: (key: string, value: unknown) => Promise<void>
+    }
+    if (typeof adapter.setSetting === 'function') {
+      await adapter.setSetting('purgeRelatedOnAccountDelete', value)
+      return
+    }
+    const token = adapter.getAccessToken?.()
+    if (!token) return
+    const api = resolveApiBaseUrl({
+      VITE_API_BASE: import.meta.env.VITE_API_BASE as string | undefined,
+      PROD: import.meta.env.PROD,
+    })
+    await fetch(`${api}/settings/purgeRelatedOnAccountDelete`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ value }),
+    })
+  } catch (err) {
+    console.warn('同步注销清除设置到服务端失败（已保留本地）:', err)
+  }
+}
+
+async function handlePurgeRelatedChange() {
+  try {
+    await settingsStore.setPurgeRelatedOnAccountDelete(localPurgeRelated.value)
+    await syncPurgeSettingToServer(localPurgeRelated.value)
+    toast.success(
+      localPurgeRelated.value ? '已开启账号注销后自动清除内容' : '已关闭账号注销后自动清除内容'
+    )
+  } catch (error) {
+    localPurgeRelated.value = settingsStore.purgeRelatedOnAccountDelete
+    toast.error('设置更新失败')
+    console.error('Purge related setting error:', error)
+  }
+}
+
+async function handleLogoutSession() {
+  try {
+    await ElMessageBox.confirm(
+      '确定退出当前账号吗？退出后需重新登录。不会注销账号，也不会清除数据。',
+      '退出当前账号',
+      {
+        confirmButtonText: '退出',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    await authStore.logout()
+    router.push('/login')
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') return
+    toast.error(err instanceof Error ? err.message : '退出失败')
+  }
+}
+
+async function handleCancelAccount() {
+  const purgeHint = localPurgeRelated.value
+    ? '并按设置清除相关内容（备忘录、文件、分享等）'
+    : '但不会自动清除业务内容（可在上方开启「账号注销后清除内容」）'
+  const scopeHint = authStore.isMainAccount
+    ? '将注销主账号及全部子账号'
+    : '将注销当前子账号'
+  try {
+    await ElMessageBox.confirm(
+      `确定注销本账号吗？${scopeHint}，${purgeHint}。此操作不可撤销。`,
+      '注销本账号',
+      {
+        confirmButtonText: '注销',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+  } catch {
+    return
+  }
+  try {
+    const result = await authStore.cancelOwnAccount()
+    toast.success(result.message || '已注销本账号')
+    router.push('/login')
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : '注销账号失败')
+  }
+}
 
 // 版本信息
 const version = computed(() => VERSION.full)
@@ -359,18 +501,30 @@ async function confirmImport() {
 /**
  * 初始化
  */
-onMounted(() => {
-  // 应用当前主题和字体大小
+onMounted(async () => {
   document.body.setAttribute('data-theme', localTheme.value)
   document.body.setAttribute('data-font-size', localFontSize.value)
   document.documentElement.setAttribute('data-theme', localTheme.value)
   document.documentElement.setAttribute('data-font-size', localFontSize.value)
-  
-  // Element Plus 深色主题需要在 html 元素上添加 dark 类
+
   if (localTheme.value === 'dark') {
     document.documentElement.classList.add('dark')
   } else {
     document.documentElement.classList.remove('dark')
+  }
+
+  try {
+    const adapter = storageManager.getAdapter()
+    const remote = await adapter.getSetting<boolean>('purgeRelatedOnAccountDelete')
+    if (typeof remote === 'boolean') {
+      localPurgeRelated.value = remote
+      await settingsStore.setPurgeRelatedOnAccountDelete(remote)
+    } else {
+      localPurgeRelated.value = settingsStore.purgeRelatedOnAccountDelete
+      await syncPurgeSettingToServer(localPurgeRelated.value)
+    }
+  } catch {
+    localPurgeRelated.value = settingsStore.purgeRelatedOnAccountDelete
   }
 })
 </script>
@@ -402,11 +556,14 @@ onMounted(() => {
 }
 
 .settings-section {
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
   padding: 24px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .section-title {
@@ -439,7 +596,23 @@ onMounted(() => {
   flex: 1;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
+}
+
+.setting-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--cyp-text-secondary);
+  cursor: pointer;
+}
+
+.setting-switch input {
+  margin-top: 3px;
+  flex-shrink: 0;
 }
 
 .setting-value {

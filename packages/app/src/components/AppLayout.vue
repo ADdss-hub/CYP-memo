@@ -48,7 +48,7 @@
                   </el-dropdown-item>
                   <el-dropdown-item divided @click="handleLogout">
                     <el-icon><SwitchButton /></el-icon>
-                    <span>退出登录</span>
+                    <span>退出当前账号</span>
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -154,11 +154,15 @@ const goToProfile = () => {
 
 const handleLogout = async () => {
   try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '确认退出', {
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      '确定退出当前账号吗？退出后需重新登录。不会注销账号，也不会清除数据。',
+      '退出当前账号',
+      {
+        confirmButtonText: '退出',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
 
     await authStore.logout()
     router.push('/login')
@@ -206,14 +210,20 @@ onUnmounted(() => {
   max-height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
-  background: var(--cyp-bg-page);
+  /* 透出全站氛围底；工作区由顶栏/侧栏/内容实体层构成 */
+  background: transparent;
+  position: relative;
+  z-index: 0;
 }
 
 .app-header {
   height: 60px;
   flex-shrink: 0;
-  background: var(--cyp-bg-card);
-  border-bottom: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg);
+  border-bottom: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   display: flex;
   align-items: center;
   padding: 0 20px;
@@ -318,8 +328,11 @@ onUnmounted(() => {
 .app-sidebar {
   width: 240px;
   flex-shrink: 0;
-  background: var(--cyp-bg-card);
-  border-right: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg);
+  border-right: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   display: flex;
   flex-direction: column;
   transition: width 0.25s ease;
@@ -346,8 +359,8 @@ onUnmounted(() => {
   margin: 0;
   padding: 10px 8px;
   border: none;
-  border-top: 1px solid var(--cyp-border);
-  background: transparent;
+  border-top: 1px solid var(--cyp-chrome-border);
+  background: color-mix(in srgb, var(--cyp-chrome-bg-soft) 80%, transparent);
   color: var(--cyp-text-muted);
   cursor: pointer;
   flex-shrink: 0;
@@ -380,7 +393,8 @@ onUnmounted(() => {
   width: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--cyp-bg-page);
+  background: transparent;
+  box-sizing: border-box;
 }
 
 .app-content > * {
@@ -388,6 +402,14 @@ onUnmounted(() => {
   min-height: 0;
   min-width: 0;
   width: 100%;
+}
+
+/* 全幅工作区（列表/编辑/详情）：取消壳内边距，避免「悬浮岛」断裂布局 */
+.app-content:has(.memo-list-view),
+.app-content:has(.memo-edit-view),
+.app-content:has(.memo-detail-view) {
+  padding: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 768px) {
@@ -431,6 +453,14 @@ onUnmounted(() => {
   .app-content {
     padding: 12px;
     padding-bottom: 72px;
+  }
+
+  .app-content:has(.memo-list-view),
+  .app-content:has(.memo-edit-view),
+  .app-content:has(.memo-detail-view) {
+    padding: 0;
+    padding-bottom: 72px;
+    overflow: hidden;
   }
 }
 

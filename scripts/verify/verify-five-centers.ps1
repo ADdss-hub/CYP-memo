@@ -1,10 +1,12 @@
 # CYP-memo closed-set probe (35 stable IDs)
 # Encoding: UTF-8 with BOM required for Windows PowerShell 5.1 Chinese literals
 param(
-  [string]$BaseUrl = 'http://127.0.0.1:5170',
+  [string]$BaseUrl = 'https://127.0.0.1:5170',
   [string]$DataDir = ''
 )
 $ErrorActionPreference = 'Continue'
+. (Join-Path $PSScriptRoot '..\_internal\common.ps1')
+if ($BaseUrl -match '^https://') { Enable-CypInsecureLocalHttps }
 $fail = 0
 Write-Host "[runtime-base] base=$BaseUrl"
 $ids = @(
@@ -17,16 +19,24 @@ $ids = @(
 )
 
 try {
-  $ready = Invoke-RestMethod -Uri "$BaseUrl/healthz/ready" -Method Get -TimeoutSec 20
-  if ($ready.success -eq $true) { Write-Host '[OK] init ready' } else { Write-Host '[FAIL] init ready'; $fail = 1 }
-  if ($null -ne $ready.data.twelveCenters) { Write-Host '[FAIL] twelveCenters still present'; $fail = 1 } else { Write-Host '[OK] twelveCenters absent' }
-  if ($null -ne $ready.data.modules) { Write-Host '[FAIL] parallel modules list'; $fail = 1 } else { Write-Host '[OK] no parallel modules list' }
+  $readyHit = Invoke-CypJsonApi -Method GET -Url "$BaseUrl/healthz/ready" -TimeoutSec 20
+  $ready = $readyHit.Json
+  if ($readyHit.StatusCode -eq 200 -and $ready.success -eq $true) { Write-Host '[OK] init ready' } else { Write-Host '[FAIL] init ready'; $fail = 1 }
+  $hasTwelve = $false
+  $hasModules = $false
+  if ($null -ne $ready.data) {
+    $hasTwelve = $null -ne ($ready.data.PSObject.Properties['twelveCenters'])
+    $hasModules = $null -ne ($ready.data.PSObject.Properties['modules'])
+  }
+  if ($hasTwelve) { Write-Host '[FAIL] twelveCenters still present'; $fail = 1 } else { Write-Host '[OK] twelveCenters absent' }
+  if ($hasModules) { Write-Host '[FAIL] parallel modules list'; $fail = 1 } else { Write-Host '[OK] no parallel modules list' }
   $rb = $ready.data.runtimeBase
   if ($null -eq $rb) {
     Write-Host '[FAIL] runtimeBase missing'
     $fail = 1
   } else {
-    if ($null -ne $rb.'质量门禁') { Write-Host '[FAIL] quality gate still in runtimeBase'; $fail = 1 } else { Write-Host '[OK] quality gate absent' }
+    $hasQg = $null -ne ($rb.PSObject.Properties['质量门禁'])
+    if ($hasQg) { Write-Host '[FAIL] quality gate still in runtimeBase'; $fail = 1 } else { Write-Host '[OK] quality gate absent' }
     $items = $rb.items
     foreach ($id in $ids) {
       if ($null -ne $items -and $items.$id -eq $true) { Write-Host "[OK] $id" }
@@ -43,8 +53,8 @@ try {
 }
 
 try {
-  $health = Invoke-RestMethod -Uri "$BaseUrl/api/health" -Method Get -TimeoutSec 15
-  if ($null -ne $health.success) { Write-Host '[OK] /api/health' } else { Write-Host '[FAIL] /api/health'; $fail = 1 }
+  $healthHit = Invoke-CypJsonApi -Method GET -Url "$BaseUrl/api/health" -TimeoutSec 15
+  if ($healthHit.StatusCode -eq 200 -and $null -ne $healthHit.Json.success) { Write-Host '[OK] /api/health' } else { Write-Host '[FAIL] /api/health'; $fail = 1 }
 } catch {
   Write-Host "[FAIL] health $($_.Exception.Message)"
   $fail = 1

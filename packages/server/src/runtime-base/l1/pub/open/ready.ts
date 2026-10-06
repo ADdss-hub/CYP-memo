@@ -1,7 +1,7 @@
 /**
  * 开放协作管控（公开子平台 · B9.4）
  * 专属：开放接口目录、应用注册、订阅审批、配额、开放面 SLA。
- * 门户 = 机器可读目录（不新起独立站点）。
+ * 门户 = 唯一产品入口 `/tenant/open-portal` + 机器可读目录（不新起独立站点）。
  * 红线：不替代契约治理管控 / 业务协同对接 / 公开接入安全；未登记不得宣称已开放。
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -290,6 +290,14 @@ export function assertOpenCallAllowed(input: {
 
 export function listOpenApps(): OpenApp[] {
   return [...apps.values()].map((a) => ({ ...a }))
+}
+
+export function listOpenQuotas(): OpenQuota[] {
+  return [...quotas.values()].map((q) => ({ ...q }))
+}
+
+export function listOpenSlas(): OpenSla[] {
+  return [...slas.values()].map((s) => ({ ...s }))
 }
 
 export function listOpenSubscriptions(): OpenSubscription[] {

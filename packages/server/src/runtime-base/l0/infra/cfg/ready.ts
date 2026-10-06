@@ -23,11 +23,14 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 export type AppEnv = 'prod'
 
 /**
- * 容器配置接口
+ * 服务器运行配置接口
  */
-export interface ContainerConfig {
+export interface ServerConfig {
   // 基础配置
+  /** 网关端口（产品统一入口：静态资源 + API 代理 + MCP 代理） */
   port: number
+  /** 后端 API 服务端口（仅环回，不直接对外暴露） */
+  apiPort: number
   dataDir: string
   logLevel: LogLevel
 
@@ -49,6 +52,16 @@ export interface ContainerConfig {
   machineId: string
   /** CI16/G04：kill-switch 文件或环境已激活则 true（loadConfig 仅探测，阻断在 bootstrap） */
   killSwitchArmed: boolean
+
+  // 服务注册与发现（跨系统编排规范）
+  /** 服务注册模式：local（单机默认） / consul（集群） */
+  serviceRegistryMode: 'local' | 'consul'
+  /** Consul Agent HTTP 地址（consul 模式时使用） */
+  consulHttpAddr: string
+  /** Consul ACL Token（可选） */
+  consulHttpToken: string | null
+  /** Consul 服务标签（逗号分隔 key=value） */
+  consulServiceTags: string[]
 }
 
 /**
@@ -62,7 +75,7 @@ export class ConfigValidationError extends Error {
 }
 
 /**
- * 获取默认数据目录（跨平台 · 非容器）
+ * 获取默认数据目录（跨平台 · 本机进程）
  * - 显式 DATA_DIR 优先（由 loadConfig 另处理）
  * - 兼容历史路径 /app/data（若存在则用）
  * - 其余：锚定 packages/server/data
@@ -125,6 +138,7 @@ function getDefaultDataDir(): string {
  */
 const DEFAULT_CONFIG = {
   port: 5170,
+  apiPort: 10170,
   get dataDir() {
     return getDefaultDataDir()
   },
@@ -190,7 +204,7 @@ function validateDataDir(dataDir: string): void {
         `\n\n解决方案:\n` +
         `1. 修正 DATA_DIR 属主/ACL，确保 Node 进程用户可写\n` +
         `2. mkdir -p ${dataDir}/logs ${dataDir}/governance\n` +
-        `3. 非容器部署见 DEPLOY.md / deploy/nas/README.md\n`
+        `3. 部署见 DEPLOY.md / deploy/nas/README.md\n`
     }
 
     throw new ConfigValidationError(
@@ -290,18 +304,33 @@ function cryptoCreateHash(raw: string): string {
 /**
  * 从环境变量加载配置（始终生产基准）
  */
-export function loadConfig(): ContainerConfig {
+export function loadConfig(): ServerConfig {
   enforceProdBaseline()
 
   const portStr = process.env.PORT
+  const apiPortStr = process.env.API_PORT
   const dataDir = process.env.DATA_DIR || DEFAULT_CONFIG.dataDir
   const logLevelStr = process.env.LOG_LEVEL || DEFAULT_CONFIG.logLevel
   const timezone = process.env.TZ || DEFAULT_CONFIG.timezone
   const lbnBindingCode = (process.env.CYP_LBN_BINDING_CODE || '').trim() || null
 
+  // 服务注册与发现配置（统一运行模式 · 默认 consul，不可达自动降级）
+  const rawRegistryMode = (process.env.SERVICE_REGISTRY_MODE || 'consul').trim().toLowerCase()
+  const serviceRegistryMode: 'local' | 'consul' =
+    rawRegistryMode === 'local' ? 'local' : 'consul'
+  const consulHttpAddr = process.env.CONSUL_HTTP_ADDR || 'http://127.0.0.1:8500'
+  const consulHttpToken = (process.env.CONSUL_HTTP_TOKEN || '').trim() || null
+  const consulTagsRaw = process.env.CONSUL_SERVICE_TAGS || 'env=prod,app=cyp-memo'
+  const consulServiceTags = consulTagsRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
   const port = portStr ? parseInt(portStr, 10) : DEFAULT_CONFIG.port
+  const apiPort = apiPortStr ? parseInt(apiPortStr, 10) : DEFAULT_CONFIG.apiPort
 
   validatePort(port)
+  validatePort(apiPort)
   const logLevel = validateLogLevel(logLevelStr)
   validateDataDir(dataDir)
 
@@ -318,6 +347,7 @@ export function loadConfig(): ContainerConfig {
 
   return {
     port,
+    apiPort,
     dataDir,
     logLevel,
     appEnv: 'prod',
@@ -328,6 +358,10 @@ export function loadConfig(): ContainerConfig {
     lbnBindingCode,
     machineId,
     killSwitchArmed,
+    serviceRegistryMode,
+    consulHttpAddr,
+    consulHttpToken,
+    consulServiceTags,
   }
 }
 
@@ -338,6 +372,7 @@ export function loadConfig(): ContainerConfig {
 export interface StartupReportFields {
   appEnv: string
   port: number
+  apiPort: number
   dataDir: string
   logLevel: string
   nodeEnv: string
@@ -348,10 +383,11 @@ export interface StartupReportFields {
   killSwitchArmed: boolean
 }
 
-export function getStartupReportFields(config: ContainerConfig): StartupReportFields {
+export function getStartupReportFields(config: ServerConfig): StartupReportFields {
   return {
     appEnv: config.appEnv,
     port: config.port,
+    apiPort: config.apiPort,
     dataDir: config.dataDir,
     logLevel: config.logLevel,
     nodeEnv: config.nodeEnv,
@@ -368,7 +404,8 @@ export function buildStartupReportLines(config: StartupReportFields): string[] {
   return [
     '========== 服务器配置 ==========',
     `  环境: ${config.appEnv}（CI02 生产唯一基准）`,
-    `  端口: ${config.port}`,
+    `  网关端口: ${config.port}（产品统一入口：静态 + API代理 + MCP代理）`,
+    `  API 端口: ${config.apiPort}（仅环回 127.0.0.1）`,
     `  数据目录: ${config.dataDir}`,
     `  日志级别: ${config.logLevel}`,
     `  Node: ${config.nodeEnv}`,
@@ -382,22 +419,22 @@ export function buildStartupReportLines(config: StartupReportFields): string[] {
 }
 
 /** 单行摘要（同字段，无口令） */
-export function formatStartupReportLine(config: StartupReportFields | ContainerConfig): string {
+export function formatStartupReportLine(config: StartupReportFields | ServerConfig): string {
   const f: StartupReportFields =
     'startTime' in config ? getStartupReportFields(config) : config
-  return `[CYP-memo startup] env=${f.appEnv} port=${f.port} dataDir=${f.dataDir} logLevel=${f.logLevel} node=${f.nodeEnv} version=${f.version} tz=${f.timezone} machine=${f.machineIdPrefix} lbn=${f.lbnBound} kill=${f.killSwitchArmed ? 'on' : 'off'}`
+  return `[CYP-memo startup] env=${f.appEnv} port=${f.port} apiPort=${f.apiPort} dataDir=${f.dataDir} logLevel=${f.logLevel} node=${f.nodeEnv} version=${f.version} tz=${f.timezone} machine=${f.machineIdPrefix} lbn=${f.lbnBound} kill=${f.killSwitchArmed ? 'on' : 'off'}`
 }
 
 /**
  * 格式化配置信息用于日志输出（首行含环境=prod；禁口令）
  */
-export function formatConfigInfo(config: ContainerConfig): string {
+export function formatConfigInfo(config: ServerConfig): string {
   return buildStartupReportLines(getStartupReportFields(config)).join('\n')
 }
 
-let _config: ContainerConfig | null = null
+let _config: ServerConfig | null = null
 
-export function getConfig(): ContainerConfig {
+export function getConfig(): ServerConfig {
   if (!_config) {
     _config = loadConfig()
   }

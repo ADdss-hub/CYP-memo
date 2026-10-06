@@ -1,0 +1,145 @@
+# CYP-memo 本地可观测栈（规范 2.14）
+# 本系统是非容器单机 Electron 应用，Prometheus 通过 host.docker.internal 抓取
+# 原生进程暴露的 /metrics（cyp-memo 业务 :9091、MCP 旁路 :13175）。
+# 告警规则见 monitoring/prometheus/alerts.yml（≥12 条，含 runbook_url，三级分级）。
+# 仪表板见 dashboards/（start-local / verify-e2e / resources / audit）。
+# 启动：docker compose -f docker-compose.monitoring.yml up -d
+# 访问：Grafana http://localhost:3000  Jaeger http://localhost:16686  Prometheus http://localhost:9090
+
+configs:
+  prometheus_config:
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+      rule_files:
+        - /etc/prometheus/alerts.yml
+      alerting:
+        alertmanagers:
+          - static_configs:
+              - targets: ['alertmanager:9093']
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets: ['localhost:9090']
+        - job_name: node-exporter
+          static_configs:
+            - targets: ['node-exporter:9100']
+        - job_name: cadvisor
+          static_configs:
+            - targets: ['cadvisor:8080']
+        # 原生 cyp-memo 业务进程（需暴露 /metrics，默认 :9091）
+        - job_name: cyp-memo
+          static_configs:
+            - targets: ['host.docker.internal:9091']
+        # 原生 MCP 旁路（环回 :13175，供 alerts.yml 的 up{job="cyp-mcp-bypass"} 使用）
+        - job_name: cyp-mcp-bypass
+          static_configs:
+            - targets: ['host.docker.internal:13175']
+  grafana_dashboards_provisioning:
+    content: |
+      apiVersion: 1
+      providers:
+        - name: cyp-memo
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards
+  grafana_datasource_provisioning:
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+
+  # 告警分级路由（page/ticket/logging）由 alerts.yml 的 labels.tier 承载，
+  # 并经 monitoring/alertmanager.yml 实现分级路由（R14 硬要求：禁止全量广播）。
+  # 该配置已挂载，不再使用镜像内置默认配置（O-03 已收口）。
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    configs:
+      - source: grafana_dashboards_provisioning
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
+      - source: grafana_datasource_provisioning
+        target: /etc/grafana/provisioning/datasources/datasource.yml
+    volumes:
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    ports:
+      - "9100:9100"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+
+volumes:
+  prometheus_data:
+  grafana_data:

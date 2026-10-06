@@ -49,7 +49,10 @@ withDefaults(
 
 <style scoped>
 .ops-page {
+  width: 100%;
   max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
   color: var(--cyp-text);
 }
 
@@ -126,9 +129,9 @@ withDefaults(
 .ops-empty {
   padding: 28px 20px;
   text-align: center;
-  border: 1px dashed var(--cyp-border);
+  border: 1px dashed var(--cyp-chrome-border);
   border-radius: 10px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg);
   color: var(--cyp-text-muted);
   font-size: 14px;
 }
@@ -140,11 +143,12 @@ withDefaults(
 
 /* 子页共用面板 / KPI（经 :deep 或全局 class） */
 :deep(.ops-panel) {
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 10px;
   padding: 16px 18px;
   margin-bottom: 16px;
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 :deep(.ops-panel-title) {
@@ -162,10 +166,11 @@ withDefaults(
 }
 
 :deep(.ops-kpi) {
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 10px;
   padding: 14px 16px;
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 :deep(.ops-kpi-label) {
@@ -203,11 +208,12 @@ withDefaults(
   display: block;
   padding: 16px;
   border-radius: 10px;
-  border: 1px solid var(--cyp-border);
-  background: var(--cyp-bg-card);
+  border: 1px solid var(--cyp-chrome-border);
+  background: var(--cyp-chrome-bg-panel);
   color: var(--cyp-text);
   text-decoration: none;
   transition: border-color 0.15s, background 0.15s;
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 :deep(.ops-link-card:hover) {

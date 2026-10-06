@@ -12,7 +12,7 @@ export default defineConfig({
   root: path.join(__dirname, 'src/renderer'),
   base: './',
   server: {
-    port: 5175,
+    port: 10175,
     strictPort: true,
     // CFG-SYS-07：含 /healthz；目标来自 PORT / VITE_API_PROXY_TARGET
     proxy: createApiProxy(),

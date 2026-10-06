@@ -1,0 +1,42 @@
+{
+  "name": "@cyp-memo/mcp",
+  "version": "2.0.0",
+  "description": "CYP-memo MCP Server sidecar (public query + PAT full track)",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "cyp-memo-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "local": "tsx src/index.ts",
+    "local:http": "tsx src/index.ts --http",
+    "start": "node dist/index.js",
+    "test:smoke": "tsx scripts/mcp-smoke.ts",
+    "test:accept": "tsx scripts/mcp-accept-a1-a10.ts",
+    "test:crosscheck": "tsx scripts/mcp-crosscheck.ts",
+    "test:http-probe": "tsx scripts/mcp-http-probe.ts",
+    "test:stdio-probe": "tsx scripts/mcp-stdio-probe.ts",
+    "test:tls-probe": "tsx scripts/mcp-tls-probe.ts",
+    "test:open-items": "tsx scripts/mcp-open-items-o1-o7.ts",
+    "test:hot-reload": "tsx scripts/mcp-hot-reload-verify.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "2.1.0",
+    "@modelcontextprotocol/server": "2.2.0",
+    "@peculiar/webcrypto": "1.7.1",
+    "@peculiar/x509": "2.1.0",
+    "reflect-metadata": "0.2.2",
+    "undici": "^6.21.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.2.0",
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.19.6"
+  }
+}

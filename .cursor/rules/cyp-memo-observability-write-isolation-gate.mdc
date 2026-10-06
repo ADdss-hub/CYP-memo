@@ -12,7 +12,7 @@ alwaysApply: true
 - **核心业务库**（`database.sqlite` / sql.js）：只承载账号、备忘录、文件元数据、分享及低频操作审计（`audit`）。
 - **独立观测库**（`{dataDir}/logs/observability.sqlite`）：runtime/error/business/security（告警拨号等）运维可检索流水；与业务库写路径分离。
 - **JSONL 分片**（`{dataDir}/logs/<type>/`）：全量追加真相；access/perf/领域事件观测等高频洪水只写 JSONL。
-- **对象存储 / uploads**：只存附件等大 blob，禁止作为秒级小日志主路径。
+- **对象存储 / uploads**（外部依赖 · **不进闭集 35**）：只存附件等大 blob，禁止作为秒级小日志主路径；禁止写成 `runtimeBase` 独立就绪键。
 - **缓存**：可丢弃；禁止冒充日志或审计 SSOT。
 
 ## 强制做法

@@ -34,7 +34,7 @@ installMainProcessErrorLogging()
 
 // CI02：进程配置恒为 production；本机联调仅由 HMR URL / 未打包判定（非独立配置面）
 const isLocalTooling = !!process.env.VITE_LOCAL_SERVER_URL || !app.isPackaged
-const VITE_LOCAL_SERVER_URL = process.env.VITE_LOCAL_SERVER_URL || 'http://localhost:5173'
+const VITE_LOCAL_SERVER_URL = process.env.VITE_LOCAL_SERVER_URL || 'https://127.0.0.1:5173'
 
 // 生产交付形态：仅打包态
 const isProduction = app.isPackaged
@@ -518,6 +518,27 @@ async function initialize(): Promise<void> {
 
   // 等待应用就绪
   await app.whenReady()
+
+  // 联调自签 HTTPS：允许加载 Vite 壳（R-TLS-001；仅未打包 / VITE_LOCAL_SERVER_URL）
+  if (isLocalTooling) {
+    app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+      try {
+        const u = new URL(url)
+        const hostOk =
+          u.hostname === '127.0.0.1' ||
+          u.hostname === 'localhost' ||
+          /^(\d{1,3}\.){3}\d{1,3}$/.test(u.hostname)
+        if (u.protocol === 'https:' && hostOk) {
+          event.preventDefault()
+          callback(true)
+          return
+        }
+      } catch {
+        /* fallthrough */
+      }
+      callback(false)
+    })
+  }
 
   // 初始化安全功能（需求 9.3, 9.4）
   // 必须在创建窗口之前初始化，以确保所有请求都受到保护

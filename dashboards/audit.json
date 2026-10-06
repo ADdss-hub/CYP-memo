@@ -1,0 +1,64 @@
+{
+  "title": "CYP-memo - Audit & Gate",
+  "uid": "cyp-audit",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["cyp-memo", "audit", "gate", "slo"],
+  "timezone": "browser",
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      { "name": "datasource", "type": "datasource", "query": "prometheus", "current": {} }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Gate Token Issued (by level)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(gate_token_total[1h])) by (level)", "legendFormat": "{{level}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Gate Token Missing (must be 0)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "sum(gate_token_total{missing=\"true\"})", "legendFormat": "missing" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "MCP Bypass Up (1=ok)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "up{job=\"cyp-mcp-bypass\"}", "legendFormat": "bypass" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Audit Events (last 24h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(gate_token_total[1h]))", "legendFormat": "events/h" }
+      ]
+    }
+  ]
+}

@@ -27,14 +27,24 @@ export enum Permission {
   TENANT_DASHBOARD = 'tenant_dashboard',
   /** @deprecated 成员业务唯一入口为 account_manage；保留码值兼容旧会话 */
   TENANT_USERS = 'tenant_users',
-  /** 侧栏「数据维护」 */
+  /** 数据治理 API（侧栏入口已取消；保留码值兼容） */
   TENANT_DATABASE = 'tenant_database',
-  /** 侧栏「运行监控」 */
+  /** 运行监控（侧栏默认隐藏；经运维概览进入） */
   TENANT_MONITOR = 'tenant_monitor',
   /** 侧栏「运行日志」 */
   TENANT_LOGS = 'tenant_logs',
   /** 侧栏「个人资料」 */
   PROFILE_SELF = 'profile_self',
+  /**
+   * 备忘录：子账号间隔离（勾选后该子账号仅见本人备忘录；默认不勾=本范围共享）
+   * 非侧栏入口；仅可分配给子账号
+   */
+  MEMO_ISOLATE_PEERS = 'memo_isolate_peers',
+  /**
+   * 文件库：子账号间隔离（勾选后该子账号仅见本人文件；默认不勾=本范围共享）
+   * 非侧栏入口；仅可分配给子账号
+   */
+  ATTACHMENT_ISOLATE_PEERS = 'attachment_isolate_peers',
 }
 
 /**
@@ -80,10 +90,12 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.ACCOUNT_MANAGE]: '子用户管理',
   [Permission.TENANT_DASHBOARD]: '运维概览',
   [Permission.TENANT_USERS]: '成员一览（已并入子用户管理）',
-  [Permission.TENANT_DATABASE]: '数据维护',
-  [Permission.TENANT_MONITOR]: '运行监控',
+  [Permission.TENANT_DATABASE]: '数据治理（兼容）',
+  [Permission.TENANT_MONITOR]: '运行监控（经概览）',
   [Permission.TENANT_LOGS]: '运行日志',
   [Permission.PROFILE_SELF]: '个人资料',
+  [Permission.MEMO_ISOLATE_PEERS]: '备忘录子账号隔离',
+  [Permission.ATTACHMENT_ISOLATE_PEERS]: '文件库子账号隔离',
 }
 
 /**
@@ -98,10 +110,11 @@ export const MEMBER_ASSIGNABLE_PERMISSIONS: readonly Permission[] = [
   Permission.ATTACHMENT_MANAGE,
   Permission.SETTINGS_MANAGE,
   Permission.TENANT_DASHBOARD,
-  Permission.TENANT_DATABASE,
   Permission.TENANT_MONITOR,
   Permission.TENANT_LOGS,
   Permission.PROFILE_SELF,
+  Permission.MEMO_ISOLATE_PEERS,
+  Permission.ATTACHMENT_ISOLATE_PEERS,
 ] as const
 
 /**
@@ -120,10 +133,23 @@ export const ASSIGNABLE_PERMISSION_ITEMS: readonly {
   { permission: Permission.ATTACHMENT_MANAGE, path: '/attachments' },
   { permission: Permission.SETTINGS_MANAGE, path: '/settings' },
   { permission: Permission.TENANT_DASHBOARD, path: '/tenant' },
-  { permission: Permission.TENANT_DATABASE, path: '/tenant/database' },
-  { permission: Permission.TENANT_MONITOR, path: '/tenant/monitor' },
+  {
+    permission: Permission.TENANT_MONITOR,
+    path: '/tenant/monitor',
+    hint: '经运维概览进入；侧栏默认不显示',
+  },
   { permission: Permission.TENANT_LOGS, path: '/tenant/logs' },
   { permission: Permission.PROFILE_SELF, path: '/profile', hint: '必选' },
+  {
+    permission: Permission.MEMO_ISOLATE_PEERS,
+    path: '',
+    hint: '勾选后看不到其他子账号备忘录；默认本范围共享',
+  },
+  {
+    permission: Permission.ATTACHMENT_ISOLATE_PEERS,
+    path: '',
+    hint: '勾选后看不到其他子账号文件；默认本范围共享',
+  },
 ] as const
 
 /**
@@ -191,8 +217,6 @@ export function resolveLandingPath(permissions: readonly string[]): string {
     ['/shares', Permission.SHARE_MANAGE],
     ['/accounts', Permission.ACCOUNT_MANAGE],
     ['/tenant', Permission.TENANT_DASHBOARD],
-    ['/tenant/database', Permission.TENANT_DATABASE],
-    ['/tenant/monitor', Permission.TENANT_MONITOR],
     ['/tenant/logs', Permission.TENANT_LOGS],
     ['/settings', Permission.SETTINGS_MANAGE],
     ['/profile', Permission.PROFILE_SELF],
@@ -275,6 +299,8 @@ export interface Memo {
   updatedAt: Date
   deletedAt?: Date
   creatorName?: string
+  /** 允许 MCP 公开投影 */
+  mcpPublic?: boolean
 }
 
 export interface MemoHistory {
@@ -287,6 +313,8 @@ export interface MemoHistory {
 export interface FileMetadata {
   id: string
   userId: string
+  /** 上传者用户名（本范围共享文件库区分主/子账号） */
+  uploaderUsername?: string
   filename: string
   size: number
   type: string
@@ -294,6 +322,8 @@ export interface FileMetadata {
   /** 同时使用该文件的备忘录 id（可多条；由 attachments 汇总） */
   linkedMemoIds?: string[]
   uploadedAt: Date
+  /** 允许 MCP 公开投影 */
+  mcpPublic?: boolean
 }
 
 export interface ShareLink {
@@ -317,6 +347,8 @@ export interface AppSettings {
   language: string
   autoCleanLogs: boolean
   logRetentionHours: number
+  /** 账号注销/删除后自动清除该账号全部相关内容（备忘录、文件、分享等） */
+  purgeRelatedOnAccountDelete: boolean
 }
 
 export enum LogLevel {
@@ -338,13 +370,19 @@ export interface LogEntry {
 }
 
 export interface StorageInfo {
-  /** 存储空间已用（服务器 dataDir 唯一根所在卷 · 对外正式名「存储空间」） */
+  /**
+   * 系统存储空间已用（服务器 dataDir 唯一根所在卷 · OS 探测）
+   * 与文件库存储空间（accountUsed）分称，禁止混用
+   */
   used: number
-  /** 存储空间总量（同上卷） */
+  /** 系统存储空间总量（同上卷） */
   total: number
-  /** 存储空间可用（同上卷） */
+  /** 系统存储空间可用（同上卷） */
   available: number
-  /** 本账号文件占用（非整盘；须单独展示） */
+  /**
+   * 文件库存储空间（本可见范围附件合计；默认主+子；隔离时仅本人）
+   * 非整卷已用；须单独展示
+   */
   accountUsed: number
 }
 

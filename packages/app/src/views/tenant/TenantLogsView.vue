@@ -1,6 +1,6 @@
 <!--
   运行日志（独立页面 · tenant_logs）
-  运行流水 + 操作审计；数据流转归「数据维护」
+  运行流水 + 操作审计
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
@@ -8,7 +8,7 @@
     <div class="tenant-logs" v-loading="bootLoading">
       <OpsPageShell
         title="运行日志"
-        desc="本范围运行流水与敏感操作审计。数据流转请到「数据维护」。"
+        desc="本范围运行流水与敏感操作审计。账号注销后清除内容见「系统设置」。"
         live
         :meta="updatedLabel"
       >
@@ -17,6 +17,7 @@
             <el-option label="全部操作" value="" />
             <el-option label="运行日志" value="运行日志" />
             <el-option label="操作审计" value="操作审计" />
+            <el-option label="MCP 审核" value="MCP 审核" />
           </el-select>
           <el-select v-model="levelFilter" style="width: 120px">
             <el-option label="全部级别" value="" />
@@ -71,7 +72,7 @@ import { AppLayout, OpsPageShell } from '../../components'
 import { formatTs, zhAction, zhLevel, zhSource, zhType } from './opsZh'
 
 interface OpRow {
-  kind: '运行日志' | '操作审计'
+  kind: '运行日志' | '操作审计' | 'MCP 审核'
   at: number
   timeLabel: string
   level: string
@@ -127,8 +128,9 @@ const filtered = computed(() => {
   })
 })
 
-function kindTag(kind: string): 'info' | 'warning' {
+function kindTag(kind: string): 'info' | 'warning' | 'success' {
   if (kind === '操作审计') return 'warning'
+  if (kind === 'MCP 审核') return 'success'
   return 'info'
 }
 
@@ -162,8 +164,9 @@ async function loadAll() {
     const list = (await adapter.getLogs({ limit: 300 })) as unknown as RawLog[]
     for (const log of list) {
       const typeLabel = log.context?.type ? zhType(log.context.type) : ''
+      const isMcp = String(log.action || '') === 'mcp.audit'
       next.push({
-        kind: '运行日志',
+        kind: isMcp ? 'MCP 审核' : '运行日志',
         at: toMs(log.timestamp),
         timeLabel: formatTs(log.timestamp),
         level: String(log.level || ''),
@@ -255,6 +258,13 @@ onUnmounted(() => {
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;
+  padding: 12px 14px;
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
+  border-radius: 8px;
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .count {

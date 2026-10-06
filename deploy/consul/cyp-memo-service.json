@@ -1,0 +1,106 @@
+{
+  "services": [
+    {
+      "name": "cyp-memo-gateway",
+      "id": "cyp-memo-gateway-1",
+      "tags": ["env=prod", "app=cyp-memo", "role=gateway"],
+      "port": 5170,
+      "address": "127.0.0.1",
+      "meta": {
+        "version": "2.0.0",
+        "role": "gateway",
+        "app": "cyp-memo"
+      },
+      "checks": [
+        {
+          "id": "gateway-health-ready",
+          "name": "Gateway Ready Probe",
+          "http": "http://127.0.0.1:5170/healthz/ready",
+          "method": "GET",
+          "interval": "10s",
+          "timeout": "5s",
+          "deregister_critical_service_after": "1m"
+        },
+        {
+          "id": "gateway-health-live",
+          "name": "Gateway Liveness Probe",
+          "http": "http://127.0.0.1:5170/health/live",
+          "method": "GET",
+          "interval": "5s",
+          "timeout": "3s",
+          "deregister_critical_service_after": "1m"
+        }
+      ]
+    },
+    {
+      "name": "cyp-memo-api",
+      "id": "cyp-memo-api-1",
+      "tags": ["env=prod", "app=cyp-memo", "role=api"],
+      "port": 5170,
+      "address": "127.0.0.1",
+      "meta": {
+        "version": "2.0.0",
+        "role": "api",
+        "app": "cyp-memo"
+      },
+      "checks": [
+        {
+          "id": "api-health",
+          "name": "API Health Check",
+          "http": "http://127.0.0.1:5170/api/health",
+          "method": "GET",
+          "interval": "10s",
+          "timeout": "5s",
+          "deregister_critical_service_after": "1m"
+        }
+      ]
+    },
+    {
+      "name": "cyp-memo-kms",
+      "id": "cyp-memo-kms-1",
+      "tags": ["env=prod", "app=cyp-memo", "role=kms"],
+      "port": 5170,
+      "address": "127.0.0.1",
+      "meta": {
+        "version": "2.0.0",
+        "role": "kms",
+        "app": "cyp-memo"
+      },
+      "checks": [
+        {
+          "id": "kms-health",
+          "name": "KMS Health Check",
+          "http": "http://127.0.0.1:5170/healthz/ready",
+          "method": "GET",
+          "interval": "15s",
+          "timeout": "5s",
+          "deregister_critical_service_after": "2m"
+        }
+      ]
+    },
+    {
+      "name": "cyp-memo-mcp",
+      "id": "cyp-memo-mcp-1",
+      "tags": ["env=prod", "app=cyp-memo", "role=mcp"],
+      "port": 13175,
+      "address": "127.0.0.1",
+      "meta": {
+        "version": "2.0.0",
+        "role": "mcp",
+        "app": "cyp-memo",
+        "transport": "streamable-http"
+      },
+      "checks": [
+        {
+          "id": "mcp-health",
+          "name": "MCP Server Health Check",
+          "http": "http://127.0.0.1:13175/healthz",
+          "method": "GET",
+          "interval": "10s",
+          "timeout": "5s",
+          "deregister_critical_service_after": "1m"
+        }
+      ]
+    }
+  ]
+}

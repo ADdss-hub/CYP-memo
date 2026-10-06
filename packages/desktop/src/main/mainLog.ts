@@ -82,7 +82,7 @@ function resolveApiBase(): string {
   return `http://127.0.0.1:${port}/api`
 }
 
-/** 静默上报主进程错误到日志中心（失败忽略） */
+/** 静默上报主进程错误到全链路日志（失败忽略） */
 function reportMainErrorToServer(
   level: 'error' | 'warn',
   message: string,

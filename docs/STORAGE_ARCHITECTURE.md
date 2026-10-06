@@ -28,7 +28,7 @@ CYP-memo 采用**服务器端集中存储**架构，所有数据统一存储在�
 // packages/admin/src/main.ts
 await storageManager.initialize({
   mode: 'remote',
-  apiUrl: 'http://localhost:5170/api'
+  apiUrl: 'http://127.0.0.1:5170/api'
 })
 ```
 
@@ -110,9 +110,9 @@ await storageManager.initialize({
 
 ### 端口配置
 
-- **服务器端**: `http://localhost:5170`
-- **用户端**: `http://localhost:5173`
-- **管理端**: `http://localhost:5174`
+- **服务器端**: `http://127.0.0.1:5170`
+- **用户端**: `http://127.0.0.1:5173`
+- **管理端**: `http://127.0.0.1:5174`
 
 ### API 端点
 

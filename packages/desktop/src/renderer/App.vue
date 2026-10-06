@@ -225,26 +225,38 @@ onUnmounted(() => {
   padding-top: 32px;
 }
 
-/* 全局主题变量 */
+/* 全局主题变量：对齐 web theme.css（禁 #409eff / 紫渐变）
+ * --bg-primary 供 Element 控件实体底；页壳透出由 body transparent + atmosphere 负责
+ */
 :root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f7fa;
-  --text-primary: #303133;
-  --text-secondary: #606266;
-  --text-tertiary: #909399;
-  --border-color: #dcdfe6;
-  --primary-color: #409eff;
+  --bg-primary: var(--cyp-bg-input, #121212);
+  --bg-secondary: var(--cyp-bg-card-solid, #1e1e1e);
+  --text-primary: var(--cyp-text, #ffffff);
+  --text-secondary: var(--cyp-text-secondary, #e0e0e0);
+  --text-tertiary: var(--cyp-text-muted, #b0b0b0);
+  --border-color: var(--cyp-border, #3a3a3a);
+  --primary-color: var(--cyp-brand, #0099ff);
+}
+
+[data-theme='light'] {
+  --bg-primary: var(--cyp-bg-input, #ffffff);
+  --bg-secondary: var(--cyp-bg-card-solid, #ffffff);
+  --text-primary: var(--cyp-text, #303133);
+  --text-secondary: var(--cyp-text-secondary, #606266);
+  --text-tertiary: var(--cyp-text-muted, #909399);
+  --border-color: var(--cyp-border, #dcdfe6);
+  --primary-color: var(--cyp-brand, #0099ff);
 }
 
 [data-theme='dark'],
 html.dark {
-  --bg-primary: #1d1e1f;
-  --bg-secondary: #262727;
-  --text-primary: #e5eaf3;
-  --text-secondary: #cfd3dc;
-  --text-tertiary: #8a8f99;
-  --border-color: #414243;
-  --primary-color: #409eff;
+  --bg-primary: var(--cyp-bg-input, #121212);
+  --bg-secondary: var(--cyp-bg-card-solid, #1e1e1e);
+  --text-primary: var(--cyp-text, #ffffff);
+  --text-secondary: var(--cyp-text-secondary, #e0e0e0);
+  --text-tertiary: var(--cyp-text-muted, #b0b0b0);
+  --border-color: var(--cyp-border, #3a3a3a);
+  --primary-color: var(--cyp-brand, #0099ff);
 }
 
 /* 全局字体大小 */
@@ -261,9 +273,11 @@ html.dark {
 }
 
 /* 应用主题到 body */
+body,
 body[data-theme='dark'],
+body[data-theme='light'],
 html.dark body {
-  background-color: var(--bg-primary);
+  background-color: transparent;
   color: var(--text-primary);
 }
 
@@ -424,38 +438,28 @@ html.dark .el-textarea__inner::placeholder {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #ccc;
+  background: var(--cyp-scrollbar, #555555);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #999;
+  background: var(--cyp-scrollbar-hover, #777777);
 }
 
 /* 深色主题滚动条 */
 html.dark ::-webkit-scrollbar-thumb {
-  background: #555;
+  background: var(--cyp-scrollbar, #555555);
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #777;
+  background: var(--cyp-scrollbar-hover, #777777);
 }
+
+scrollbar-color: var(--cyp-scrollbar, #555555) transparent;
 
 /* Firefox 滚动条 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #ccc transparent;
-}
-
-*:hover {
-  scrollbar-color: #999 transparent;
-}
-
-html.dark * {
-  scrollbar-color: #555 transparent;
-}
-
-html.dark *:hover {
-  scrollbar-color: #777 transparent;
+  scrollbar-color: var(--cyp-scrollbar, #555555) transparent;
 }
 </style>

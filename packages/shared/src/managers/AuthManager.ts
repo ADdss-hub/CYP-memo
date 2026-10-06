@@ -12,7 +12,7 @@ import { subAccountManager } from './auth/SubAccountManager'
 import { OWNER_DEFAULT_PERMISSIONS, Permission } from '../types'
 import type { User, SecurityQuestion } from '../types'
 import type { RememberInfo } from './auth/AuthStorage'
-import { storageManager } from '../storage/StorageManager'
+import { storageManager, getStorage } from '../storage/StorageManager'
 import type { RemoteStorageAdapter } from '../storage/RemoteStorageAdapter'
 
 /**
@@ -44,19 +44,6 @@ export class AuthManager {
         loginType: 'password',
         timestamp: Date.now(),
       })
-      // 持久化 Bearer，供刷新/截图会话恢复
-      try {
-        const cfg = storageManager.getConfig()
-        const token = adapter.getAccessToken?.() || user.token
-        if (token) {
-          localStorage.setItem(
-            'cyp-memo-storage-config',
-            JSON.stringify({ ...cfg, mode: 'remote', apiKey: token })
-          )
-        }
-      } catch {
-        /* ignore */
-      }
       if (remember) {
         authStorage.saveRememberInfo({ username, remember: true })
       } else {
@@ -194,18 +181,6 @@ export class AuthManager {
         loginType: 'password',
         timestamp: Date.now(),
       })
-      try {
-        const cfg = storageManager.getConfig()
-        const token = adapter.getAccessToken?.() || user.token
-        if (token) {
-          localStorage.setItem(
-            'cyp-memo-storage-config',
-            JSON.stringify({ ...cfg, mode: 'remote', apiKey: token })
-          )
-        }
-      } catch {
-        /* ignore */
-      }
       await logManager.info('远程 Owner 注册成功', {
         userId: user.id,
         username,
@@ -531,6 +506,30 @@ export class AuthManager {
    */
   async deleteSubAccount(parentUserId: string, subAccountId: string): Promise<void> {
     await subAccountManager.deleteSubAccount(parentUserId, subAccountId)
+  }
+
+  /**
+   * 自助注销本账号（与退出登录不同；会删除账号，是否清内容看系统设置）
+   */
+  async cancelOwnAccount(): Promise<{ message: string; purgeRelated: boolean }> {
+    const storage = getStorage() as {
+      cancelOwnAccount?: () => Promise<{ message: string; purgeRelated: boolean }>
+      getAccessToken?: () => string | undefined
+      setAccessToken?: (token: string | undefined) => void
+    }
+    if (typeof storage.cancelOwnAccount !== 'function') {
+      throw new Error('当前存储不支持自助注销账号')
+    }
+    // 刷新后若适配器未带 Bearer，从持久化配置回填，避免注销接口 401
+    if (storageManager.getMode() === 'remote' && !storage.getAccessToken?.()) {
+      const cfg = storageManager.getConfig() as { apiKey?: string }
+      if (cfg.apiKey && typeof storage.setAccessToken === 'function') {
+        storage.setAccessToken(cfg.apiKey)
+      }
+    }
+    const result = await storage.cancelOwnAccount()
+    authStorage.clearAuthInfo()
+    return result
   }
 
   /**

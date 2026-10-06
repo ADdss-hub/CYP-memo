@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { sanitizeHtml } from '@cyp-memo/shared'
 
 type UpdateState = 'checking' | 'available' | 'downloading' | 'downloaded' | 'error' | 'none'
 
@@ -130,8 +131,8 @@ const statusText = computed(() => {
  */
 const formattedReleaseNotes = computed(() => {
   if (!releaseNotes.value) return '<p>暂无更新说明</p>'
-  
-  return releaseNotes.value
+
+  const html = releaseNotes.value
     .replace(/^### (.+)$/gm, '<h4>$1</h4>')
     .replace(/^## (.+)$/gm, '<h3>$1</h3>')
     .replace(/^# (.+)$/gm, '<h2>$1</h2>')
@@ -142,6 +143,7 @@ const formattedReleaseNotes = computed(() => {
     .replace(/`(.+?)`/g, '<code>$1</code>')
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br>')
+  return sanitizeHtml(html)
 })
 
 /**
@@ -277,22 +279,22 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 9999;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
   padding: 12px 20px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
 .update-notification.notification--checking {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-soft) 100%);
 }
 
 .update-notification.notification--ready {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  background: linear-gradient(135deg, var(--cyp-success) 0%, var(--cyp-success-hover) 100%);
 }
 
 .update-notification.notification--error {
-  background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+  background: linear-gradient(135deg, var(--cyp-danger) 0%, var(--cyp-danger-hover) 100%);
 }
 
 .update-content {
@@ -330,7 +332,7 @@ onUnmounted(() => {
 
 .progress-fill {
   height: 100%;
-  background: white;
+  background: #ffffff;
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -358,7 +360,7 @@ onUnmounted(() => {
 
 .btn-primary {
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: #ffffff;
 }
 
 .btn-primary:hover {
@@ -367,7 +369,7 @@ onUnmounted(() => {
 
 .btn-secondary {
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: #ffffff;
 }
 
 .btn-secondary:hover {
@@ -376,7 +378,7 @@ onUnmounted(() => {
 
 .btn-success {
   background: rgba(255, 255, 255, 0.25);
-  color: white;
+  color: #ffffff;
 }
 
 .btn-success:hover {
@@ -389,7 +391,7 @@ onUnmounted(() => {
 }
 
 .btn-text:hover {
-  color: white;
+  color: #ffffff;
 }
 
 /* 弹窗样式 */
@@ -407,14 +409,18 @@ onUnmounted(() => {
 }
 
 .modal-content {
-  background: white;
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
   width: 90%;
   max-width: 500px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cyp-chrome-shadow), 0 20px 60px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
+  color: var(--cyp-text);
 }
 
 .modal-header {
@@ -422,27 +428,27 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #333;
+  color: var(--cyp-text);
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: 24px;
-  color: #999;
+  color: var(--cyp-text-muted);
   cursor: pointer;
   padding: 0;
   line-height: 1;
 }
 
 .modal-close:hover {
-  color: #333;
+  color: var(--cyp-text);
 }
 
 .modal-body {
@@ -453,23 +459,23 @@ onUnmounted(() => {
 
 .release-date {
   font-size: 13px;
-  color: #666;
+  color: var(--cyp-text-secondary);
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .release-notes-content {
   font-size: 14px;
   line-height: 1.8;
-  color: #444;
+  color: var(--cyp-text-secondary);
 }
 
 .release-notes-content :deep(h2),
 .release-notes-content :deep(h3),
 .release-notes-content :deep(h4) {
   margin: 16px 0 8px;
-  color: #333;
+  color: var(--cyp-text);
 }
 
 .release-notes-content :deep(li) {
@@ -478,7 +484,7 @@ onUnmounted(() => {
 }
 
 .release-notes-content :deep(code) {
-  background: #f5f5f5;
+  background: var(--cyp-bg-muted);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 13px;
@@ -489,19 +495,19 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 20px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--cyp-border);
 }
 
 .modal-footer .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
 }
 
 .modal-footer .btn-text {
-  color: #666;
+  color: var(--cyp-text-secondary);
 }
 
 .modal-footer .btn-text:hover {
-  color: #333;
+  color: var(--cyp-text);
 }
 
 /* 动画 */
@@ -529,54 +535,54 @@ onUnmounted(() => {
 /* 深色主题 */
 @media (prefers-color-scheme: dark) {
   .modal-content {
-    background: #2d2d2d;
+    background: var(--cyp-bg-card-solid);
   }
   
   .modal-header {
-    border-bottom-color: #444;
+    border-bottom-color: var(--cyp-text-secondary);
   }
   
   .modal-header h3 {
-    color: #eee;
+    color: var(--cyp-text);
   }
   
   .modal-close {
-    color: #888;
+    color: var(--cyp-text-muted);
   }
   
   .modal-close:hover {
-    color: #eee;
+    color: var(--cyp-text);
   }
   
   .release-date {
-    color: #aaa;
-    border-bottom-color: #444;
+    color: var(--cyp-text-muted);
+    border-bottom-color: var(--cyp-text-secondary);
   }
   
   .release-notes-content {
-    color: #ccc;
+    color: var(--cyp-text-secondary);
   }
   
   .release-notes-content :deep(h2),
   .release-notes-content :deep(h3),
   .release-notes-content :deep(h4) {
-    color: #eee;
+    color: var(--cyp-text);
   }
   
   .release-notes-content :deep(code) {
-    background: #3d3d3d;
+    background: var(--cyp-bg-muted-solid);
   }
   
   .modal-footer {
-    border-top-color: #444;
+    border-top-color: var(--cyp-text-secondary);
   }
   
   .modal-footer .btn-text {
-    color: #aaa;
+    color: var(--cyp-text-muted);
   }
   
   .modal-footer .btn-text:hover {
-    color: #eee;
+    color: var(--cyp-text);
   }
 }
 </style>

@@ -122,13 +122,16 @@ function handleOverlayClick() {
 }
 
 .session-expired-dialog {
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 16px;
   padding: 32px 40px;
   max-width: 420px;
   width: 90%;
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cyp-chrome-shadow), 0 20px 60px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   animation: dialogEnter 0.3s ease-out;
 }
 
@@ -214,7 +217,7 @@ function handleOverlayClick() {
 
 .dialog-button.primary {
   background: var(--cyp-brand);
-  color: white;
+  color: #ffffff;
 }
 
 .dialog-button.primary:hover {

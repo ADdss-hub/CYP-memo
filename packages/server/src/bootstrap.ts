@@ -10,7 +10,7 @@
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { getConfig, formatConfigInfo, formatStartupReportLine, type ContainerConfig, initInfraResource, resetInfraResource, getInfraResourceState, isInfraResourceReady, initEnvIsolation, resetEnvIsolation, getEnvIsolationState, isEnvIsolationReady, getDiskSpace, MIN_DISK_SPACE_BYTES } from './runtime-base/l0/infra/cfg/ready.js'
+import { getConfig, formatConfigInfo, formatStartupReportLine, type ServerConfig, initInfraResource, resetInfraResource, getInfraResourceState, isInfraResourceReady, initEnvIsolation, resetEnvIsolation, getEnvIsolationState, isEnvIsolationReady, getDiskSpace, MIN_DISK_SPACE_BYTES } from './runtime-base/l0/infra/cfg/ready.js'
 import { initConfigRevision, isConfigRevisionReady, getConfigRevisionView } from './runtime-base/l1/mgmt/conf/ready.js'
 import { initLog, log as log, resetLog, cleanupExpiredLogs, isLogReady, initLogger, logger } from './runtime-base/l0/infra/log/ready.js'
 import {
@@ -47,6 +47,9 @@ import {
   getRegistryState,
   bindEmbeddedServiceCollab,
   serviceCollabGrantCount,
+  initServiceRegistry,
+  registerService,
+  getServiceRegistryState,
 } from './runtime-base/l1/col/svc/ready.js'
 import {
   initGateway,
@@ -73,7 +76,27 @@ import {
   resetKms,
   getKmsState,
   isKmsReady,
-} from './runtime-base/l1/mgmt/kms/ready.js'
+} from './runtime-base/l1/mgmt/kms/client.js'
+import {
+  initMtls,
+  shutdownMtls,
+  getMtlsState,
+  isMtlsReady,
+} from './runtime-base/l1/mgmt/kms/mtls.js'
+import {
+  initRateLimiter,
+  shutdownRateLimiter,
+  startBucketCleanup,
+  stopBucketCleanup,
+  getRateLimiterState,
+  isRateLimiterReady,
+} from './runtime-base/l1/host/biz/rate-limiter.js'
+import {
+  initEwTraffic,
+  shutdownEwTraffic,
+  getEwTrafficState,
+  isEwTrafficReady,
+} from './runtime-base/l1/col/svc/ew-traffic-middleware.js'
 import {
   initAudit,
   resetAudit,
@@ -227,7 +250,7 @@ export interface BootstrapState {
 
 export interface BootstrapContext {
   trace_id: string
-  config: ContainerConfig | null
+  config: ServerConfig | null
   /** Phase2 可写入：上传目录等运行时路径 */
   uploadDir: string
 }
@@ -399,6 +422,26 @@ function registerBuiltinTasks(): void {
         trace_id: ctx.trace_id,
         ready: kms.ready,
         secretCount: kms.secretCount,
+      })
+    },
+  })
+
+  // —— Phase0 · mTLS（依赖 KMS SPIFFE 信任根 · 服务网格预埋）——
+  registerBootstrapTask({
+    id: 'cfg.m_mtls',
+    phase: 0,
+    name: 'mTLS 双向认证（服务网格预埋）',
+    run: (ctx) => {
+      if (!ctx.config) throw new Error('配置未就绪')
+      shutdownMtls()
+      const mtls = initMtls({
+        dataDir: ctx.config.dataDir,
+        serviceStableId: 'RB-L1-HOST-BIZ-01',
+      })
+      logger.info('bootstrap.phase0.mtls', {
+        trace_id: ctx.trace_id,
+        enabled: mtls.ok,
+        reason: mtls.reason || 'ok',
       })
     },
   })
@@ -783,10 +826,16 @@ function registerBuiltinTasks(): void {
     run: (ctx) => {
       if (!ctx.config) throw new Error('配置未就绪')
       resetRegistry()
-      const reg = initRegistry({ dataDir: ctx.config.dataDir })
+      const reg = initServiceRegistry({
+        dataDir: ctx.config.dataDir,
+        mode: ctx.config.serviceRegistryMode,
+        consulAddr: ctx.config.consulHttpAddr,
+        consulToken: ctx.config.consulHttpToken ?? undefined,
+      })
       logger.info('bootstrap.phase2.registry', {
         trace_id: ctx.trace_id,
         ready: reg.ready,
+        mode: reg.mode,
         note: 'no self-register until bootstrap success',
       })
     },
@@ -807,6 +856,44 @@ function registerBuiltinTasks(): void {
         egressAutoAllow: allow.includes('api.github.com'),
         egressAllowlistEffective: getEgressAllowlist(),
         versionProbe: 'required',
+      })
+    },
+  })
+
+  // —— Phase2 · 令牌桶限流（服务网格预埋）——
+  registerBootstrapTask({
+    id: 'mod.rate_limiter',
+    phase: 2,
+    name: '令牌桶限流器（服务网格预埋）',
+    run: (ctx) => {
+      shutdownRateLimiter()
+      stopBucketCleanup()
+      initRateLimiter()
+      if (isRateLimiterReady()) {
+        startBucketCleanup(60_000)
+      }
+      const state = getRateLimiterState()
+      logger.info('bootstrap.phase2.rate_limiter', {
+        trace_id: ctx.trace_id,
+        enabled: state.enabled,
+        policyCount: state.policyCount,
+      })
+    },
+  })
+
+  // —— Phase2 · East-West 流量管控中间件（服务网格预埋）——
+  registerBootstrapTask({
+    id: 'mod.ew_traffic',
+    phase: 2,
+    name: 'East-West 流量管控中间件（服务网格预埋）',
+    run: (ctx) => {
+      shutdownEwTraffic()
+      initEwTraffic()
+      const state = getEwTrafficState()
+      logger.info('bootstrap.phase2.ew_traffic', {
+        trace_id: ctx.trace_id,
+        enabled: state.enabled,
+        authMode: state.authMode,
       })
     },
   })
@@ -1230,11 +1317,65 @@ export async function runBootstrap(options?: {
           port: ctx.config.port,
         })
         bindEmbeddedServiceCollab({ host: '127.0.0.1', port: ctx.config.port })
+
+        // 跨系统编排：按角色注册多逻辑服务名（本地 + Consul 双模式）
+        // gateway: 统一入口（5170 端口）
+        // api: 业务 API（当前同端口，未来拆分独立端口）
+        // kms: 密钥保险箱（当前嵌入式，未来独立端口）
+        const baseTags = ctx.config.consulServiceTags
+        const logicalServices = [
+          {
+            name: 'cyp-memo-gateway',
+            role: 'gateway',
+            healthPath: '/healthz/ready',
+            port: ctx.config.port,
+          },
+          {
+            name: 'cyp-memo-api',
+            role: 'api',
+            healthPath: '/api/health',
+            port: ctx.config.port,
+          },
+          {
+            name: 'cyp-memo-kms',
+            role: 'kms',
+            healthPath: '/healthz/ready',
+            port: ctx.config.port,
+          },
+        ]
+
+        const mid = ctx.config.machineId.slice(0, 12)
+        for (const svc of logicalServices) {
+          // 异步注册不阻塞主流程（Consul 不可达时降级为本地模式）
+          registerService({
+            serviceName: svc.name,
+            instanceId: `${svc.name}-${mid}`,
+            host: '127.0.0.1',
+            port: svc.port,
+            tags: [...baseTags, `role=${svc.role}`],
+            version: ctx.config.version,
+            healthCheckPath: svc.healthPath,
+            healthCheckTtlSec: 30,
+            meta: {
+              role: svc.role,
+              app: 'cyp-memo',
+              machineId: mid,
+            },
+          }).catch((regErr) => {
+            logger.warn('bootstrap.registry.logical_service_register_failed', {
+              trace_id,
+              serviceName: svc.name,
+              error: regErr instanceof Error ? regErr.message : String(regErr),
+            })
+          })
+        }
+
         logger.info('bootstrap.registry.self_register', {
           trace_id,
           instanceId: inst.instanceId,
           port: inst.port,
           serviceCollabGrants: serviceCollabGrantCount(),
+          registryMode: getServiceRegistryState().mode,
         })
       }
     } catch (regErr) {
@@ -1297,11 +1438,22 @@ export async function runBootstrap(options?: {
 /**
  * /healthz/ready 响应体
  */
+let _readyRespCache: { at: number; statusCode: number; body: Record<string, unknown> } | null = null
+const READY_RESP_TTL_MS = (() => {
+  const n = Number(process.env.CYP_READY_RESPONSE_TTL_MS)
+  return Number.isFinite(n) && n >= 0 ? n : 1000
+})()
+
 export function buildReadyResponse(): {
   statusCode: number
   body: Record<string, unknown>
 } {
   const s = getBootstrapState()
+  // 热点优化：就绪探针高频轮询时，整包投影（35 稳定 ID 就绪判定 + 接线 + 运行时态）重建成本高
+  // （实测 p50≈2.5s）。健康态下以短窗 TTL 缓存整包；异常态始终实时返回，避免掩盖降级。
+  if (_readyRespCache && s.ready && Date.now() - _readyRespCache.at < READY_RESP_TTL_MS) {
+    return { statusCode: _readyRespCache.statusCode, body: _readyRespCache.body }
+  }
   syncBootstrapReadyFlags()
   /** 统一运行底座投影：键＝35 稳定 ID；禁止读旧编制布尔 */
   const runtimeBase = buildRuntimeBaseProjection({ bootstrapReady: Boolean(s.ready) })
@@ -1315,7 +1467,7 @@ export function buildReadyResponse(): {
       startedAt: s.startedAt,
       finishedAt: s.finishedAt,
       totalDurationMs: s.totalDurationMs,
-      /** 军械库统一运行底座投影（闭集 35 · V1.8.3） */
+      /** 军械库统一运行底座投影（闭集 35 · V1.8.5） */
       runtimeBase,
       wiring,
       安全纵深: {
@@ -1354,8 +1506,8 @@ export function buildReadyResponse(): {
       error: s.error
     }
   }
-  return {
-    statusCode: s.ready ? 200 : 503,
-    body
-  }
+  const statusCode = s.ready ? 200 : 503
+  // 仅健康态写入缓存（异常态始终实时，不写缓存以免恢复瞬间被旧缓存掩盖）
+  if (s.ready) _readyRespCache = { at: Date.now(), statusCode, body }
+  return { statusCode, body }
 }

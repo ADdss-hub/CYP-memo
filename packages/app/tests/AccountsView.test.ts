@@ -11,12 +11,12 @@ import { useAuthStore } from '../src/stores/auth'
 import { authManager, Permission, db } from '@cyp-memo/shared'
 import type { User } from '@cyp-memo/shared'
 
-// Mock Element Plus icons
-vi.mock('@element-plus/icons-vue', () => ({
-  User: { name: 'User' },
-  Plus: { name: 'Plus' },
-  UserFilled: { name: 'UserFilled' }
-}))
+// Mock Element Plus icons：基于真实模块展开，避免白名单式 mock 在被测组件
+// 经 menu.ts 引入新图标（如 Monitor）时导致整文件收集失败
+vi.mock('@element-plus/icons-vue', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return { ...actual }
+})
 
 // Mock Element Plus message components
 vi.mock('element-plus', async () => {
@@ -98,7 +98,8 @@ describe('AccountsView - 权限控制测试', () => {
 
     // 验证页面正常渲染
     expect(wrapper.find('.accounts-view').exists()).toBe(true)
-    expect(wrapper.find('.page-title').text()).toBe('账号管理')
+    // 页面标题已随产品更名为「子用户管理」（见 AccountsView.vue 模板）
+    expect(wrapper.find('.page-title').text()).toBe('子用户管理')
   })
 
   it('应该阻止子账号访问账号管理页面', async () => {
@@ -462,7 +463,11 @@ describe('AccountsView - 创建子账号测试', () => {
     expect(wrapper.vm.createForm.username).toBe('')
     expect(wrapper.vm.createForm.password).toBe('')
     expect(wrapper.vm.createForm.confirmPassword).toBe('')
-    expect(wrapper.vm.createForm.permissions).toEqual([Permission.MEMO_MANAGE])
+    // 重置回默认值：PROFILE_SELF 为不可取消的基础权限，随默认值一并返回
+    expect(wrapper.vm.createForm.permissions).toEqual([
+      Permission.MEMO_MANAGE,
+      Permission.PROFILE_SELF
+    ])
   })
 })
 
@@ -735,9 +740,11 @@ describe('AccountsView - 权限设置测试', () => {
     // 验证对话框状态
     expect(wrapper.vm.permissionDialogVisible).toBe(true)
     expect(wrapper.vm.selectedAccount).toStrictEqual(subAccount)
+    // PROFILE_SELF 为不可取消的基础权限，normalizeMemberPermissions 会补齐
     expect(wrapper.vm.permissionForm.permissions).toEqual([
       Permission.MEMO_MANAGE,
-      Permission.STATISTICS_VIEW
+      Permission.STATISTICS_VIEW,
+      Permission.PROFILE_SELF
     ])
   })
 })

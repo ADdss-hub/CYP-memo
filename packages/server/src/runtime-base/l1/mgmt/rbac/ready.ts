@@ -94,6 +94,47 @@ export function listTenantUserIds(req: Request): Set<string> {
   return new Set(database.getUsersByTenantRootId(root).map((u) => u.id))
 }
 
+/**
+ * 可见用户范围：主账号始终本范围全员；
+ * 子账号勾选 memo_isolate_peers / attachment_isolate_peers 时仅本人。
+ */
+export function resolveVisibleUserIds(
+  req: Request,
+  kind: 'memo' | 'attachment'
+): string[] {
+  const actor = req.authUser
+  if (!actor?.id) return []
+  const tenant = [...listTenantUserIds(req)]
+  if (tenant.length === 0) return [actor.id]
+
+  const isOwner =
+    actor.role === 'owner' ||
+    actor.isMainAccount === true ||
+    (Array.isArray(actor.permissions) && actor.permissions.includes('account_manage'))
+  if (isOwner) return tenant
+
+  const isolateFlag =
+    kind === 'memo' ? 'memo_isolate_peers' : 'attachment_isolate_peers'
+  const isolated =
+    Array.isArray(actor.permissions) && actor.permissions.includes(isolateFlag)
+  if (isolated) return [actor.id]
+  return tenant
+}
+
+export function actorIsolatesPeers(
+  actor: { permissions?: string[]; role?: string; isMainAccount?: boolean } | null | undefined,
+  kind: 'memo' | 'attachment'
+): boolean {
+  if (!actor) return false
+  if (actor.role === 'owner' || actor.isMainAccount) return false
+  if (Array.isArray(actor.permissions) && actor.permissions.includes('account_manage')) {
+    return false
+  }
+  const isolateFlag =
+    kind === 'memo' ? 'memo_isolate_peers' : 'attachment_isolate_peers'
+  return Array.isArray(actor.permissions) && actor.permissions.includes(isolateFlag)
+}
+
 /** 本租户可见备忘录。调用方须已通过 requirePermission('memo_manage')。 */
 export function listTenantMemos(req: Request): Array<{
   id: string
@@ -102,7 +143,7 @@ export function listTenantMemos(req: Request): Array<{
   updatedAt: string
   [key: string]: unknown
 }> {
-  const ids = [...listTenantUserIds(req)]
+  const ids = resolveVisibleUserIds(req, 'memo')
   const memos = database.getMemosListByUserIds(ids)
   return memos
     .map((m) => m as unknown as { id: string; userId: string; deletedAt?: string | null; updatedAt: string; [key: string]: unknown })

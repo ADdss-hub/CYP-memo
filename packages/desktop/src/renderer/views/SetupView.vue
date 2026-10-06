@@ -147,7 +147,7 @@ async function completeSetup() {
       
       if (config.connectionMode === 'embedded') {
         const status = await api.server.getStatus()
-        apiUrl = `http://localhost:${status.port}/api`
+        apiUrl = `http://127.0.0.1:${status.port}/api`
       } else if (config.serverUrl) {
         apiUrl = `${config.serverUrl}/api`
       } else {
@@ -188,7 +188,7 @@ async function completeSetup() {
       <div class="setup-header">
         <div class="setup-logo">CYP</div>
         <h1>欢迎使用 CYP-memo</h1>
-        <p class="setup-subtitle">容器备忘录系统 - 桌面客户端</p>
+        <p class="setup-subtitle">备忘录系统 - 桌面客户端</p>
         <p class="setup-desc">请选择您的使用方式来开始</p>
       </div>
 
@@ -332,17 +332,21 @@ async function completeSetup() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: transparent;
   padding: 20px;
 }
 
 .setup-container {
   width: 100%;
   max-width: 700px;
-  background: white;
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--cyp-chrome-shadow), 0 20px 60px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   padding: 40px;
+  color: var(--cyp-text);
 }
 
 .setup-header {
@@ -364,20 +368,20 @@ async function completeSetup() {
 .setup-header h1 {
   font-size: 28px;
   font-weight: 700;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 8px;
 }
 
 .setup-subtitle {
   font-size: 16px;
-  color: #667eea;
+  color: var(--cyp-brand);
   font-weight: 500;
   margin: 0 0 8px;
 }
 
 .setup-desc {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
@@ -405,8 +409,8 @@ async function completeSetup() {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #dcdfe6;
-  color: #909399;
+  background: var(--cyp-border);
+  color: var(--cyp-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -416,30 +420,30 @@ async function completeSetup() {
 }
 
 .step-item.active .step-number {
-  background: #667eea;
-  color: white;
+  background: var(--cyp-brand);
+  color: #ffffff;
 }
 
 .step-item.completed .step-number {
-  background: #67c23a;
-  color: white;
+  background: var(--cyp-success);
+  color: #ffffff;
 }
 
 .step-label {
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .step-line {
   width: 60px;
   height: 2px;
-  background: #dcdfe6;
+  background: var(--cyp-border);
   margin: 0 16px;
   transition: background 0.3s;
 }
 
 .step-line.active {
-  background: #667eea;
+  background: var(--cyp-brand);
 }
 
 /* 内容区域 */
@@ -457,20 +461,20 @@ async function completeSetup() {
   flex: 1;
   position: relative;
   padding: 24px;
-  border: 2px solid #e4e7ed;
+  border: 2px solid var(--cyp-border);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s;
 }
 
 .mode-option:hover {
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.02);
+  border-color: var(--cyp-brand);
+  background: var(--cyp-brand-tint);
 }
 
 .mode-option.selected {
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.05);
+  border-color: var(--cyp-brand);
+  background: var(--cyp-brand-tint);
 }
 
 .mode-icon {
@@ -481,13 +485,13 @@ async function completeSetup() {
 .mode-info h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 8px;
 }
 
 .mode-info > p {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 0 0 16px;
 }
 
@@ -499,7 +503,7 @@ async function completeSetup() {
 
 .mode-features li {
   font-size: 13px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   padding: 4px 0;
 }
 
@@ -509,8 +513,8 @@ async function completeSetup() {
   right: 16px;
   width: 24px;
   height: 24px;
-  background: #667eea;
-  color: white;
+  background: var(--cyp-brand);
+  color: #ffffff;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -533,7 +537,7 @@ async function completeSetup() {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
   margin-bottom: 8px;
 }
 
@@ -546,27 +550,27 @@ async function completeSetup() {
   flex: 1;
   padding: 12px 16px;
   font-size: 14px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 8px;
   outline: none;
   transition: border-color 0.2s;
 }
 
 .input-group input:focus {
-  border-color: #667eea;
+  border-color: var(--cyp-brand);
 }
 
 .input-group input:disabled {
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
 }
 
 .test-btn {
   padding: 12px 20px;
   font-size: 14px;
   font-weight: 500;
-  color: #667eea;
+  color: var(--cyp-brand);
   background: transparent;
-  border: 1px solid #667eea;
+  border: 1px solid var(--cyp-brand);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
@@ -574,8 +578,8 @@ async function completeSetup() {
 }
 
 .test-btn:hover:not(:disabled) {
-  background: #667eea;
-  color: white;
+  background: var(--cyp-brand);
+  color: #ffffff;
 }
 
 .test-btn:disabled {
@@ -585,7 +589,7 @@ async function completeSetup() {
 
 .field-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
   margin: 8px 0 0;
 }
 
@@ -600,11 +604,11 @@ async function completeSetup() {
 }
 
 .test-result.success {
-  background: rgba(103, 194, 58, 0.1);
+  background: color-mix(in srgb, var(--cyp-success) 12%, transparent);
 }
 
 .test-result.error {
-  background: rgba(245, 108, 108, 0.1);
+  background: color-mix(in srgb, var(--cyp-danger) 12%, transparent);
 }
 
 .result-icon {
@@ -613,11 +617,11 @@ async function completeSetup() {
 }
 
 .test-result.success .result-icon {
-  color: #67c23a;
+  color: var(--cyp-success);
 }
 
 .test-result.error .result-icon {
-  color: #f56c6c;
+  color: var(--cyp-danger);
 }
 
 .result-info {
@@ -632,16 +636,16 @@ async function completeSetup() {
 }
 
 .test-result.success .result-title {
-  color: #67c23a;
+  color: var(--cyp-success);
 }
 
 .test-result.error .result-title {
-  color: #f56c6c;
+  color: var(--cyp-danger);
 }
 
 .result-detail {
   font-size: 12px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 /* 底部按钮 */
@@ -661,13 +665,13 @@ async function completeSetup() {
 }
 
 .btn-primary {
-  background: #667eea;
-  color: white;
+  background: var(--cyp-brand);
+  color: #ffffff;
   border: none;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #5a6fd6;
+  background: var(--cyp-brand-hover);
 }
 
 .btn-primary:disabled {
@@ -677,12 +681,12 @@ async function completeSetup() {
 
 .btn-secondary {
   background: transparent;
-  color: #606266;
-  border: 1px solid #dcdfe6;
+  color: var(--cyp-text-secondary);
+  border: 1px solid var(--cyp-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  border-color: #606266;
+  border-color: var(--cyp-text-secondary);
 }
 
 .btn-secondary:disabled {
@@ -711,63 +715,63 @@ async function completeSetup() {
 
 /* 深色主题 */
 html.dark .setup-container {
-  background: #1d1e1f;
+  background: var(--cyp-chrome-bg-panel);
 }
 
 html.dark .setup-header h1 {
-  color: #e5eaf3;
+  color: var(--cyp-text);
 }
 
 html.dark .setup-desc {
-  color: #8a8f99;
+  color: var(--cyp-text-muted);
 }
 
 html.dark .step-label {
-  color: #cfd3dc;
+  color: var(--cyp-text-secondary);
 }
 
 html.dark .mode-option {
-  border-color: #414243;
+  border-color: var(--cyp-border);
 }
 
 html.dark .mode-option:hover,
 html.dark .mode-option.selected {
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.1);
+  border-color: var(--cyp-brand);
+  background: var(--cyp-brand-tint);
 }
 
 html.dark .mode-info h3 {
-  color: #e5eaf3;
+  color: var(--cyp-text);
 }
 
 html.dark .mode-info > p {
-  color: #8a8f99;
+  color: var(--cyp-text-muted);
 }
 
 html.dark .mode-features li {
-  color: #cfd3dc;
+  color: var(--cyp-text-secondary);
 }
 
 html.dark .config-field label {
-  color: #e5eaf3;
+  color: var(--cyp-text);
 }
 
 html.dark .input-group input {
-  background: #262727;
-  border-color: #414243;
-  color: #e5eaf3;
+  background: var(--cyp-bg-muted-solid);
+  border-color: var(--cyp-border);
+  color: var(--cyp-text);
 }
 
 html.dark .input-group input:focus {
-  border-color: #667eea;
+  border-color: var(--cyp-brand);
 }
 
 html.dark .btn-secondary {
-  color: #cfd3dc;
-  border-color: #414243;
+  color: var(--cyp-text-secondary);
+  border-color: var(--cyp-border);
 }
 
 html.dark .btn-secondary:hover:not(:disabled) {
-  border-color: #cfd3dc;
+  border-color: var(--cyp-text-secondary);
 }
 </style>

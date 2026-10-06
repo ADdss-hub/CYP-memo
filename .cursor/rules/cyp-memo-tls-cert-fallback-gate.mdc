@@ -1,0 +1,28 @@
+---
+description: CYP-memo 凡需 TLS 一律正规优先否则自签（产品名身份 · R-TLS-001）
+alwaysApply: true
+---
+
+# CYP-memo · TLS 正规证书优先与自签回退（强制 · R-TLS-001）
+
+权威：军械库 `安全-通用TLS证书签发与回退规范` v1.2 §〇 · ANTI-88 · 违规防止清单步骤 34A–34G · 反例 R-TLS-001。
+
+## 问题
+
+曾把证书口径缩成「仅 MCP」；叶子曾用含 MCP 的名称。老板要求：**所有产品 / 架构 / 平台，只要需要用到证书的一律采用证书**（正规优先，否则自动自签）；**证书名称用项目名（CYP-memo），禁止含 MCP**；须完善证书内容。
+
+## 设计口径（不可分叉）
+
+- 本产品内 **凡需 TLS 的监听面**（API、Vite 联调壳 App、MCP、以及后续网关/旁路/桌面 HTTPS 等）一律采用证书，禁止「仅 MCP 有证、其它跨主机明文」分叉。
+- **正规证书优先**（`{dataDir}/tls/official/cert.pem` + `key.pem`）。
+- **未配置正规证书则自动自签**（私有 CA 签发叶子，失败则 ECDSA P-256 叶子，再失败 RSA 2048）；默认落 `{dataDir}/tls/leaf/`（CA 在 `tls/ca/`）；禁止新写以 MCP 命名的证书主题或目录冒充产品身份。
+- **产品身份**：叶子 `CN=CYP-memo`（完整 DN 含 O/OU/C）；CA `CN=CYP-memo TLS CA`；主题字符串**禁止含 MCP**；禁止 `cyp-memo-mcp` / `cyp-memo-api` 等服务代号顶替。
+- **内容完备**：SAN（环回 + 网卡 IPv4）、BasicConstraints、KeyUsage、EKU=serverAuth、SHA-256、私钥 0600；私有 CA 路径宜 SKI/AKI + 下发链；禁止进仓库。
+- 身份 SSOT：`packages/shared/src/tls/identity.ts`；签发 SSOT：`packages/shared/src/tls/issue.ts`（server `ensureApiTlsMaterial` / MCP `ensureMcpTlsMaterial` 仅解析 dataDir 后调用）；App Vite 经 `ensureApiTlsMaterial` 读同套材料。**禁止**在 server/mcp 再写第二套签发。
+- **禁止**只拒绝明文却不签发；**禁止**必选证书路径环境变量才启用 HTTPS；**禁止**联调壳或 MCP 环回默认明文 HTTP。
+
+## 强制做法
+
+1. 改任一 HTTPS/TLS 相关代码前：先核签发逻辑仍是 official → 私有 CA / ECDSA 自签，且主题为 CYP-memo（无 MCP）。
+2. 新增其它需 TLS 的监听面时：复用同一 `dataDir/tls` SSOT 与产品身份，不得另立第二套证书根或 MCP 专名证书。
+3. 宣称 HTTPS 已就绪前：该监听面实机 HTTPS 探活 + 明文拒绝；核 subject 为 CYP-memo；有 official 时核来源为 official。

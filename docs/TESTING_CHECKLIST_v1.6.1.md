@@ -8,24 +8,24 @@
 # 终端 1: 启动服务器端（必须）
 cd packages/server
 pnpm local
-# 应显示: Server running on http://localhost:5170
+# 应显示: Server running on http://127.0.0.1:5170
 
 # 终端 2: 启动用户端
 cd packages/app
 pnpm local
-# 应显示: Local: http://localhost:5173
+# 应显示: Local: http://127.0.0.1:5173
 
 # 终端 3: 启动管理端
 cd packages/admin
 pnpm local
-# 应显示: Local: http://localhost:5174
+# 应显示: Local: http://127.0.0.1:5174
 ```
 
 ### 2. 验证服务器连接
 
 打开浏览器控制台，应看到：
 - ✅ `存储管理器初始化成功 - 使用服务器端存储`
-- ✅ `API 地址: http://localhost:5170/api`
+- ✅ `API 地址: http://127.0.0.1:5170/api`
 
 如果看到错误：
 - ❌ `无法连接到服务器，应用无法正常工作`
@@ -36,7 +36,7 @@ pnpm local
 ### 测试 1: 用户注册和登录
 
 **步骤**:
-1. 打开用户端 `http://localhost:5173`
+1. 打开用户端 `http://127.0.0.1:5173`
 2. 点击"注册"
 3. 输入用户名和密码
 4. 完成注册
@@ -62,7 +62,7 @@ pnpm local
 ### 测试 3: 管理端查看用户
 
 **步骤**:
-1. 打开管理端 `http://localhost:5174`
+1. 打开管理端 `http://127.0.0.1:5174`
 2. 使用默认管理员账号登录
    - 用户名: `admin`
    - 密码: `admin123`

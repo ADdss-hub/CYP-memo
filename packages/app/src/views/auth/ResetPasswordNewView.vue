@@ -107,8 +107,8 @@
 
       <!-- 步骤 3: 回答安全问题 -->
       <form v-if="step === 3" class="reset-form" @submit.prevent="handleVerifyAnswer">
-        <div class="info-box">
-          <InfoFilled />
+        <div class="info-box" role="status">
+          <el-icon class="info-box-icon" :size="18" aria-hidden="true"><InfoFilled /></el-icon>
           <p>请回答您设置的安全问题</p>
         </div>
 
@@ -143,8 +143,8 @@
 
       <!-- 步骤 4: 设置新密码 -->
       <form v-if="step === 4" class="reset-form" @submit.prevent="handleResetPassword">
-        <div class="success-box">
-          <SuccessFilled />
+        <div class="success-box" role="status">
+          <el-icon class="info-box-icon" :size="18" aria-hidden="true"><SuccessFilled /></el-icon>
           <p>验证成功，请设置新密码</p>
         </div>
 
@@ -161,7 +161,9 @@
               autocomplete="new-password"
             />
             <button type="button" class="password-toggle" @click="showPassword = !showPassword">
-              <component :is="showPassword ? Hide : View" />
+              <el-icon :size="18" aria-hidden="true">
+                <component :is="showPassword ? Hide : View" />
+              </el-icon>
             </button>
           </div>
           <p class="form-hint">密码至少8位，必须包含字母和数字</p>
@@ -184,7 +186,9 @@
               class="password-toggle"
               @click="showConfirmPassword = !showConfirmPassword"
             >
-              <component :is="showConfirmPassword ? Hide : View" />
+              <el-icon :size="18" aria-hidden="true">
+                <component :is="showConfirmPassword ? Hide : View" />
+              </el-icon>
             </button>
           </div>
         </div>
@@ -402,17 +406,17 @@ const handleResetPassword = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--cyp-bg-page);
+  background: transparent;
   padding: 20px;
 }
 
 .reset-container {
   width: 100%;
   max-width: 480px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
   border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  border: 1px solid var(--cyp-border);
+  box-shadow: var(--cyp-chrome-shadow), 0 12px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--cyp-chrome-border);
   padding: 40px;
 }
 
@@ -538,32 +542,35 @@ const handleResetPassword = async () => {
 }
 
 .info-box {
-  background: rgba(0, 153, 255, 0.12);
-  border: 1px solid #d9ecff;
+  background: var(--cyp-brand-tint);
+  border: 1px solid color-mix(in srgb, var(--cyp-brand) 35%, var(--cyp-border));
   color: var(--cyp-brand);
 }
 
 .success-box {
-  background: var(--cyp-brand-tint);
-  border: 1px solid #d1f2eb;
+  background: color-mix(in srgb, var(--cyp-success) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-success) 35%, var(--cyp-border));
   color: var(--cyp-success);
 }
 
-.info-box svg,
-.success-box svg {
-  font-size: 20px;
+.info-box-icon,
+.info-box :deep(svg),
+.success-box :deep(svg) {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
 .info-box p,
 .success-box p {
   margin: 0;
+  line-height: 1.4;
 }
 
 .error-message {
   padding: 12px 16px;
-  background: rgba(245, 108, 108, 0.12);
-  border: 1px solid #fde2e2;
+  background: color-mix(in srgb, var(--cyp-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-danger) 35%, var(--cyp-border));
   border-radius: 6px;
   color: var(--cyp-danger);
   font-size: 14px;

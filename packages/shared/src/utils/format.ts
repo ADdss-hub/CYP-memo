@@ -77,20 +77,20 @@ export function formatRelativeTime(date: Date | number): string {
  * 格式化文件大小
  * @param bytes 文件大小（字节）
  * @param decimals 小数位数，默认为 2
- * @returns string 格式化后的文件大小字符串
+ * @returns string 格式化后的文件大小字符串（界面默认简体中文单位）
  * @example
- * formatFileSize(1024) // "1.00 KB"
- * formatFileSize(1048576) // "1.00 MB"
- * formatFileSize(1073741824) // "1.00 GB"
+ * formatFileSize(0) // "0 字节"
+ * formatFileSize(1024) // "1 KB"
+ * formatFileSize(1048576) // "1 MB"
  */
 export function formatFileSize(bytes: number, decimals: number = 2): string {
-  if (bytes === 0) return '0 Bytes'
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 字节'
 
   const k = 1024
   const dm = decimals < 0 ? 0 : decimals
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const sizes = ['字节', 'KB', 'MB', 'GB', 'TB']
 
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
   const size = parseFloat((bytes / Math.pow(k, i)).toFixed(dm))
 
   return `${size} ${sizes[i]}`

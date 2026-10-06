@@ -1,0 +1,46 @@
+{
+  "server": false,
+  "node_name": "cyp-consul-client-{{ env \"HOSTNAME\" }}",
+  "datacenter": "cyp-memo-dc1",
+  "data_dir": "/opt/consul/data",
+  "log_level": "INFO",
+  "bind_addr": "{{ GetPrivateIP }}",
+  "client_addr": "127.0.0.1",
+  "advertise_addr": "{{ GetPrivateIP }}",
+  "retry_join": [
+    "consul-server-1",
+    "consul-server-2",
+    "consul-server-3"
+  ],
+  "ports": {
+    "http": 8500,
+    "dns": 8600,
+    "serf_lan": 8301
+  },
+  "telemetry": {
+    "prometheus_retention_time": "30s",
+    "disable_hostname": true
+  },
+  "acl": {
+    "enabled": false,
+    "default_policy": "allow",
+    "down_policy": "extend-cache",
+    "tokens": {
+      "agent": ""
+    }
+  },
+  "encrypt": "cyp-memo-consul-gossip-encryption-key-change-me",
+  "enable_script_checks": false,
+  "enable_local_script_checks": true,
+  "limits": {
+    "http_max_conns_per_client": 200
+  },
+  "leave_on_terminate": true,
+  "rejoin_after_leave": true,
+  "autopilot": {
+    "cleanup_dead_servers": true,
+    "last_contact_threshold": "200ms",
+    "max_trailing_logs": 250,
+    "server_stabilization_time": "10s"
+  }
+}

@@ -1,0 +1,361 @@
+# ============================================================
+# CYP-memo 流量策略配置
+# ------------------------------------------------------------
+# 包含：路由策略、重试策略、熔断策略、限流策略
+# 适用：服务网格模式（Istio/Linkerd/Envoy Native）
+# 当前：预埋配置，单机模式下通过嵌入式中间件实现同等能力
+# ============================================================
+
+apiVersion: networking.cyp-memo.io/v1
+kind: TrafficPolicy
+metadata:
+  name: cyp-memo-traffic-policy
+  namespace: default
+spec:
+  # ============================================================
+  # 全局配置
+  # ============================================================
+  global:
+    # 信任域（与 KMS SPIFFE 一致）
+    trustDomain: runtimebase.local
+    # 默认超时
+    defaultTimeout: 30s
+    # mTLS 模式：PERMISSIVE（兼容）/ STRICT（严格）/ DISABLE
+    mtlsMode: PERMISSIVE
+
+  # ============================================================
+  # 路由策略（Routing）
+  # ============================================================
+  routing:
+    # 主服务路由
+    - name: cyp-memo-main
+      match:
+        - port: 5170
+          pathPrefix: /
+      route:
+        destination:
+          service: cyp-memo-server
+          port: 10170
+      # 金丝雀发布（与现有 release 管理对齐）
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+
+    # API 路由
+    - name: cyp-memo-api
+      match:
+        - port: 5170
+          pathPrefix: /api/
+      route:
+        destination:
+          service: cyp-memo-server
+          port: 10170
+      retries:
+        perTryTimeout: 10s
+        attempts: 3
+        retryOn: "5xx,connect-failure,refused-stream"
+
+    # KMS 服务路由（East-West）
+    - name: kms-service
+      match:
+        - port: 12000
+          pathPrefix: /kms/
+      route:
+        destination:
+          service: kms-service
+          port: 12000
+      tls:
+        mode: MUTUAL
+        credentialName: kms-workload-cert
+      retries:
+        perTryTimeout: 2s
+        attempts: 2
+        retryOn: "5xx,connect-failure"
+
+    # MCP 服务路由
+    - name: mcp-server
+      match:
+        - port: 10175
+          pathPrefix: /mcp
+      route:
+        destination:
+          service: mcp-server
+          port: 10175
+
+  # ============================================================
+  # 重试策略（Retry）
+  # ============================================================
+  retryPolicies:
+    # 默认重试策略
+    - name: default-retry
+      retryOn: "5xx,connect-failure,refused-stream,reset"
+      numRetries: 3
+      perTryTimeout: 10s
+      backoff:
+        baseInterval: 100ms
+        maxInterval: 10s
+        # 指数退避
+        multiplier: 2
+        # 抖动
+        jitter: 25%
+
+    # 快速失败策略（关键路径）
+    - name: fast-fail
+      retryOn: "connect-failure,refused-stream"
+      numRetries: 1
+      perTryTimeout: 2s
+      backoff:
+        baseInterval: 50ms
+        maxInterval: 200ms
+
+    # KMS 专用重试
+    - name: kms-retry
+      retryOn: "5xx,connect-failure,reset"
+      numRetries: 2
+      perTryTimeout: 2s
+      backoff:
+        baseInterval: 100ms
+        maxInterval: 2s
+
+    # 幂等写操作重试（配合 Idempotency-Key）
+    - name: idempotent-write
+      retryOn: "5xx,connect-failure,408,429"
+      numRetries: 3
+      perTryTimeout: 15s
+      backoff:
+        baseInterval: 200ms
+        maxInterval: 5s
+        multiplier: 2
+        jitter: 25%
+
+  # ============================================================
+  # 熔断策略（Circuit Breaker）
+  # ============================================================
+  circuitBreakers:
+    # 默认熔断策略
+    - name: default-circuit-breaker
+      connectionPool:
+        tcp:
+          maxConnections: 1000
+          connectTimeout: 5s
+        http:
+          http2MaxPendingRequests: 1000
+          maxRequests: 2000
+          maxRetries: 50
+      outlierDetection:
+        # 连续 5xx 错误阈值
+        consecutive5xxErrors: 5
+        # 熔断间隔
+        interval: 30s
+        # 基础驱逐时间
+        baseEjectionTime: 30s
+        # 最大驱逐比例
+        maxEjectionPercent: 50
+        # 错误率阈值（百分比）
+        enforcingConsecutive5xx: 100
+
+    # 敏感服务熔断（KMS 等）
+    - name: sensitive-service-breaker
+      connectionPool:
+        tcp:
+          maxConnections: 50
+          connectTimeout: 2s
+        http:
+          http2MaxPendingRequests: 50
+          maxRequests: 100
+          maxRetries: 10
+      outlierDetection:
+        consecutive5xxErrors: 3
+        interval: 10s
+        baseEjectionTime: 60s
+        maxEjectionPercent: 100
+        enforcingConsecutive5xx: 100
+
+    # 高并发服务熔断
+    - name: high-concurrency-breaker
+      connectionPool:
+        tcp:
+          maxConnections: 5000
+          connectTimeout: 3s
+        http:
+          http2MaxPendingRequests: 5000
+          maxRequests: 10000
+          maxRetries: 200
+      outlierDetection:
+        consecutive5xxErrors: 20
+        interval: 60s
+        baseEjectionTime: 15s
+        maxEjectionPercent: 30
+        enforcingConsecutive5xx: 100
+
+  # ============================================================
+  # 限流策略（Rate Limit）
+  # ============================================================
+  rateLimits:
+    # 全局 IP 限流（南北向）
+    - name: global-ip-rate-limit
+      scope: ingress
+      dimensions:
+        - remote_address
+      rate:
+        requestsPerUnit: 100
+        unit: SECOND
+      burstMultiplier: 2
+      response:
+        statusCode: 429
+        headers:
+          - name: Retry-After
+            value: "1"
+
+    # 租户级限流
+    - name: tenant-rate-limit
+      scope: ingress
+      dimensions:
+        - header_value:
+            header_name: X-Tenant-ID
+            descriptor_key: tenant_id
+        - header_value:
+            header_name: X-Endpoint
+            descriptor_key: endpoint
+      rate:
+        requestsPerUnit: 500
+        unit: SECOND
+      burstMultiplier: 2
+
+    # 用户级写操作限流
+    - name: user-write-rate-limit
+      scope: ingress
+      dimensions:
+        - header_value:
+            header_name: X-User-ID
+            descriptor_key: user_id
+        - request_methods: [POST, PUT, DELETE, PATCH]
+      rate:
+        requestsPerUnit: 20
+        unit: SECOND
+      burstMultiplier: 2.5
+
+    # East-West 服务间限流（按 SPIFFE ID）
+    - name: ew-spiffe-rate-limit
+      scope: egress
+      dimensions:
+        - header_value:
+            header_name: X-SPIFFE-ID
+            descriptor_key: spiffe_id
+        - destination_cluster
+      rate:
+        requestsPerUnit: 500
+        unit: SECOND
+      burstMultiplier: 2
+
+    # East-West KMS 专用限流
+    - name: ew-kms-rate-limit
+      scope: egress
+      dimensions:
+        - header_value:
+            header_name: X-SPIFFE-ID
+            descriptor_key: spiffe_id
+      rate:
+        requestsPerUnit: 100
+        unit: SECOND
+      burstMultiplier: 2
+
+  # ============================================================
+  # mTLS 策略
+  # ============================================================
+  mtls:
+    # 全局 mTLS 模式
+    globalMode: PERMISSIVE  # 可选: STRICT / PERMISSIVE / DISABLE
+
+    # 各服务级别的 mTLS 配置
+    services:
+      # KMS 强制 mTLS
+      - name: kms-service
+        mode: STRICT
+        peerValidation:
+          spiffeIds:
+            - "spiffe://runtimebase.local/mgmt/biz"
+            - "spiffe://runtimebase.local/mgmt/iam"
+            - "spiffe://runtimebase.local/host/audit"
+        certificateRotation:
+          enabled: true
+          rotationPeriod: 24h
+          gracePeriod: 1h
+
+      # MCP 推荐 mTLS
+      - name: mcp-server
+        mode: PERMISSIVE
+        peerValidation:
+          spiffeIds:
+            - "spiffe://runtimebase.local/mgmt/biz"
+
+      # 主服务默认宽容模式
+      - name: cyp-memo-server
+        mode: PERMISSIVE
+        peerValidation: {}  # 空 = 信任域内所有服务
+
+  # ============================================================
+  # 故障注入（用于测试，生产环境禁用）
+  # ============================================================
+  faultInjection:
+    enabled: false  # 生产环境必须关闭
+    rules: []
+    # 示例：
+    # - name: delay-test
+    #   match:
+    #     headers:
+    #       - name: X-Chaos-Test
+    #         exact: "latency"
+    #   delay:
+    #     percentage: 10
+    #     fixedDelay: 5s
+
+  # ============================================================
+  # 可观测性配置
+  # ============================================================
+  observability:
+    # 访问日志
+    accessLog:
+      enabled: true
+      format: JSON
+      includes:
+        - start_time
+        - method
+        - path
+        - protocol
+        - response_code
+        - response_flags
+        - bytes_sent
+        - bytes_received
+        - duration
+        - upstream_service_time
+        - x_forwarded_for
+        - user_agent
+        - request_id
+        - trace_id
+
+    # 分布式追踪
+    tracing:
+      enabled: true
+      provider: zipkin  # 可选: zipkin / jaeger / datadog
+      sampling:
+        overall: 1.0  # 100% 采样（生产环境可调低）
+
+    # 指标
+    metrics:
+      enabled: true
+      providers:
+        - prometheus
+      labels:
+        - service
+        - version
+        - response_code
+        - operation
+
+# ============================================================
+# 配置版本与状态
+# ============================================================
+version: v1.0
+status: preinstall  # preinstall = 预埋配置，未实际启用
+lastUpdated: "2026-10-05"
+description: "CYP-memo 服务网格流量策略配置模板（预埋）"

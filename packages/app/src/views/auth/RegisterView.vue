@@ -328,9 +328,9 @@ const goToWelcome = () => {
 }
 
 .tab-button.active {
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
   color: var(--cyp-brand);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 .register-form {
@@ -509,7 +509,7 @@ const goToWelcome = () => {
   color: var(--cyp-text);
   word-break: break-all;
   padding: 12px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-bg-input);
   border-radius: 6px;
   border: 1px solid var(--cyp-border);
 }

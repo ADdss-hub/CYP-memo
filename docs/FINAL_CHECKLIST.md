@@ -7,13 +7,11 @@
 - [x] **Linux 构建**: 添加 homepage 字段
 - [x] **Windows 构建**: 更新图标尺寸到 256x256
 - [x] **macOS 发布**: 添加 GitHub Actions 权限
-- [x] **Docker 构建**: 优化超时和构建配置
 
 ### ✅ 国内镜像加速配置
 
 - [x] 更新 `.npmrc` 配置文件
 - [x] 优化 `.github/workflows/release.yml`
-- [x] 优化 `docker/Dockerfile`
 - [x] 创建配置脚本（Linux/macOS/Windows）
 - [x] 创建详细文档
 
@@ -34,7 +32,6 @@
 3. ✅ `.npmrc` - 添加国内镜像配置
 4. ✅ `.gitignore` - 排除 .version/ 和构建日志
 5. ✅ `.github/workflows/release.yml` - 添加权限和镜像配置
-6. ✅ `docker/Dockerfile` - 优化构建
 7. ✅ `packages/desktop/scripts/create-placeholder-icons.mjs` - 更新图标尺寸
 
 ### 新增的文件 (8个)
@@ -48,15 +45,14 @@
 6. ✅ `CHANGES_SUMMARY.md` - 修改总结
 
 #### 脚本 (2个)
-7. ✅ `scripts/setup-mirrors.sh` - Linux/macOS 配置脚本
-8. ✅ `scripts/setup-mirrors.ps1` - Windows 配置脚本
+7. ✅ `scripts/install/setup-mirrors.sh` - Linux/macOS 配置脚本
+8. ✅ `scripts/install/setup-mirrors.ps1` - Windows 配置脚本
 
 ### 移动的文件 (4个)
 
 1. ✅ `gitgud-linux.md` → `docs/gitgud-linux.md`
 2. ✅ `gitgud-win.md` → `docs/gitgud-win.md`
 3. ✅ `gitgud-macos.md` → `docs/gitgud-macos.md`
-4. ✅ `gitgud-docker.md` → `docs/gitgud-docker.md`
 
 ---
 
@@ -102,7 +98,6 @@ ls -la docs/
 # - gitgud-linux.md
 # - gitgud-win.md
 # - gitgud-macos.md
-# - gitgud-docker.md
 ```
 
 ### 2. 验证 .gitignore
@@ -147,7 +142,6 @@ git commit -m "fix: 修复所有平台构建问题并添加国内镜像加速配
 - 修复 Linux 构建: 添加 homepage 字段
 - 修复 Windows 构建: 更新图标尺寸到 256x256
 - 修复 macOS 发布: 添加 GitHub Actions 权限
-- 优化 Docker 构建: 增加超时时间和构建优化
 
 新增功能:
 - 添加完整的国内镜像加速配置
@@ -170,9 +164,9 @@ git push origin main
 
 ```bash
 # 测试镜像配置
-bash scripts/setup-mirrors.sh  # Linux/macOS
+bash scripts/install/setup-mirrors.sh  # Linux/macOS
 # 或
-.\scripts\setup-mirrors.ps1    # Windows
+.\scripts\install\setup-mirrors.ps1    # Windows
 
 # 安装依赖
 pnpm install
@@ -201,13 +195,11 @@ git push origin v1.8.1-test
 - ✅ Windows: 生成 .exe 安装程序
 - ✅ macOS: 生成 .dmg 和 .zip，成功发布
 - ✅ Linux: 生成 .AppImage, .deb, .rpm
-- ✅ Docker: 成功构建 amd64 和 arm64 镜像
 
 ### 性能提升
 
 - 📦 NPM 安装: 5x 提升
 - ⚡ Electron 下载: 20x 提升
-- 🐳 Docker 构建: 2.7x 提升
 - ⏱️ 总构建时间: 3x 提升
 
 ---

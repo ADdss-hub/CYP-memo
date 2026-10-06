@@ -10,8 +10,8 @@
 import fs from 'fs'
 import path from 'path'
 import { getSystemCache } from '../../../l0/infra/cache/ready.js'
-import { log as log } from '../../../l0/infra/log/ready.js'
-import { recordLineageEdge } from '../../col/data/ready.js'
+import { log as log, getLogRetentionDays } from '../../../l0/infra/log/ready.js'
+import { recordLineageEdge, initLineage } from '../../col/data/ready.js'
 import { database } from '../../../l0/infra/db/ready.js'
 import { publishEntityChange } from '../../col/evt/ready.js'
 import { deleteOldLogsViaBase } from '../tracean/ready.js'
@@ -303,22 +303,69 @@ export function flushOnce(): { flushed: number; lagMs: number } {
 }
 
 /**
+ * 对账回放条数口径来自配置管控绑定的日志保留期（嵌入式等价，非独立核算引擎）。
+ */
+export function replayLimitFromConfig(): number {
+  const days = Number(getLogRetentionDays().business || 7)
+  const n = Math.floor(days * 50)
+  return Math.min(2000, Math.max(50, Number.isFinite(n) ? n : 200))
+}
+
+function aggregateFile(): string {
+  return path.join(state.dataDir || '.', 'pipeline', 'aggregate.json')
+}
+
+/**
+ * 5.7 清洗后的聚合：按表与操作计数，口径受配置管控回放条数约束。
+ */
+export function aggregateSyncLog(): { tables: Record<string, number>; ops: Record<string, number>; counted: number } {
+  const tables: Record<string, number> = {}
+  const ops: Record<string, number> = {}
+  if (!state.dataDir) return { tables, ops, counted: 0 }
+  const logPath = syncLogPath()
+  if (!fs.existsSync(logPath)) return { tables, ops, counted: 0 }
+  const lines = fs.readFileSync(logPath, 'utf-8').split('\n').filter(Boolean)
+  const slice = lines.slice(-replayLimitFromConfig())
+  for (const line of slice) {
+    try {
+      const row = JSON.parse(line) as { table?: string; op?: string }
+      const t = String(row.table || 'unknown')
+      const o = String(row.op || 'unknown')
+      tables[t] = (tables[t] || 0) + 1
+      ops[o] = (ops[o] || 0) + 1
+    } catch {
+      /* skip */
+    }
+  }
+  const counted = slice.length
+  if (state.dataDir) {
+    ensureDir()
+    fs.writeFileSync(aggregateFile(), JSON.stringify({ at: new Date().toISOString(), tables, ops, counted }, null, 2), 'utf-8')
+  }
+  return { tables, ops, counted }
+}
+
+/**
  * 5.7 数据处理核算：对账结果可回放——按 sync-log 重放变更指针到系统缓存。
- * 只回放元数据指针，不恢复业务行本体。
+ * 只回放元数据指针，不恢复业务行本体。limit 缺省时读配置管控保留期口径。
  */
 export function replaySyncLog(opts?: { limit?: number }): {
   replayed: number
   reconciled: number
   skipped: number
+  limitUsed: number
 } {
+  const limitUsed =
+    opts?.limit !== undefined
+      ? Math.min(2000, Math.max(1, Math.floor(opts.limit)))
+      : replayLimitFromConfig()
   if (!state.ready || !state.dataDir) {
-    return { replayed: 0, reconciled: 0, skipped: 0 }
+    return { replayed: 0, reconciled: 0, skipped: 0, limitUsed }
   }
-  const limit = Math.min(Math.max(opts?.limit || 200, 1), 2000)
   const logPath = syncLogPath()
-  if (!fs.existsSync(logPath)) return { replayed: 0, reconciled: 0, skipped: 0 }
+  if (!fs.existsSync(logPath)) return { replayed: 0, reconciled: 0, skipped: 0, limitUsed }
   const lines = fs.readFileSync(logPath, 'utf-8').split(/\r?\n/).filter(Boolean)
-  const slice = lines.slice(Math.max(0, lines.length - limit))
+  const slice = lines.slice(Math.max(0, lines.length - limitUsed))
   const cache = getSystemCache()
   let replayed = 0
   let reconciled = 0
@@ -357,7 +404,7 @@ export function replaySyncLog(opts?: { limit?: number }): {
       skipped += 1
     }
   }
-  return { replayed, reconciled, skipped }
+  return { replayed, reconciled, skipped, limitUsed }
 }
 
 export function getState(): DataPipelineState {
@@ -399,6 +446,27 @@ export const resetDataPipeline = reset
 export const getDataPipelineState = getState
 export const isDataPipelineReady = isReady
 export const replayDataPipelineSyncLog = replaySyncLog
+
+export function runAcctReplayProbe(): {
+  flushed: number
+  replayed: number
+  aggregated: number
+  limitFromConfig: boolean
+} {
+  if (!state.ready || !state.dataDir) throw new Error('data-pipeline not ready')
+  initDataSourceRegistry({ dataDir: state.dataDir })
+  initLineage({ dataDir: state.dataDir })
+  enqueueChange({ source: 'sqlite', table: 'memos', op: 'update', key: `eq-replay-${Date.now()}` })
+  const flushed = flushOnce()
+  const agg = aggregateSyncLog()
+  const replayed = replaySyncLog()
+  return {
+    flushed: flushed.flushed,
+    replayed: replayed.replayed,
+    aggregated: agg.counted,
+    limitFromConfig: replayed.limitUsed === replayLimitFromConfig(),
+  }
+}
 
 export function ready_rb_l1_host_acct_01(): boolean {
   return isDataPipelineReady()

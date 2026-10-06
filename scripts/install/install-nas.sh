@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CYP-memo · NAS 原生安装（飞牛/群晖/威联 · 非 Docker）
+# CYP-memo · NAS 原生安装（飞牛/群晖/威联）
 # 用法: bash scripts/install/install-nas.sh <APP_ROOT> <DATA_DIR>
 set -euo pipefail
 

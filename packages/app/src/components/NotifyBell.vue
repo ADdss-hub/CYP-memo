@@ -37,9 +37,9 @@
         >
           <div class="notify-title">
             <span v-if="isOpsAlert(n)" class="notify-kind">运维</span>
-            {{ n.title }}
+            {{ displayTitle(n) }}
           </div>
-          <div class="notify-body">{{ n.body }}</div>
+          <div v-if="displayBody(n)" class="notify-body">{{ displayBody(n) }}</div>
           <time class="notify-time">{{ formatTime(n.at) }}</time>
         </li>
       </ul>
@@ -79,6 +79,46 @@ let loopGen = 0
 
 function isOpsAlert(n: NotifyItem): boolean {
   return n.channel === 'ops_alert' || n.templateId === 'ops_alert'
+}
+
+/** 界面默认简体中文：机读模板键不得直接展示 */
+const NOTIFY_TITLE_ZH: Record<string, string> = {
+  entity_create: '数据已创建',
+  entity_update: '数据已更新',
+  entity_delete: '数据已删除',
+  entity_changed: '数据已变更',
+  memo_created: '备忘录已创建',
+  client_upgrade_required: '需要升级客户端',
+  session_expired: '会话已过期',
+  share_comment_received: '收到分享评论',
+  ops_alert: '运维告警',
+}
+
+function isMachineKey(text: string): boolean {
+  return /^[a-z][a-z0-9_]*$/i.test(text)
+}
+
+function displayTitle(n: NotifyItem): string {
+  const raw = String(n.title || '').trim()
+  const tid = String(n.templateId || '').trim()
+  if (raw && !isMachineKey(raw) && raw !== tid) return raw
+  if (raw && NOTIFY_TITLE_ZH[raw]) return NOTIFY_TITLE_ZH[raw]
+  if (tid && NOTIFY_TITLE_ZH[tid]) return NOTIFY_TITLE_ZH[tid]
+  if (tid.startsWith('entity_')) {
+    const op = tid.slice('entity_'.length)
+    const opZh =
+      op === 'create' ? '已创建' : op === 'delete' ? '已删除' : op === 'changed' ? '已变更' : '已更新'
+    return `数据${opZh}`
+  }
+  return raw || '系统通知'
+}
+
+function displayBody(n: NotifyItem): string {
+  const body = String(n.body || '').trim()
+  if (body) return body
+  const tid = String(n.templateId || '').trim()
+  if (tid.startsWith('entity_')) return '系统已记录此项变更'
+  return ''
 }
 
 async function refreshList() {
@@ -275,8 +315,8 @@ watch(
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: #e11d48;
-  color: #fff;
+  background: var(--cyp-danger);
+  color: #ffffff;
   font-size: 10px;
   font-weight: 700;
   line-height: 16px;
@@ -290,10 +330,12 @@ watch(
   width: min(360px, 86vw);
   max-height: 420px;
   overflow: auto;
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--cyp-chrome-shadow), 0 12px 32px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   z-index: 40;
 }
 
@@ -330,11 +372,11 @@ watch(
 }
 
 .notify-item.unread {
-  background: rgba(0, 153, 255, 0.06);
+  background: var(--cyp-brand-tint);
 }
 
 .notify-item.is-ops.unread {
-  background: rgba(225, 29, 72, 0.08);
+  background: color-mix(in srgb, var(--cyp-danger) 10%, transparent);
 }
 
 .notify-title {
@@ -349,8 +391,8 @@ watch(
   margin-right: 6px;
   padding: 0 5px;
   border-radius: 4px;
-  background: rgba(225, 29, 72, 0.14);
-  color: #e11d48;
+  background: color-mix(in srgb, var(--cyp-danger) 14%, transparent);
+  color: var(--cyp-danger);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;

@@ -40,7 +40,7 @@ async function startViteServer() {
   })
   await server.listen()
   const info = server.config.server
-  console.log(`✅ Vite HMR at http://localhost:${info.port}`)
+  console.log(`✅ Vite HMR at http://127.0.0.1:${info.port}`)
   return server
 }
 
@@ -64,7 +64,7 @@ function startElectron() {
       ...process.env,
       APP_ENV: 'prod',
       NODE_ENV: 'production',
-      VITE_LOCAL_SERVER_URL: 'http://localhost:5175',
+      VITE_LOCAL_SERVER_URL: 'http://127.0.0.1:10175',
     },
   })
 

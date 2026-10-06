@@ -32,9 +32,9 @@ pnpm local
 
 ### 步骤 4: 访问应用
 
-- 🌐 **用户端**: http://localhost:5173
-- 🔧 **管理端**: http://localhost:5174
-- 🔌 **API 服务器**: http://localhost:5170
+- 🌐 **用户端**: http://127.0.0.1:5173
+- 🔧 **管理端**: http://127.0.0.1:5174
+- 🔌 **API 服务器**: http://127.0.0.1:5170
 
 ### 步骤 5: 登录
 
@@ -51,45 +51,16 @@ pnpm local
 
 ## 📦 生产部署
 
-### Docker 部署（推荐）
+权威：根目录 [`DEPLOY.md`](../DEPLOY.md)。通道：
 
-#### 1. 构建镜像
+| 通道 | 入口 |
+|------|------|
+| 服务器面板 | `scripts/install/install-panel.sh` |
+| NAS 原生 | `scripts/install/install-nas.sh` |
+| Windows | `scripts/install/install-windows.ps1` |
+| Linux / macOS | `scripts/install/install-unix.sh` |
 
-```bash
-docker build -t cyp-memo .
-```
-
-#### 2. 运行容器
-
-```bash
-docker run -d \
-  --name cyp-memo \
-  -p 5170:5170 \
-  -v $(pwd)/data:/app/data \
-  cyp-memo
-```
-
-#### 3. 使用 Docker Compose
-
-```yaml
-version: '3.8'
-services:
-  cyp-memo:
-    build: .
-    ports:
-      - "5170:5170"
-    volumes:
-      - ./data:/app/data
-    environment:
-      - NODE_ENV=production
-    restart: unless-stopped
-```
-
-```bash
-docker-compose up -d
-```
-
-### 传统部署
+### 本机构建后启动
 
 #### 1. 构建项目
 
@@ -117,15 +88,9 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    # 管理端
-    location /admin {
-        root /path/to/cyp-memo/packages/admin/dist;
-        try_files $uri $uri/ /admin/index.html;
-    }
-
     # API 代理
     location /api {
-        proxy_pass http://localhost:5170;
+        proxy_pass http://127.0.0.1:5170;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
@@ -149,7 +114,7 @@ NODE_ENV=production
 DB_PATH=./data/database.sqlite
 
 # CORS 允许的源（可选）
-CORS_ORIGIN=http://localhost:5173,http://localhost:5174
+CORS_ORIGIN=http://127.0.0.1:5173,http://127.0.0.1:5174
 ```
 
 ### 数据库配置
@@ -194,7 +159,7 @@ pnpm migrate
 # 直接运行
 pnpm local
 
-# 访问 http://localhost:5173
+# 访问 http://127.0.0.1:5173
 ```
 
 ### 家庭 NAS
@@ -210,18 +175,7 @@ pnpm start
 # 局域网访问 http://nas-ip:5170
 ```
 
-### Docker 容器
-
-```bash
-# 使用 Docker Compose
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
+详见 `deploy/nas/README.md` 与 `scripts/install/install-nas.sh`。
 
 ### 云服务器
 

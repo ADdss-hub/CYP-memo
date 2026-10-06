@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http://localhost:* https://*; connect-src 'self' http://localhost:* http://127.0.0.1:* https://*;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http://127.0.0.1:* https://*; connect-src 'self' http://127.0.0.1:* https://*;" />
     <title>CYP-memo</title>
     <style>
       * {
@@ -14,10 +14,11 @@
       body {
         overflow-x: hidden;
         overflow-y: auto;
-        background-color: #f5f7fa;
+        background-color: #0a1220;
       }
-      body[data-theme='dark'] {
-        background-color: #1d1e1f;
+      body[data-theme='dark'],
+      body[data-theme='light'] {
+        background-color: transparent;
       }
       /* 初始加载动画 */
       .app-initial-loading {

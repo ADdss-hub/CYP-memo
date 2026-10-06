@@ -1,0 +1,21 @@
+---
+description: CYP-memo 运行底座完成判定唯一口径（禁止闭集落地等平行结论）
+alwaysApply: true
+---
+
+# CYP-memo · 运行底座完成判定门禁（强制）
+
+权威：军械库架构 V1.8.6 **NR-05 / 4.2 · ANTI-90 · R-029** · 产品执行面 `docs/runtime-base/COMPLETION_STANDARD.md`。
+
+## 设计口径（不可分叉）
+
+- 老板问「运行底座完成没有」：**只答完成或未完成**。
+- **完成** = `pnpm verify:runtime-base` 退出码 0 且输出 `RB_VERDICT=完成`。
+- **禁止**用「闭集落地」「形态旗」「completeForm」「卡片已落盘」「complete-form 单独绿」冒充完成或作为第二套结论。
+- 未完成必须列出该命令失败行；不得另开口径让老板再发一轮「那到底算不算完成」。
+
+## 强制做法
+
+1. 改底座就绪 / 卡片 / 完成话术前先读 `COMPLETION_STANDARD.md`。
+2. 宣称完成前实跑 `pnpm verify:runtime-base`，以退出码为准。
+3. `.cyp-project.json` 的 `runtime_base.completion` 必须与该命令同口径。

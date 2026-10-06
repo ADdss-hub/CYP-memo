@@ -34,7 +34,11 @@ const pinia = createPinia()
 
 app.use(pinia)
 app.use(router)
-app.use(ElementPlus, { locale: zhCn })
+app.use(ElementPlus, {
+  locale: zhCn,
+  /** Element Plus 无「正中」placement；视口正中由 theme.css 强制 */
+  message: { offset: 0, customClass: 'cyp-tip-center' },
+})
 
 /** SIX-LOG：尽早挂窗口级错误上报（失败静默） */
 installAppClientErrorReporting()
@@ -89,13 +93,15 @@ async function initializeStorage() {
     const apiUrl = resolveApiUrl()
     installReadyProbe(apiUrl)
 
-  // 初始化存储：恢复 localStorage 中的 apiKey（截图/刷新后会话）
-  let savedKey: string | undefined
+  // 初始化存储：会话令牌走 HttpOnly Cookie，禁止从 localStorage 恢复 apiKey
   try {
     const raw = localStorage.getItem('cyp-memo-storage-config')
     if (raw) {
-      const parsed = JSON.parse(raw) as { apiKey?: string }
-      if (typeof parsed.apiKey === 'string' && parsed.apiKey) savedKey = parsed.apiKey
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if ('apiKey' in parsed) {
+        delete parsed.apiKey
+        localStorage.setItem('cyp-memo-storage-config', JSON.stringify(parsed))
+      }
     }
   } catch {
     /* ignore */
@@ -104,7 +110,6 @@ async function initializeStorage() {
   await storageManager.initialize({
     mode: 'remote',
     apiUrl,
-    ...(savedKey ? { apiKey: savedKey } : {}),
   })
   console.log('[storage] remote initialized')
   console.log('[storage] api:', apiUrl)
@@ -115,6 +120,8 @@ async function initializeStorage() {
       message: '无法连接到服务器，请确保服务器正在运行',
       duration: 0,
       showClose: true,
+      customClass: 'cyp-tip-center',
+      offset: 0,
     })
     return false
   }
@@ -163,6 +170,8 @@ async function initializeApp() {
     ElMessage.error({
       message: '应用发生错误，请刷新页面重试',
       duration: 3000,
+      customClass: 'cyp-tip-center',
+      offset: 0,
     })
   }
 

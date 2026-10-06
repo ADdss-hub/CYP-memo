@@ -7,13 +7,13 @@
 ### Linux / macOS
 
 ```bash
-bash scripts/setup-mirrors.sh
+bash scripts/install/setup-mirrors.sh
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-.\scripts\setup-mirrors.ps1
+.\scripts\install\setup-mirrors.ps1
 ```
 
 ---
@@ -89,36 +89,6 @@ export NODE_SQLITE3_BINARY_HOST_MIRROR=https://repo.huaweicloud.com/node-sqlite3
 
 ---
 
-## Docker 镜像配置
-
-### daemon.json
-
-```json
-{
-  "registry-mirrors": [
-    "https://hub-mirror.c.163.com",
-    "https://mirror.baidubce.com"
-  ]
-}
-```
-
-### Docker 镜像源速度测试
-
-| 镜像源 | 响应时间 |
-|--------|----------|
-| 网易 | **5ms** ⭐ |
-| 百度云 | 10ms |
-| 中科大 | 55ms |
-| 华为云 | 217ms |
-| DaoCloud | 419ms |
-
-### 位置
-- Linux: `/etc/docker/daemon.json`
-- macOS: `~/.docker/daemon.json`
-- Windows: Docker Desktop 设置 → Docker Engine
-
----
-
 ## 验证配置
 
 ```bash
@@ -134,9 +104,6 @@ npm config get electron_mirror
 
 # 测试下载速度
 time pnpm install electron
-
-# 查看 Docker 镜像
-docker info | grep -A 5 "Registry Mirrors"
 ```
 
 ---
@@ -185,21 +152,10 @@ npm config set registry https://registry.npmjs.org
 | Chromium/Puppeteer | **53ms** | 5025ms | **95x** |
 | Node.js | **116ms** | 5007ms | **43x** |
 
-### Docker 镜像 (网易最快)
-
-| 镜像源 | 响应时间 |
-|--------|----------|
-| **网易** | 5ms |
-| 百度云 | 10ms |
-| 中科大 | 55ms |
-| 华为云 | 217ms |
-| DaoCloud | 419ms |
-
 ### Linux 软件源 (阿里云最快)
 
 | 类型 | 阿里云 | 网易 | 华为云 | 腾讯云/中科大/清华 |
 |------|--------|------|--------|-------------------|
-| Alpine APK | **108ms** | 199ms | 257ms | 5000ms+ (超时) |
 | Ubuntu APT | **50ms** | 177ms | 67ms | 5000ms+ (超时) |
 
 ---

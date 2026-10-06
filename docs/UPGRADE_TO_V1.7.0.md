@@ -27,11 +27,11 @@ CYP-memo v1.7.0 是一个重大版本升级，将数据存储从 JSON 文件迁�
    - 自动备份原数据
    - 命令: `pnpm migrate`
 
-3. **Docker 支持**
-   - 文件: `Dockerfile`, `docker-compose.yml`
-   - 单容器部署
-   - 数据持久化
-   - 健康检查
+3. **原生进程部署**
+   - 权威：`DEPLOY.md` / `scripts/install/`
+   - 面板 / NAS / Windows / Unix 通道
+   - 数据目录 `DATA_DIR` 持久化
+   - 健康检查 `/api/health` · `/healthz/ready`
 
 ### 文档
 
@@ -123,26 +123,15 @@ pnpm start
 ### 步骤 6: 验证
 
 访问以下地址验证：
-- 🌐 用户端: http://localhost:5173
-- 🔧 管理端: http://localhost:5174
-- 🔌 API: http://localhost:5170/api/health
+- 🌐 用户端: http://127.0.0.1:5173
+- 🔧 管理端: http://127.0.0.1:5174
+- 🔌 API: http://127.0.0.1:5170/api/health
 
 ---
 
-## 🐳 Docker 部署（推荐）
+## 生产部署
 
-如果你在 Windows 上遇到编译问题，推荐使用 Docker：
-
-```bash
-# 构建并启动
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
+若本机编译原生模块受阻，请改用已构建的 Server 发行包（见根目录 `DEPLOY.md` / Release），在目标机用 `scripts/install/` 安装，无需本机编译。
 
 ---
 
@@ -200,7 +189,7 @@ packages/server/data/
 **Windows 用户**可能遇到 better-sqlite3 编译问题：
 
 **解决方案**：
-- 使用 Docker（推荐）
+- 使用 Visual Studio Build Tools（Windows）
 - 安装 Visual Studio Build Tools
 - 查看 [安装指南](docs/INSTALL_SQLITE.md)
 
@@ -262,7 +251,7 @@ pnpm local
 ### 1. Windows 编译问题
 
 **问题**: better-sqlite3 需要编译 C++ 代码  
-**解决**: 使用 Docker 或安装构建工具
+**解决**: 安装构建工具，或使用已构建的 Server 发行包（见 `DEPLOY.md`）
 
 ### 2. 首次启动慢
 

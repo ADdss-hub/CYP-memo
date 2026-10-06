@@ -67,9 +67,9 @@ pnpm local
 ```
 
 访问地址：
-- 用户端: http://localhost:5173
-- 管理端: http://localhost:5174
-- API 服务器: http://localhost:5170
+- 用户端: http://127.0.0.1:5173
+- 管理端: http://127.0.0.1:5174
+- API 服务器: http://127.0.0.1:5170
 - 桌面端: 运行 `pnpm local` 在 `packages/desktop` 目录
 
 ### 构建
@@ -306,11 +306,9 @@ pnpm release:major
 
 详细说明见 [发布指南](./RELEASE.md)。
 
-### Docker 部署（推荐）
+### 生产部署
 
-```bash
-docker-compose up -d
-```
+权威：根目录 [`DEPLOY.md`](../DEPLOY.md) 与 `scripts/install/`。
 
 ### 桌面端构建
 

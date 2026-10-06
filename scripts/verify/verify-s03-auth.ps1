@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Continue'
 $Root = Get-Root $PSScriptRoot
 Set-Location -LiteralPath $Root
 
-$api = 'http://127.0.0.1:5170'
+$api = 'https://127.0.0.1:5170'
 $failed = $false
 $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $step = 0
@@ -15,6 +15,7 @@ $logDir = Join-Path $Root 'logs'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
 $jsonl = Join-Path $logDir 'verify-s03.jsonl'
 $traceId = New-CypTraceId
+Enable-CypInsecureLocalHttps
 
 function Ok([string]$Id, [string]$Msg) {
   $script:step++
@@ -38,12 +39,12 @@ Write-Host '== CYP-memo verify-s03-auth (S-03 nine flows) =='
 
 # --- 1 启动冒烟 ---
 try {
-  $rdy = Invoke-RestMethod -Uri "$api/healthz/ready" -TimeoutSec 5
-  $hlth = Invoke-RestMethod -Uri "$api/api/health" -TimeoutSec 5
-  if ($rdy.success -and $hlth.success) {
+  $rdyH = Invoke-Health -Url "$api/healthz/ready" -TimeoutSec 8 -RequireSuccessJson
+  $hlthH = Invoke-Health -Url "$api/api/health" -TimeoutSec 8 -RequireSuccessJson
+  if ($rdyH.Ok -and $hlthH.Ok) {
     Ok 'S03-1-smoke' "ready+health ok"
   } else {
-    Fail 'S03-1-smoke' "ready=$($rdy.success) health=$($hlth.success)"
+    Fail 'S03-1-smoke' "ready=$($rdyH.Ok)/$($rdyH.Error) health=$($hlthH.Ok)/$($hlthH.Error)"
   }
 } catch {
   Fail 'S03-1-smoke' $_.Exception.Message
@@ -142,7 +143,7 @@ try {
   if ($body -match 'E410') { Ok 'S03-4-gone' 'E410' } else { Fail 'S03-4-gone' $body }
 }
 
-# --- 5 跨端一致性（单壳：5170 API + 5173 产品壳口径；不再要求 5174）---
+# --- 5 跨端一致性（唯一产品入口 :5170；:5173 仅为可选热重载）---
 try {
   $p5173 = Test-Port -Port 5173
   $cfg2 = Invoke-RestMethod -Uri "$api/api/config" -TimeoutSec 5

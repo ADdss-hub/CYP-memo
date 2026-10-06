@@ -1,5 +1,5 @@
 ﻿/**
- * 统一运行底座闭集 35 稳定 ID（架构 V1.8.3 附录 A）
+ * 统一运行底座闭集 35 稳定 ID（架构 V1.8.5 附录 A）
  * 登记主键只认本表；显示名不得作机检键。
  * 平台协调：名册与接线表同文件。
  */
@@ -580,7 +580,7 @@ export const WIRING_TABLE: WiringRow[] = [
     readyFnVersion: '1.0.0',
     caseId: 'TC-RB-L0-INFRA-DB-01-Windows-x64-Server-001',
     caseStatus: '已实现',
-    note: '对象存储选型扩展，失败改走数据库主路径',
+    note: '对象存储选型扩展（外部依赖 · 不进闭集 35 · 不设独立就绪键）；失败改走数据库主路径仅指元数据',
   },
 ]
 
@@ -644,7 +644,7 @@ export function listWiringRows(): WiringRow[] {
   return WIRING_TABLE.map((r) => ({ ...r }))
 }
 
-/** SPIFFE 信任域（固定 · 架构 V1.8.3） */
+/** SPIFFE 信任域（固定 · 架构 V1.8.5） */
 export const SPIFFE_TRUST_DOMAIN = 'runtimebase.local'
 
 /**

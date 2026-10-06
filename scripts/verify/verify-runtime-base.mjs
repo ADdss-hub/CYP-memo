@@ -1,5 +1,6 @@
 /**
- * 运行底座闭集 35 静态核验（架构 V1.8.3）
+ * 运行底座完成判定唯一机检（架构 V1.8.6 NR-05 本仓执行面）
+ * SSOT：docs/runtime-base/COMPLETION_STANDARD.md
  * 实机：若本机 ready 探针可连，再核对 items 键集。
  */
 import fs from 'fs'
@@ -46,7 +47,7 @@ for (const [, id, rel] of anchors) {
   files.add(full)
   const names = fs.readdirSync(path.join(root, dir))
   /** 同槽辅助模块（仍单一 ready_*）；禁止另起服务文件 */
-  const ALLOWED_COMPANIONS = new Set(['obs-store.ts', 'lanes.ts', 'admission.ts', 'egress.ts'])
+  const ALLOWED_COMPANIONS = new Set(['obs-store.ts', 'lanes.ts', 'admission.ts', 'egress.ts', 'mcp-proxy.ts'])
   const anchorBase = path.basename(full)
   const illegal = names.filter((n) => n !== anchorBase && !ALLOWED_COMPANIONS.has(n))
   if (!names.includes(anchorBase) || illegal.length) {
@@ -103,6 +104,9 @@ if (!iamReady.includes('machineBoundOk')) fails.push('IAM ready missing own pred
 if (!iamReady.includes('registerEgressAutoAllow') || !iamReady.includes('api.github.com')) {
   fails.push('IAM missing version-probe egress auto-allow (api.github.com)')
 }
+if (iamReady.includes('allowlistFromEnv') || /getEgressAllowlist[\s\S]{0,200}CYP_EGRESS_ALLOWLIST/.test(iamReady)) {
+  fails.push('IAM getEgressAllowlist must not merge raw CYP_EGRESS_ALLOWLIST (R-018)')
+}
 
 const boot = read('packages/server/src/bootstrap.ts')
 if (!boot.includes("registerEgressAutoAllow(['api.github.com'])") && !boot.includes('registerEgressAutoAllow(["api.github.com"])')) {
@@ -129,6 +133,9 @@ for (const need of ['SPIFFE_TRUST_DOMAIN', 'toSpiffeId', 'citeServiceIdentity', 
 }
 for (const need of ['notify_system', 'notify_channel', 'notify_delivery', 'object_storage', 'rejectUnregisteredWiring']) {
   if (!wiring.includes(need)) fails.push(`plt missing ext wiring: ${need}`)
+}
+if (!wiring.includes('不进闭集') || !/object_storage[\s\S]{0,400}不进闭集/.test(wiring)) {
+  fails.push('object_storage wiring must declare 不进闭集 (external dep, no stable id)')
 }
 for (const id of ['RJ-01', 'RJ-02', 'RJ-03']) {
   if (!wiring.includes(`id: '${id}'`)) fails.push(`rejection case missing ${id}`)
@@ -194,6 +201,7 @@ if (!cmp.includes('failureThreshold: 6') || !cmp.includes('failureThreshold: 3')
 
 const banRoots = [
   'packages/server/src/runtime-base',
+  'packages/desktop/src/main',
   'packages/app/src/views/tenant/TenantMonitorView.vue',
   'README.md',
   'DEPLOY.md',
@@ -257,7 +265,8 @@ function walkNames(dir) {
 }
 walkNames(serverSrc)
 
-const baseUrl = process.env.CYP_READY_URL || 'http://127.0.0.1:5170/healthz/ready'
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0'
+const baseUrl = process.env.CYP_READY_URL || 'https://127.0.0.1:5170/healthz/ready'
 let live = 'skipped'
 try {
   const res = await fetch(baseUrl, { signal: AbortSignal.timeout(2500) })
@@ -297,8 +306,13 @@ try {
     'docs/runtime-base/INFRA_FORM_SELECTION.md',
     'docs/runtime-base/SECURITY_DEPTH_EVIDENCE.md',
     'docs/runtime-base/MODULE_DESCRIPTORS.md',
+    'docs/runtime-base/COMPLETION_STANDARD.md',
   ]) {
     if (!exists(rel)) fails.push(`deliverable missing ${rel}`)
+  }
+  const std = read('docs/runtime-base/COMPLETION_STANDARD.md')
+  if (!std.includes('RB_VERDICT') || !std.includes('pnpm verify:runtime-base')) {
+    fails.push('COMPLETION_STANDARD missing unique verdict command')
   }
 }
 
@@ -320,9 +334,43 @@ if (process.env.CYP_SKIP_ELECTRON_EMBED !== '1') {
   }
 }
 
+{
+  const { spawnSync } = await import('child_process')
+  const nest = [
+    ['scripts/verify/verify-complete-form.mjs', 'complete-form'],
+    ['scripts/verify/verify-gateway-center-naming.mjs', 'gateway-naming'],
+    ['scripts/verify/verify-gateway-egress.mjs', 'gateway-egress'],
+  ]
+  for (const [rel, tag] of nest) {
+    if (!exists(rel)) {
+      fails.push(`nested missing ${rel}`)
+      continue
+    }
+    const r = spawnSync(process.execPath, [path.join(root, rel)], {
+      encoding: 'utf8',
+      cwd: root,
+      env: process.env,
+      timeout: 120000,
+    })
+    if (r.status !== 0) {
+      fails.push(`${tag}: ${(r.stderr || r.stdout || 'fail').trim().split('\n').slice(0, 6).join(' | ')}`)
+    }
+  }
+  const r = spawnSync(
+    process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+    ['--filter', '@cyp-memo/server', 'exec', 'tsx', 'scripts/verify-embedded-equivalents.ts'],
+    { encoding: 'utf8', cwd: root, env: process.env, timeout: 60000, shell: process.platform === 'win32' },
+  )
+  if (r.status !== 0) {
+    fails.push(`embedded-equivalents: ${(r.stderr || r.stdout || 'fail').trim().split('\n').slice(0, 6).join(' | ')}`)
+  }
+}
+
 if (fails.length) {
   console.error(fails.join('\n'))
   console.error(`FAIL_RUNTIME_BASE ${fails.length} live=${live}`)
+  console.error('RB_VERDICT=未完成')
   process.exit(1)
 }
 console.log(`PASS_RUNTIME_BASE ids=35 anchors=35 live=${live}`)
+console.log('RB_VERDICT=完成')

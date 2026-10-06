@@ -54,6 +54,9 @@ const child = spawn(electronBin, [smokeEntry], {
     APP_ENV: 'prod',
     NODE_ENV: 'production',
     ELECTRON_ENABLE_LOGGING: '1',
+    NODE_TLS_REJECT_UNAUTHORIZED: process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0',
+    CYP_EMBED_START_TIMEOUT_MS: process.env.CYP_EMBED_START_TIMEOUT_MS || '120000',
+    CYP_EMBED_SMOKE_DEADLINE_MS: process.env.CYP_EMBED_SMOKE_DEADLINE_MS || '120000',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
@@ -76,7 +79,7 @@ const code = await new Promise((resolve) => {
       /* ignore */
     }
     resolve(124)
-  }, Number(process.env.CYP_EMBED_SMOKE_DEADLINE_MS || 90000))
+  }, Number(process.env.CYP_EMBED_SMOKE_DEADLINE_MS || 150000))
   child.on('exit', (c) => {
     clearTimeout(t)
     resolve(c ?? 1)

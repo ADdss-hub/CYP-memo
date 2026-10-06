@@ -35,10 +35,23 @@ export interface ApiContractState {
 }
 
 interface PersistedRegistry {
-  version: 1 | 2
+  version: 1 | 2 | 3
   contracts: ApiContractEntry[]
   approvals?: ChangeApproval[]
   conclusions?: CompatibilityConclusion[]
+  consumers?: ConsumerContract[]
+}
+
+export interface ConsumerContract {
+  consumerId: string
+  providerContractId: string
+  expectedPaths: string[]
+  registeredAt: string
+}
+
+export interface CdcFailure {
+  consumerId: string
+  missingPaths: string[]
 }
 
 export interface CompatibilityConclusion {
@@ -71,6 +84,7 @@ const state: ApiContractState = {
 let contracts: ApiContractEntry[] = []
 let approvals: ChangeApproval[] = []
 let conclusions: CompatibilityConclusion[] = []
+let consumers: ConsumerContract[] = []
 
 function registryFile(dataDir: string): string {
   return path.join(dataDir, 'contracts', 'registry.json')
@@ -86,13 +100,14 @@ function persist(): void {
   if (!state.ready || !state.dataDir || !state.registryPath) return
   ensureRegistryDir()
   const body: PersistedRegistry = {
-    version: 2,
+    version: 3,
     contracts: contracts.map((c) => ({
       ...c,
       paths: [...c.paths],
     })),
     approvals: approvals.map((a) => ({ ...a })),
     conclusions: conclusions.map((c) => ({ ...c, removedPaths: [...c.removedPaths], addedPaths: [...c.addedPaths] })),
+    consumers: consumers.map((c) => ({ ...c, expectedPaths: [...c.expectedPaths] })),
   }
   fs.writeFileSync(state.registryPath, JSON.stringify(body, null, 2), 'utf-8')
   state.contractCount = contracts.length
@@ -104,6 +119,7 @@ function loadFromDisk(): void {
     state.contractCount = 0
     approvals = []
     conclusions = []
+    consumers = []
     return
   }
   try {
@@ -141,11 +157,20 @@ function loadFromDisk(): void {
           decidedAt: String(c.decidedAt || new Date().toISOString()),
         }))
       : []
+    consumers = Array.isArray(raw.consumers)
+      ? raw.consumers.map((c) => ({
+          consumerId: String(c.consumerId),
+          providerContractId: String(c.providerContractId || 'cyp-memo-core'),
+          expectedPaths: Array.isArray(c.expectedPaths) ? c.expectedPaths.map(String) : [],
+          registeredAt: String(c.registeredAt || new Date().toISOString()),
+        }))
+      : []
   } catch {
     contracts = []
     state.contractCount = 0
     approvals = []
     conclusions = []
+    consumers = []
   }
 }
 
@@ -349,6 +374,83 @@ function bumpPatch(version: string): string {
   return `${major}.${minor}.${patch + 1}`
 }
 
+export function registerConsumerExpectation(input: {
+  consumerId: string
+  providerContractId?: string
+  expectedPaths: string[]
+}): ConsumerContract {
+  if (!state.ready) throw new Error('api-contract not ready')
+  const consumerId = String(input.consumerId || '').trim()
+  if (!consumerId) throw new Error('registerConsumerExpectation requires consumerId')
+  const providerContractId = String(input.providerContractId || 'cyp-memo-core').trim() || 'cyp-memo-core'
+  const expectedPaths = (input.expectedPaths || []).map(normalizePath).filter(Boolean)
+  const now = new Date().toISOString()
+  const existing = consumers.find((c) => c.consumerId === consumerId)
+  if (existing) {
+    existing.providerContractId = providerContractId
+    existing.expectedPaths = expectedPaths
+    persist()
+    return { ...existing, expectedPaths: [...existing.expectedPaths] }
+  }
+  const row: ConsumerContract = {
+    consumerId,
+    providerContractId,
+    expectedPaths,
+    registeredAt: now,
+  }
+  consumers.push(row)
+  persist()
+  return { ...row, expectedPaths: [...row.expectedPaths] }
+}
+
+export function listConsumerExpectations(): ConsumerContract[] {
+  return consumers.map((c) => ({ ...c, expectedPaths: [...c.expectedPaths] }))
+}
+
+/** 消费者驱动：每个消费者声明的路径必须仍在提供方契约中。 */
+export function verifyConsumerDrivenContracts(): { ok: boolean; failures: CdcFailure[] } {
+  const failures: CdcFailure[] = []
+  for (const c of consumers) {
+    const provider = contracts.find((p) => p.id === c.providerContractId)
+    const have = new Set((provider?.paths || []).map(normalizePath))
+    const missingPaths = c.expectedPaths.filter((p) => !have.has(normalizePath(p)))
+    if (missingPaths.length) failures.push({ consumerId: c.consumerId, missingPaths })
+  }
+  return { ok: failures.length === 0, failures }
+}
+
+export function runCdcProbe(): {
+  consumerSatisfied: boolean
+  consumerRejectedOnMissing: boolean
+} {
+  if (!state.ready) throw new Error('api-contract not ready')
+  const providerId = 'cyp-memo-core'
+  if (!contracts.find((c) => c.id === providerId)) {
+    registerContract({
+      id: providerId,
+      paths: ['GET /api/health', 'POST /api/auth/login'],
+    })
+  }
+  registerConsumerExpectation({
+    consumerId: 'cdc-probe-web',
+    providerContractId: providerId,
+    expectedPaths: ['GET /api/health'],
+  })
+  const ok = verifyConsumerDrivenContracts()
+  registerConsumerExpectation({
+    consumerId: 'cdc-probe-missing',
+    providerContractId: providerId,
+    expectedPaths: ['GET /api/health', 'GET /api/cdc-missing-path'],
+  })
+  const missing = verifyConsumerDrivenContracts()
+  consumers = consumers.filter((c) => c.consumerId !== 'cdc-probe-missing')
+  persist()
+  return {
+    consumerSatisfied: ok.ok === true,
+    consumerRejectedOnMissing: missing.ok === false && missing.failures.some((f) => f.consumerId === 'cdc-probe-missing'),
+  }
+}
+
 export function isContractGovernanceReady(): boolean {
   return state.ready && contracts.length > 0 && conclusions.length > 0
 }
@@ -436,6 +538,18 @@ export function init(opts: { dataDir: string }): ApiContractState {
   if (conclusions.length === 0 && contracts[0]) {
     concludeCompatibility({ contractId: contracts[0].id, nextPaths: contracts[0].paths })
   }
+  if (consumers.length === 0) {
+    registerConsumerExpectation({
+      consumerId: 'web-app',
+      providerContractId: 'cyp-memo-core',
+      expectedPaths: ['GET /api/health', 'POST /api/auth/login', 'GET /api/memos'],
+    })
+    registerConsumerExpectation({
+      consumerId: 'mcp-sidecar',
+      providerContractId: 'cyp-memo-core',
+      expectedPaths: ['GET /api/health', 'POST /api/auth/login'],
+    })
+  }
   if (!fs.existsSync(state.registryPath!)) {
     persist()
   }
@@ -451,6 +565,7 @@ export function reset(): void {
   contracts = []
   approvals = []
   conclusions = []
+  consumers = []
 }
 
 /** bootstrap / ready 探针兼容别名 */

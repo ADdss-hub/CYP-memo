@@ -73,15 +73,18 @@ function goBack() {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--cyp-bg-page, #f5f5f5);
+  background: transparent;
   color: var(--cyp-text, var(--cyp-text));
 }
 
 .legal-header {
   padding: 24px 20px 8px;
   text-align: center;
-  border-bottom: 1px solid var(--cyp-border, #dcdfe6);
-  background: var(--cyp-bg-card, #fff);
+  border-bottom: 1px solid var(--cyp-chrome-border);
+  background: var(--cyp-chrome-bg);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .back-btn {
@@ -116,10 +119,13 @@ function goBack() {
 }
 
 .legal-article {
-  background: var(--cyp-bg-card, #fff);
-  border: 1px solid var(--cyp-border, #dcdfe6);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
   padding: 24px;
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .legal-section + .legal-section {
@@ -143,7 +149,7 @@ function goBack() {
   height: 24px;
   border-radius: 50%;
   background: var(--cyp-brand, var(--cyp-brand));
-  color: #fff;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
@@ -171,7 +177,7 @@ function goBack() {
 .legal-meta {
   margin-top: 28px;
   padding-top: 16px;
-  border-top: 1px solid var(--cyp-border, #dcdfe6);
+  border-top: 1px solid var(--cyp-border);
   font-size: 12px;
   color: var(--cyp-text-muted, var(--cyp-text-muted));
   line-height: 1.6;

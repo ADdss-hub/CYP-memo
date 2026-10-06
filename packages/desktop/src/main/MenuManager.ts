@@ -158,7 +158,7 @@ export class MenuManager {
       type: 'info',
       title: '关于 CYP-memo',
       message: 'CYP-memo',
-      detail: `版本: ${app.getVersion()}\n\n容器备忘录系统 - 桌面客户端\n\n作者: CYP\n邮箱: nasDSSCYP@outlook.com`,
+      detail: `版本: ${app.getVersion()}\n\n备忘录系统 - 桌面客户端\n\n作者: CYP\n邮箱: nasDSSCYP@outlook.com`,
       buttons: ['确定']
     })
   }

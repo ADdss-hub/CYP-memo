@@ -31,12 +31,12 @@ function goHome() {
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
-  background: var(--cyp-bg-page);
+  background: transparent;
 }
 
 .not-found-content {
   text-align: center;
-  color: white;
+  color: var(--cyp-text);
   margin-top: auto;
   margin-bottom: auto;
 }

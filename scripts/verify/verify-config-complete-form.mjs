@@ -1,7 +1,8 @@
 /**
  * 实机：配置完整形态（logLevel + infoSample + retention + rollback + completeForm）
  */
-const Base = process.env.CYP_BASE_URL || 'http://127.0.0.1:5170'
+const Base = process.env.CYP_BASE_URL || 'https://127.0.0.1:5170'
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0'
 
 async function req(method, path, { token, body, idem } = {}) {
   const headers = { 'Content-Type': 'application/json' }

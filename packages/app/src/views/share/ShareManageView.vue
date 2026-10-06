@@ -417,11 +417,14 @@ h1 {
 }
 
 .share-card {
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
   padding: 20px;
   transition: box-shadow 0.2s;
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .share-card:hover {
@@ -430,7 +433,7 @@ h1 {
 
 .share-card.expired {
   opacity: 0.65;
-  background: var(--cyp-bg-muted);
+  background: var(--cyp-chrome-bg-soft);
 }
 
 .share-header {
@@ -620,7 +623,7 @@ h1 {
   box-sizing: border-box;
   border: 1px solid var(--cyp-border);
   border-radius: 6px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-bg-input);
   color: var(--cyp-text);
   font-family: var(--cyp-font-sans);
   font-size: 0.8125rem;

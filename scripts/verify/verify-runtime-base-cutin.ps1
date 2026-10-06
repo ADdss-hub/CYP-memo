@@ -1,7 +1,7 @@
 ﻿# CYP-memo runtime-base cut-in probe (real env · 闭集 35)
 # Checks: ready items×35, route headers, unregistered reject, memo/log via base, collab/public probes
 $ErrorActionPreference = 'Continue'
-$Base = 'http://127.0.0.1:5170'
+$Base = 'https://127.0.0.1:5170'
 $fail = 0
 $pass = 0
 function Ok([string]$m) { Write-Host "[PASS] $m"; $script:pass++ }

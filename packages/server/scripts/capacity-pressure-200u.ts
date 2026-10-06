@@ -8,7 +8,9 @@
  *
  *   pnpm exec tsx scripts/capacity-pressure-200u.ts
  *
- * 环境变量：CYP_API_BASE / CYP_LOAD_TOKEN / CYP_LOAD_USER_ID / CYP_LOAD_TOTAL / CYP_LOAD_SUSTAIN_CONC
+ * 环境变量：
+ *   CYP_LOAD_ISOLATED=1 + CYP_LOAD_EXPECT_DATA_DIR=专用压测 dataDir（硬门禁，禁止产品库）
+ *   CYP_API_BASE / CYP_LOAD_TOKEN / CYP_LOAD_USER_ID / CYP_LOAD_TOTAL / CYP_LOAD_SUSTAIN_CONC
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
@@ -17,14 +19,20 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import initSqlJs from 'sql.js'
+import { assertLoadIsolation } from './load-isolation-gate.js'
 
-const BASE = process.env.CYP_API_BASE || 'http://127.0.0.1:5170'
+const BASE = (process.env.CYP_API_BASE || '').replace(/\/$/, '')
+if (!BASE) {
+  throw new Error('CYP_API_BASE required — 禁止默认打产品 :5170')
+}
 const TOTAL = Math.max(1000, Number(process.env.CYP_LOAD_TOTAL || 100000))
 const SUSTAIN_CONC = Math.max(1, Number(process.env.CYP_LOAD_SUSTAIN_CONC || 50))
 const SKIP_RAMP = process.env.CYP_LOAD_SKIP_RAMP === '1'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const dataDir = path.resolve(__dirname, '../data')
-const dbFile = path.join(dataDir, 'database.sqlite')
+const isolatedRoot = path.resolve(
+  String(process.env.CYP_LOAD_EXPECT_DATA_DIR || '').trim() || path.join(__dirname, '../data-loadtest')
+)
+const dbFile = path.join(isolatedRoot, 'database.sqlite')
 const reportDir = path.resolve(__dirname, '../../../reports/P6')
 
 type Sample = { ms: number; status: number; path: string; ok: boolean }
@@ -59,18 +67,26 @@ async function resolveAuth(): Promise<{ userId: string; token: string }> {
   if (process.env.CYP_LOAD_TOKEN && process.env.CYP_LOAD_USER_ID) {
     return { userId: process.env.CYP_LOAD_USER_ID, token: process.env.CYP_LOAD_TOKEN }
   }
+  const expectDir = String(process.env.CYP_LOAD_EXPECT_DATA_DIR || '').trim()
+  if (!expectDir) {
+    throw new Error('set CYP_LOAD_TOKEN+CYP_LOAD_USER_ID or CYP_LOAD_EXPECT_DATA_DIR for auth')
+  }
+  const isolatedDb = path.join(path.resolve(expectDir), 'database.sqlite')
+  if (!fs.existsSync(isolatedDb)) {
+    throw new Error(`isolated auth db missing: ${isolatedDb}`)
+  }
   const require = createRequire(import.meta.url)
   const SQL = await initSqlJs({
     locateFile: (file: string) =>
       require.resolve(file === 'sql-wasm.wasm' ? 'sql.js/dist/sql-wasm.wasm' : `sql.js/dist/${file}`),
   })
-  const buf = fs.readFileSync(dbFile)
+  const buf = fs.readFileSync(isolatedDb)
   const db = new SQL.Database(buf)
   const res = db.exec(
     "SELECT id, token FROM users WHERE username = 'admin123' AND token IS NOT NULL LIMIT 1"
   )
   db.close()
-  if (!res.length || !res[0].values.length) throw new Error('admin123 token missing')
+  if (!res.length || !res[0].values.length) throw new Error('admin123 token missing on isolated db')
   const [userId, token] = res[0].values[0] as [string, string]
   return { userId: String(userId), token: String(token) }
 }
@@ -149,6 +165,7 @@ async function runPool(
 }
 
 async function main() {
+  await assertLoadIsolation({ apiBase: BASE, scriptName: 'capacity-pressure-200u' })
   console.log(`CYP-memo capacity pressure · base=${BASE} total=${TOTAL} sustainConc=${SUSTAIN_CONC}`)
   const health = await fetch(`${BASE}/api/health`)
   if (!health.ok) throw new Error(`health ${health.status}`)

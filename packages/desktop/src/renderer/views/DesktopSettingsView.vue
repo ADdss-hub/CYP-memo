@@ -341,13 +341,13 @@ onMounted(() => {
   gap: 12px;
   font-size: 24px;
   font-weight: 600;
-  color: var(--text-primary, #303133);
+  color: var(--cyp-text);
   margin: 0 0 8px;
 }
 
 .page-header p {
   font-size: 14px;
-  color: var(--text-secondary, #909399);
+  color: var(--cyp-text-muted);
   margin: 0;
 }
 
@@ -357,13 +357,16 @@ onMounted(() => {
   justify-content: center;
   gap: 12px;
   padding: 60px;
-  color: var(--text-secondary, #909399);
+  color: var(--cyp-text-muted);
 }
 
 .settings-section {
-  background: var(--bg-primary, white);
+  background: var(--cyp-chrome-bg-panel);
   border-radius: 12px;
-  border: 1px solid var(--border-color, #e4e7ed);
+  border: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   margin-bottom: 24px;
   overflow: hidden;
 }
@@ -373,14 +376,14 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 20px 24px;
-  background: var(--bg-secondary, #f5f7fa);
-  border-bottom: 1px solid var(--border-color, #e4e7ed);
+  background: var(--cyp-chrome-bg-soft);
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .section-header h2 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary, #303133);
+  color: var(--cyp-text);
   margin: 0;
 }
 
@@ -393,7 +396,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 0;
-  border-bottom: 1px solid var(--border-color, #e4e7ed);
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .setting-item:last-child {
@@ -407,36 +410,36 @@ onMounted(() => {
 .setting-label {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary, #303133);
+  color: var(--cyp-text);
 }
 
 .setting-desc {
   font-size: 12px;
-  color: var(--text-secondary, #909399);
+  color: var(--cyp-text-muted);
   margin-top: 4px;
 }
 
 .setting-value {
   font-size: 14px;
-  color: var(--text-secondary, #606266);
+  color: var(--cyp-text-secondary);
 }
 
 .setting-group {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--border-color, #e4e7ed);
+  border-top: 1px solid var(--cyp-border);
 }
 
 .setting-group h3 {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #303133);
+  color: var(--cyp-text);
   margin: 0 0 16px;
 }
 
 .switch-server p {
   font-size: 14px;
-  color: var(--text-secondary, #909399);
+  color: var(--cyp-text-muted);
   margin: 0 0 16px;
 }
 
@@ -450,38 +453,5 @@ onMounted(() => {
   flex: 1;
 }
 
-/* 深色主题 */
-html.dark .page-header h1 {
-  color: #e5eaf3;
-}
 
-html.dark .settings-section {
-  background: #1d1e1f;
-  border-color: #414243;
-}
-
-html.dark .section-header {
-  background: #262727;
-  border-color: #414243;
-}
-
-html.dark .section-header h2 {
-  color: #e5eaf3;
-}
-
-html.dark .setting-item {
-  border-color: #414243;
-}
-
-html.dark .setting-label {
-  color: #e5eaf3;
-}
-
-html.dark .setting-group {
-  border-color: #414243;
-}
-
-html.dark .setting-group h3 {
-  color: #e5eaf3;
-}
 </style>

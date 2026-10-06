@@ -12,11 +12,27 @@
  *   pnpm exec tsx scripts/capacity-u200-ladder.ts
  *
  * 环境变量：
+ *   【硬门禁 · 禁止打产品业务库】
+ *   CYP_LOAD_ISOLATED=1（必填）
+ *   CYP_LOAD_EXPECT_DATA_DIR=专用压测 dataDir 绝对路径（必填，≠ packages/server/data）
+ *   目标服务须以 DATA_DIR=该路径启动；脚本会核对 /api/config.dataDir
  *   CYP_API_BASE / CYP_LOAD_TOKEN / CYP_LOAD_USER_ID
  *   CYP_U_STOP_AFTER=U0|U1|U2|U3（默认 U3，熔断亦可提前停）
- *   CYP_U_MAX_WORKERS（负载端工人上限，默认 400，防本机 OOM）
+ *   CYP_U_START_FROM=U0|U1|U2|U3（默认 U0；续跑时跳过已过档的加压，须配合 PRIOR_PASS）
+ *   CYP_U_PRIOR_PASS=U0,U1（逗号分隔；承接前次实机已过档，写入报告 inherited）
+ *   CYP_U_PRIOR_REPORT=reports/P6/capacity-u200-ladder-*.json（可选，供 inherited 溯源）
+ *   CYP_U_MAX_WORKERS（负载端工人上限，默认 24，防压垮单机嵌入式）
  *   CYP_U_COOLDOWN_MS（档间冷却，默认 60000）
  *   CYP_U_CHUNK（分片进度日志，默认 5000）
+ *   CYP_U_RL_BACKOFF_MS（遇 429 退避，默认 80）
+ *   CYP_U_BATCH_SIZE（>0 启用分批：本进程只打一档的一相最多 N 次后退出，默认 0=整档连打）
+ *   CYP_U_BATCH_STATE（分批累计状态文件，默认 reports/P6/capacity-u200-batch-state.json）
+ *   CYP_U_BATCH_SEED_ACCESS / CYP_U_BATCH_SEED_STORAGE（首次建状态时注入已实机完成次数，须可溯源）
+ *
+ * 分批示例（短窗 · 禁止长连跑）：
+ *   CYP_U_BATCH_SIZE=20000 CYP_U_START_FROM=U1 CYP_U_STOP_AFTER=U1 \\
+ *   CYP_U_PRIOR_PASS=U0 CYP_U_PRIOR_REPORT=... pnpm --filter @cyp-memo/server exec tsx scripts/capacity-u200-ladder.ts
+ *   退出码：0=声明档已满额通过 · 3=本批成功但仍需续批 · 2=失败/熔断
  *
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
@@ -27,19 +43,67 @@ import { randomUUID } from 'crypto'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import initSqlJs from 'sql.js'
+import { assertLoadIsolation } from './load-isolation-gate.js'
 
-const BASE = process.env.CYP_API_BASE || 'http://127.0.0.1:5170'
+process.env.NODE_TLS_REJECT_UNAUTHORIZED =
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0'
+const BASE = (process.env.CYP_API_BASE || '').replace(/\/$/, '')
+if (!BASE) {
+  throw new Error('CYP_API_BASE required — 禁止默认打产品 :5170')
+}
 const STOP_AFTER = (process.env.CYP_U_STOP_AFTER || 'U3').toUpperCase()
-const MAX_WORKERS = Math.max(8, Number(process.env.CYP_U_MAX_WORKERS || 400))
+const START_FROM = (process.env.CYP_U_START_FROM || 'U0').toUpperCase()
+const PRIOR_PASS = (process.env.CYP_U_PRIOR_PASS || '')
+  .split(',')
+  .map((s) => s.trim().toUpperCase())
+  .filter(Boolean)
+const PRIOR_REPORT = (process.env.CYP_U_PRIOR_REPORT || '').trim()
+const MAX_WORKERS = Math.max(4, Number(process.env.CYP_U_MAX_WORKERS || 24))
 const COOLDOWN_MS = Math.max(60_000, Number(process.env.CYP_U_COOLDOWN_MS || 60_000))
 const CHUNK = Math.max(500, Number(process.env.CYP_U_CHUNK || 5000))
+const RL_BACKOFF_MS = Math.max(20, Number(process.env.CYP_U_RL_BACKOFF_MS || 80))
+const BATCH_SIZE = Math.max(0, Number(process.env.CYP_U_BATCH_SIZE || 0))
+const BATCH_SEED_ACCESS = Math.max(0, Number(process.env.CYP_U_BATCH_SEED_ACCESS || 0))
+const BATCH_SEED_STORAGE = Math.max(0, Number(process.env.CYP_U_BATCH_SEED_STORAGE || 0))
 const HARD_ERR_CIRCUIT = 0.02 // 1.6.3 窗错误率 1% ×2
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const dataDir = path.resolve(__dirname, '../data')
-const dbFile = path.join(dataDir, 'database.sqlite')
+const isolatedRoot = path.resolve(String(process.env.CYP_LOAD_EXPECT_DATA_DIR || '').trim() || path.join(__dirname, '../data-loadtest'))
+const dbFile = path.join(isolatedRoot, 'database.sqlite')
 const reportDir = path.resolve(__dirname, '../../../reports/P6')
+const BATCH_STATE_PATH = (() => {
+  const raw = String(process.env.CYP_U_BATCH_STATE || '').trim()
+  // 相对路径必须锚定仓库根（pnpm --filter 会把 cwd 切到 packages/server，
+  // 用 process.cwd() 解析会让同一个相对路径在不同调用方式下指向不同文件）
+  const root = path.resolve(__dirname, '../../..')
+  return raw ? path.resolve(root, raw) : path.join(reportDir, 'capacity-u200-batch-state.json')
+})()
 
 type TierId = 'U0' | 'U1' | 'U2' | 'U3'
+const TIER_ORDER: TierId[] = ['U0', 'U1', 'U2', 'U3']
+
+type BatchPhase = 'access' | 'storage' | 'done'
+type BatchState = {
+  tier: TierId
+  users: number
+  targetAccess: number
+  targetStorage: number
+  phase: BatchPhase
+  access: { n: number; ok: number; hard: number; rl: number }
+  storage: { n: number; ok: number; hard: number; rl: number }
+  batches: Array<{
+    at: string
+    phase: 'access' | 'storage'
+    n: number
+    ok: number
+    hard: number
+    rl: number
+    p95: number
+    rps: number
+    wallMs: number
+  }>
+  seed?: { access: number; storage: number; note: string }
+  updatedAt: string
+}
 type Sample = {
   ms: number
   status: number
@@ -98,18 +162,27 @@ async function resolveAuth(): Promise<{ userId: string; token: string }> {
   if (process.env.CYP_LOAD_TOKEN && process.env.CYP_LOAD_USER_ID) {
     return { userId: process.env.CYP_LOAD_USER_ID, token: process.env.CYP_LOAD_TOKEN }
   }
+  // 隔离压测禁止回读产品库 token；只允许读 EXPECT dataDir 内的库
+  const expectDir = String(process.env.CYP_LOAD_EXPECT_DATA_DIR || '').trim()
+  if (!expectDir) {
+    throw new Error('set CYP_LOAD_TOKEN+CYP_LOAD_USER_ID or CYP_LOAD_EXPECT_DATA_DIR for auth')
+  }
+  const isolatedDb = path.join(path.resolve(expectDir), 'database.sqlite')
+  if (!fs.existsSync(isolatedDb)) {
+    throw new Error(`isolated auth db missing: ${isolatedDb} — login once on load-test instance`)
+  }
   const require = createRequire(import.meta.url)
   const SQL = await initSqlJs({
     locateFile: (file: string) =>
       require.resolve(file === 'sql-wasm.wasm' ? 'sql.js/dist/sql-wasm.wasm' : `sql.js/dist/${file}`),
   })
-  const buf = fs.readFileSync(dbFile)
+  const buf = fs.readFileSync(isolatedDb)
   const db = new SQL.Database(buf)
   const res = db.exec(
     "SELECT id, token FROM users WHERE username = 'admin123' AND token IS NOT NULL LIMIT 1"
   )
   db.close()
-  if (!res.length || !res[0].values.length) throw new Error('admin123 token missing — login once in real env')
+  if (!res.length || !res[0].values.length) throw new Error('admin123 token missing on isolated load-test db')
   const [userId, token] = res[0].values[0] as [string, string]
   return { userId: String(userId), token: String(token) }
 }
@@ -139,44 +212,58 @@ function accessPaths(userId: string): string[] {
   ]
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
 async function hitAccess(
   token: string,
   urlPath: string,
   forwardedFor: string
 ): Promise<Sample> {
-  const t0 = performance.now()
-  try {
-    const res = await fetch(`${BASE}${urlPath}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'X-Forwarded-For': forwardedFor,
-      },
-      signal: AbortSignal.timeout(30_000),
-    })
-    await res.arrayBuffer()
-    const rateLimited = res.status === 429
-    const hardFail = res.status === 0 || res.status >= 500
-    const ok = res.status >= 200 && res.status < 400
-    return {
-      ms: performance.now() - t0,
-      status: res.status,
-      path: urlPath,
-      kind: 'access',
-      hardFail,
-      rateLimited,
-      ok,
-    }
-  } catch {
-    return {
-      ms: performance.now() - t0,
-      status: 0,
-      path: urlPath,
-      kind: 'access',
-      hardFail: true,
-      rateLimited: false,
-      ok: false,
+  const once = async (): Promise<Sample> => {
+    const t0 = performance.now()
+    try {
+      const res = await fetch(`${BASE}${urlPath}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Forwarded-For': forwardedFor,
+        },
+        signal: AbortSignal.timeout(30_000),
+      })
+      await res.arrayBuffer()
+      const rateLimited = res.status === 429
+      const hardFail = res.status === 0 || res.status >= 500
+      const ok = res.status >= 200 && res.status < 400
+      return {
+        ms: performance.now() - t0,
+        status: res.status,
+        path: urlPath,
+        kind: 'access',
+        hardFail,
+        rateLimited,
+        ok,
+      }
+    } catch {
+      return {
+        ms: performance.now() - t0,
+        status: 0,
+        path: urlPath,
+        kind: 'access',
+        hardFail: true,
+        rateLimited: false,
+        ok: false,
+      }
     }
   }
+  let sample = await once()
+  // 网络闪断：退避后重试 1 次，避免瞬时 connection reset 误熔断
+  if (sample.status === 0) {
+    await sleep(RL_BACKOFF_MS * 2)
+    sample = await once()
+  }
+  if (sample.rateLimited) await sleep(RL_BACKOFF_MS)
+  return sample
 }
 
 async function hitStorage(
@@ -186,48 +273,57 @@ async function hitStorage(
   seq: number,
   forwardedFor: string
 ): Promise<Sample> {
-  const t0 = performance.now()
   const urlPath = `/api/memos/${memoId}`
-  try {
-    const res = await fetch(`${BASE}${urlPath}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'X-Forwarded-For': forwardedFor,
-        'Idempotency-Key': `u-ladder-patch-${seq}-${randomUUID()}`,
-      },
-      body: JSON.stringify({
-        title: `u-ladder-${seq % 10000}`,
-        content: `U-ladder storage write #${seq} @ ${new Date().toISOString()} user=${userId}`,
-        updatedAt: new Date().toISOString(),
-      }),
-      signal: AbortSignal.timeout(60_000),
-    })
-    await res.arrayBuffer()
-    const rateLimited = res.status === 429
-    const hardFail = res.status === 0 || res.status >= 500
-    const ok = res.status >= 200 && res.status < 400
-    return {
-      ms: performance.now() - t0,
-      status: res.status,
-      path: urlPath,
-      kind: 'storage',
-      hardFail,
-      rateLimited,
-      ok,
-    }
-  } catch {
-    return {
-      ms: performance.now() - t0,
-      status: 0,
-      path: urlPath,
-      kind: 'storage',
-      hardFail: true,
-      rateLimited: false,
-      ok: false,
+  const once = async (): Promise<Sample> => {
+    const t0 = performance.now()
+    try {
+      const res = await fetch(`${BASE}${urlPath}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Forwarded-For': forwardedFor,
+          'Idempotency-Key': `u-ladder-patch-${seq}-${randomUUID()}`,
+        },
+        body: JSON.stringify({
+          title: `u-ladder-${seq % 10000}`,
+          content: `U-ladder storage write #${seq} @ ${new Date().toISOString()} user=${userId}`,
+          updatedAt: new Date().toISOString(),
+        }),
+        signal: AbortSignal.timeout(60_000),
+      })
+      await res.arrayBuffer()
+      const rateLimited = res.status === 429
+      const hardFail = res.status === 0 || res.status >= 500
+      const ok = res.status >= 200 && res.status < 400
+      return {
+        ms: performance.now() - t0,
+        status: res.status,
+        path: urlPath,
+        kind: 'storage',
+        hardFail,
+        rateLimited,
+        ok,
+      }
+    } catch {
+      return {
+        ms: performance.now() - t0,
+        status: 0,
+        path: urlPath,
+        kind: 'storage',
+        hardFail: true,
+        rateLimited: false,
+        ok: false,
+      }
     }
   }
+  let sample = await once()
+  if (sample.status === 0) {
+    await sleep(RL_BACKOFF_MS * 2)
+    sample = await once()
+  }
+  if (sample.rateLimited) await sleep(RL_BACKOFF_MS)
+  return sample
 }
 
 async function ensureMemoPool(token: string, userId: string, size: number): Promise<string[]> {
@@ -518,9 +614,9 @@ async function postTierClosedLoop(
     health = null
   }
 
-  const alertsPath = path.join(dataDir, 'alerts', 'outbox.jsonl')
-  const elasticityPath = path.join(dataDir, 'elasticity', 'decisions.jsonl')
-  const notifyPath = path.join(dataDir, 'notify', 'outbox.jsonl')
+  const alertsPath = path.join(isolatedRoot, 'alerts', 'outbox.jsonl')
+  const elasticityPath = path.join(isolatedRoot, 'elasticity', 'decisions.jsonl')
+  const notifyPath = path.join(isolatedRoot, 'notify', 'outbox.jsonl')
   const alertsN = countLines(alertsPath)
   const elasticityN = countLines(elasticityPath)
   const notifyN = countLines(notifyPath)
@@ -592,7 +688,7 @@ async function postTierClosedLoop(
   }
 
   // 告知落盘（reports + notify 旁路摘要）
-  const informDir = path.join(dataDir, 'notify')
+  const informDir = path.join(isolatedRoot, 'notify')
   if (!fs.existsSync(informDir)) fs.mkdirSync(informDir, { recursive: true })
   const informLine = JSON.stringify({
     at: new Date().toISOString(),
@@ -642,15 +738,316 @@ function tierPass(
   }
 }
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
+function loadBatchState(tier: (typeof TIERS)[0]): BatchState {
+  if (fs.existsSync(BATCH_STATE_PATH)) {
+    const raw = JSON.parse(fs.readFileSync(BATCH_STATE_PATH, 'utf-8')) as BatchState
+    if (raw.tier !== tier.id) {
+      throw new Error(
+        `batch state tier=${raw.tier} != requested ${tier.id} — delete or set CYP_U_BATCH_STATE`
+      )
+    }
+    return raw
+  }
+  const seedAccess = Math.min(BATCH_SEED_ACCESS, tier.access)
+  const seedStorage = Math.min(BATCH_SEED_STORAGE, tier.storage)
+  let phase: BatchPhase = 'access'
+  if (seedAccess >= tier.access) phase = seedStorage >= tier.storage ? 'done' : 'storage'
+  const state: BatchState = {
+    tier: tier.id,
+    users: tier.users,
+    targetAccess: tier.access,
+    targetStorage: tier.storage,
+    phase,
+    access: { n: seedAccess, ok: seedAccess, hard: 0, rl: 0 },
+    storage: { n: seedStorage, ok: seedStorage, hard: 0, rl: 0 },
+    batches: [],
+    seed:
+      seedAccess || seedStorage
+        ? {
+            access: seedAccess,
+            storage: seedStorage,
+            note: 'CYP_U_BATCH_SEED_* 注入；须对应实机已成功次数，禁止虚增',
+          }
+        : undefined,
+    updatedAt: new Date().toISOString(),
+  }
+  return state
+}
+
+function saveBatchState(state: BatchState) {
+  state.updatedAt = new Date().toISOString()
+  if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true })
+  // 状态文件可由 CYP_U_BATCH_STATE 指向任意目录（且可能是相对路径，cwd 随 pnpm --filter 变化）
+  // 故必须按状态文件自身目录建树，不能只依赖 reportDir
+  const stateDir = path.dirname(BATCH_STATE_PATH)
+  if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true })
+  fs.writeFileSync(BATCH_STATE_PATH, JSON.stringify(state, null, 2), 'utf-8')
+}
+
+/** 分批模式：单进程只推进当前相最多 BATCH_SIZE 次 */
+async function runBatchMode(opts: {
+  tier: (typeof TIERS)[0]
+  token: string
+  userId: string
+  memoIds: string[]
+  inherited: any[]
+}): Promise<number> {
+  const { tier, token, userId, memoIds, inherited } = opts
+  const state = loadBatchState(tier)
+  saveBatchState(state)
+  console.log(
+    `[batch] tier=${tier.id} phase=${state.phase} access=${state.access.n}/${state.targetAccess} ` +
+      `storage=${state.storage.n}/${state.targetStorage} batchSize=${BATCH_SIZE} state=${BATCH_STATE_PATH}`
+  )
+
+  if (state.phase === 'done') {
+    console.log('[batch] tier already done in state — write verdict from cumulative')
+    const readyFinal = await checkReady()
+    const passedIds = [
+      ...inherited.map((t) => t.tier),
+      ...(readyFinal.ok ? [tier.id] : []),
+    ]
+    const fullLadderPass =
+      TIER_ORDER.filter((id) => TIER_ORDER.indexOf(id) <= TIER_ORDER.indexOf(STOP_AFTER as TierId)).every(
+        (id) => passedIds.includes(id) || (id === tier.id && state.phase === 'done')
+      ) && readyFinal.ok
+    const out = path.join(reportDir, `capacity-u200-ladder-batch-${Date.now()}.json`)
+    fs.writeFileSync(
+      out,
+      JSON.stringify(
+        {
+          at: new Date().toISOString(),
+          mode: 'batch-resume-done',
+          fullLadderPass,
+          state,
+          priorPass: PRIOR_PASS,
+          priorReport: PRIOR_REPORT || null,
+          report: out,
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    )
+    console.log('\n=== U200 LADDER BATCH VERDICT ===')
+    console.log(JSON.stringify({ fullLadderPass, phase: state.phase, report: out }, null, 2))
+    return fullLadderPass ? 0 : 2
+  }
+
+  const circuit: CircuitState = { tripped: false, reason: '' }
+  const phase = state.phase as 'access' | 'storage'
+  const done = phase === 'access' ? state.access.n : state.storage.n
+  const target = phase === 'access' ? state.targetAccess : state.targetStorage
+  const remain = Math.max(0, target - done)
+  const thisBatch = Math.min(BATCH_SIZE, remain)
+  if (thisBatch <= 0) {
+    state.phase = phase === 'access' ? 'storage' : 'done'
+    saveBatchState(state)
+    console.log(`[batch] ${phase} already full → phase=${state.phase}；请再启下一短窗`)
+    return 3
+  }
+
+  console.log(`\n======== ${tier.id} BATCH ${phase} +${thisBatch} (cum ${done}→${done + thisBatch}/${target}) ========`)
+  const summary = await runPhase({
+    tierId: tier.id,
+    kind: phase,
+    targetUsers: tier.users,
+    total: thisBatch,
+    token,
+    userId,
+    memoIds,
+    circuit,
+  })
+
+  const bucket = phase === 'access' ? state.access : state.storage
+  bucket.n += summary.n
+  bucket.ok += summary.ok
+  bucket.hard += summary.hardFail
+  bucket.rl += summary.rateLimited
+  state.batches.push({
+    at: new Date().toISOString(),
+    phase,
+    n: summary.n,
+    ok: summary.ok,
+    hard: summary.hardFail,
+    rl: summary.rateLimited,
+    p95: summary.p95,
+    rps: summary.rps,
+    wallMs: summary.wallMs,
+  })
+
+  const hardRate = bucket.n ? bucket.hard / bucket.n : 0
+  if (circuit.tripped || summary.aborted || hardRate > 0.01) {
+    saveBatchState(state)
+    const out = path.join(reportDir, `capacity-u200-ladder-batch-${Date.now()}.json`)
+    fs.writeFileSync(
+      out,
+      JSON.stringify(
+        {
+          at: new Date().toISOString(),
+          mode: 'batch-fail',
+          circuit,
+          summary,
+          state,
+          hardRate,
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    )
+    console.log('\n=== U200 LADDER BATCH FAIL ===')
+    console.log(JSON.stringify({ circuit, hardRate, report: out, statePath: BATCH_STATE_PATH }, null, 2))
+    return 2
+  }
+
+  if (bucket.n >= target) {
+    state.phase = phase === 'access' ? 'storage' : 'done'
+  }
+  saveBatchState(state)
+
+  if (state.phase !== 'done') {
+    const out = path.join(reportDir, `capacity-u200-ladder-batch-${Date.now()}.json`)
+    fs.writeFileSync(
+      out,
+      JSON.stringify(
+        {
+          at: new Date().toISOString(),
+          mode: 'batch-progress',
+          needMore: true,
+          exitHint: 3,
+          batch: state.batches[state.batches.length - 1],
+          state,
+          priorPass: PRIOR_PASS,
+          priorReport: PRIOR_REPORT || null,
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    )
+    console.log('\n=== U200 LADDER BATCH PROGRESS ===')
+    console.log(
+      JSON.stringify(
+        {
+          needMore: true,
+          phase: state.phase,
+          access: `${state.access.n}/${state.targetAccess}`,
+          storage: `${state.storage.n}/${state.targetStorage}`,
+          report: out,
+          statePath: BATCH_STATE_PATH,
+        },
+        null,
+        2
+      )
+    )
+    return 3
+  }
+
+  // 满额：闭环 + 档通过（累计口径）
+  const accessSynth = {
+    n: state.access.n,
+    ok: state.access.ok,
+    hardFail: state.access.hard,
+    rateLimited: state.access.rl,
+    softFail: 0,
+    hardErrorRate: state.access.n ? state.access.hard / state.access.n : 0,
+    rateLimitRate: state.access.n ? state.access.rl / state.access.n : 0,
+    errorRate: state.access.n ? state.access.hard / state.access.n : 0,
+    p50: 0,
+    p95: state.batches.filter((b) => b.phase === 'access').slice(-1)[0]?.p95 ?? 0,
+    p99: 0,
+    max: 0,
+    status: {},
+    concurrency: MAX_WORKERS,
+    targetUsers: tier.users,
+    wallMs: state.batches.filter((b) => b.phase === 'access').reduce((s, b) => s + b.wallMs, 0),
+    rps: 0,
+    businessDbMtimeChanged: false,
+    aborted: false,
+    label: `${tier.id}_access_cum`,
+  }
+  const storageSynth = {
+    ...accessSynth,
+    n: state.storage.n,
+    ok: state.storage.ok,
+    hardFail: state.storage.hard,
+    rateLimited: state.storage.rl,
+    hardErrorRate: state.storage.n ? state.storage.hard / state.storage.n : 0,
+    rateLimitRate: state.storage.n ? state.storage.rl / state.storage.n : 0,
+    errorRate: state.storage.n ? state.storage.hard / state.storage.n : 0,
+    p95: state.batches.filter((b) => b.phase === 'storage').slice(-1)[0]?.p95 ?? 0,
+    wallMs: state.batches.filter((b) => b.phase === 'storage').reduce((s, b) => s + b.wallMs, 0),
+    businessDbMtimeChanged: true,
+    label: `${tier.id}_storage_cum`,
+  }
+  const closed = await postTierClosedLoop(tier.id, accessSynth as any, storageSynth as any)
+  const pass = tierPass(tier, accessSynth as any, storageSynth as any, closed)
+  const readyFinal = await checkReady()
+  const tierResults = [
+    ...inherited,
+    { tier: tier.id, mode: 'batched', access: accessSynth, storage: storageSynth, closedLoop: closed, pass, state },
+  ]
+  const passedIds = tierResults.filter((t) => t.pass?.pass).map((t) => t.tier)
+  const allDeclared = TIERS.filter(
+    (t) => TIER_ORDER.indexOf(t.id) <= TIER_ORDER.indexOf(STOP_AFTER as TierId)
+  )
+  const fullLadderPass =
+    allDeclared.every((t) => passedIds.includes(t.id)) && readyFinal.ok && pass.pass
+
+  const out = path.join(reportDir, `capacity-u200-ladder-${Date.now()}.json`)
+  fs.writeFileSync(
+    out,
+    JSON.stringify(
+      {
+        at: new Date().toISOString(),
+        standard: '1.7 U200×4 / R-016 / cyp-load-test',
+        mode: 'batch-complete',
+        base: BASE,
+        startFrom: START_FROM,
+        stopAfter: STOP_AFTER,
+        priorPass: PRIOR_PASS,
+        priorReport: PRIOR_REPORT || null,
+        batchStatePath: BATCH_STATE_PATH,
+        maxWorkers: MAX_WORKERS,
+        fullLadderPass,
+        readyFinal: readyFinal.ok,
+        passedTiers: passedIds,
+        tiers: tierResults,
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  )
+  console.log('\n=== U200 LADDER BATCH COMPLETE ===')
+  console.log(JSON.stringify({ fullLadderPass, passedTiers: passedIds, report: out }, null, 2))
+  return fullLadderPass ? 0 : 2
 }
 
 async function main() {
+  if (!TIER_ORDER.includes(START_FROM as TierId)) {
+    throw new Error(`CYP_U_START_FROM invalid: ${START_FROM}`)
+  }
+  if (!TIER_ORDER.includes(STOP_AFTER as TierId)) {
+    throw new Error(`CYP_U_STOP_AFTER invalid: ${STOP_AFTER}`)
+  }
+  if (TIER_ORDER.indexOf(START_FROM as TierId) > TIER_ORDER.indexOf(STOP_AFTER as TierId)) {
+    throw new Error(`START_FROM ${START_FROM} > STOP_AFTER ${STOP_AFTER}`)
+  }
+
+  // 硬门禁：未隔离专用 dataDir 一律拒绝，防止再污染业务核心库
+  await assertLoadIsolation({ apiBase: BASE, scriptName: 'capacity-u200-ladder' })
+
   console.log(
-    `CYP-memo U200×4 ladder · base=${BASE} stopAfter=${STOP_AFTER} maxWorkers=${MAX_WORKERS} cooldownMs=${COOLDOWN_MS}`
+    `CYP-memo U200×4 ladder · base=${BASE} startFrom=${START_FROM} stopAfter=${STOP_AFTER} ` +
+      `maxWorkers=${MAX_WORKERS} cooldownMs=${COOLDOWN_MS}` +
+      (BATCH_SIZE > 0 ? ` batchSize=${BATCH_SIZE}` : '')
   )
-  console.log('SSOT: 1.7 / R-016 / cyp-load-test · real env only · no L-tier substitute')
+  console.log('SSOT: 1.7 / R-016 / cyp-load-test · real env only · isolated dataDir only · no L-tier substitute')
+  if (PRIOR_PASS.length) {
+    console.log(`priorPass=${PRIOR_PASS.join(',')} priorReport=${PRIOR_REPORT || '(none)'}`)
+  }
 
   const ready0 = await checkReady()
   if (!ready0.ok) throw new Error(`preflight ready not green status=${ready0.status}`)
@@ -665,9 +1062,48 @@ async function main() {
   const tierResults: any[] = []
   let stopReason = ''
 
+  // 承接前次已过档（须有 PRIOR_PASS；不得空口继承）
+  for (const id of TIER_ORDER) {
+    if (TIER_ORDER.indexOf(id) >= TIER_ORDER.indexOf(START_FROM as TierId)) break
+    if (!PRIOR_PASS.includes(id)) {
+      throw new Error(
+        `startFrom=${START_FROM} skips ${id} but CYP_U_PRIOR_PASS missing ${id} — refuse silent skip`
+      )
+    }
+    tierResults.push({
+      tier: id,
+      inherited: true,
+      priorReport: PRIOR_REPORT || null,
+      pass: { pass: true, inherited: true },
+    })
+    console.log(`[inherit] ${id} from PRIOR_PASS priorReport=${PRIOR_REPORT || '(unset)'}`)
+  }
+
+  if (BATCH_SIZE > 0) {
+    if (START_FROM !== STOP_AFTER) {
+      throw new Error('batch mode requires CYP_U_START_FROM === CYP_U_STOP_AFTER（单档分批）')
+    }
+    const tier = TIERS.find((t) => t.id === START_FROM)
+    if (!tier) throw new Error(`tier not found ${START_FROM}`)
+    const code = await runBatchMode({
+      tier,
+      token,
+      userId,
+      memoIds,
+      inherited: tierResults,
+    })
+    process.exit(code)
+  }
+
   for (const tier of TIERS) {
     if (circuit.tripped) {
       stopReason = circuit.reason
+      break
+    }
+    if (TIER_ORDER.indexOf(tier.id) < TIER_ORDER.indexOf(START_FROM as TierId)) {
+      continue
+    }
+    if (TIER_ORDER.indexOf(tier.id) > TIER_ORDER.indexOf(STOP_AFTER as TierId)) {
       break
     }
 
@@ -743,8 +1179,8 @@ async function main() {
 
   const readyFinal = await checkReady()
   const allDeclared = TIERS.filter((t) => {
-    const order = ['U0', 'U1', 'U2', 'U3']
-    return order.indexOf(t.id) <= order.indexOf(STOP_AFTER as TierId)
+    const i = TIER_ORDER.indexOf(t.id)
+    return i <= TIER_ORDER.indexOf(STOP_AFTER as TierId)
   })
   const passedIds = tierResults.filter((t) => t.pass?.pass).map((t) => t.tier)
   const fullLadderPass =
@@ -754,7 +1190,10 @@ async function main() {
     at: new Date().toISOString(),
     standard: '1.7 U200×4 / R-016 / cyp-load-test',
     base: BASE,
+    startFrom: START_FROM,
     stopAfter: STOP_AFTER,
+    priorPass: PRIOR_PASS,
+    priorReport: PRIOR_REPORT || null,
     maxWorkers: MAX_WORKERS,
     cooldownMs: COOLDOWN_MS,
     circuit,

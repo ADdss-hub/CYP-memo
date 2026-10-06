@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   language: 'zh-CN',
   autoCleanLogs: true,
   logRetentionHours: 12,
+  purgeRelatedOnAccountDelete: true,
 }
 
 /**
@@ -39,6 +40,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const welcomeCompleted = computed(() => settings.value.welcomeCompleted)
   const autoCleanLogs = computed(() => settings.value.autoCleanLogs)
   const logRetentionHours = computed(() => settings.value.logRetentionHours)
+  const purgeRelatedOnAccountDelete = computed(
+    () => settings.value.purgeRelatedOnAccountDelete !== false
+  )
 
   /**
    * 加载设置
@@ -147,6 +151,13 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
+   * 账号注销后是否自动清除相关内容
+   */
+  async function setPurgeRelatedOnAccountDelete(value: boolean) {
+    await updateSettings({ purgeRelatedOnAccountDelete: value })
+  }
+
+  /**
    * 重置为默认设置
    */
   async function resetToDefaults() {
@@ -203,6 +214,7 @@ export const useSettingsStore = defineStore('settings', () => {
     welcomeCompleted,
     autoCleanLogs,
     logRetentionHours,
+    purgeRelatedOnAccountDelete,
     // 方法
     loadSettings,
     saveSettings,
@@ -214,6 +226,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setLanguage,
     setAutoCleanLogs,
     setLogRetentionHours,
+    setPurgeRelatedOnAccountDelete,
     resetToDefaults,
     clearSettings,
     exportSettings,

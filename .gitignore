@@ -56,6 +56,7 @@ support-bundles/
 *.sqlite3
 *.db
 packages/server/data/
+packages/server/data-loadtest/
 
 # Runtime CI17 / local scratch (HCM·LBN·edge profiles)
 /data/

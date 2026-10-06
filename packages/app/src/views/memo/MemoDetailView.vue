@@ -160,7 +160,7 @@ import { useMemoStore } from '../../stores/memo'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading, Modal } from '../../components'
-import { shareManager } from '@cyp-memo/shared'
+import { shareManager, sanitizeHtml } from '@cyp-memo/shared'
 import type { Memo, ShareLink } from '@cyp-memo/shared'
 
 const router = useRouter()
@@ -185,8 +185,7 @@ const memoId = computed(() => route.params.id as string)
 
 const renderedContent = computed(() => {
   if (!memo.value) return ''
-  // 直接返回 HTML 内容（已经是富文本格式）
-  return memo.value.content
+  return sanitizeHtml(memo.value.content)
 })
 
 const wordCount = computed(() => {
@@ -352,7 +351,8 @@ onMounted(async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: transparent;
+  overflow: hidden;
 }
 
 .error-container {
@@ -370,13 +370,14 @@ onMounted(async () => {
 
 .error-message {
   font-size: 16px;
-  color: #f56c6c;
+  color: var(--cyp-danger);
 }
 
 .detail-container {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .action-bar {
@@ -384,8 +385,12 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--cyp-chrome-bg);
+  border-bottom: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
+  flex-shrink: 0;
 }
 
 .left-actions,
@@ -398,21 +403,25 @@ onMounted(async () => {
   flex: 1;
   overflow-y: auto;
   padding: 40px 24px;
+  min-height: 0;
 }
 
 .memo-article {
   max-width: 800px;
   margin: 0 auto;
-  background: white;
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
   padding: 48px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .memo-title {
   font-size: 32px;
   font-weight: 700;
-  color: #303133;
+  color: var(--cyp-text);
   margin: 0 0 24px 0;
   line-height: 1.4;
 }
@@ -429,7 +438,7 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .meta-icon {
@@ -445,8 +454,8 @@ onMounted(async () => {
 
 .tag {
   padding: 6px 14px;
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--cyp-brand-tint);
+  color: var(--cyp-brand);
   border-radius: 16px;
   font-size: 14px;
   cursor: pointer;
@@ -454,43 +463,45 @@ onMounted(async () => {
 }
 
 .tag:hover {
-  background: #409eff;
-  color: white;
+  background: var(--cyp-brand);
+  color: #ffffff;
   transform: translateY(-2px);
 }
 
 .divider {
   height: 1px;
-  background: linear-gradient(to right, transparent, #e4e7ed, transparent);
+  background: linear-gradient(to right, transparent, var(--cyp-border), transparent);
   margin: 32px 0;
 }
 
 .memo-body {
   font-size: 16px;
   line-height: 1.8;
-  color: #303133;
+  color: var(--cyp-text);
   word-wrap: break-word;
 }
 
-/* Markdown 样式 */
 .memo-body :deep(h1) {
   font-size: 28px;
   font-weight: 700;
   margin: 32px 0 16px 0;
   padding-bottom: 8px;
-  border-bottom: 2px solid #e4e7ed;
+  border-bottom: 2px solid var(--cyp-border);
+  color: var(--cyp-text);
 }
 
 .memo-body :deep(h2) {
   font-size: 24px;
   font-weight: 700;
   margin: 28px 0 14px 0;
+  color: var(--cyp-text);
 }
 
 .memo-body :deep(h3) {
   font-size: 20px;
   font-weight: 600;
   margin: 24px 0 12px 0;
+  color: var(--cyp-text);
 }
 
 .memo-body :deep(p) {
@@ -510,24 +521,25 @@ onMounted(async () => {
 .memo-body :deep(blockquote) {
   margin: 20px 0;
   padding: 12px 20px;
-  border-left: 4px solid #409eff;
-  background: #f5f7fa;
-  color: #606266;
+  border-left: 4px solid var(--cyp-brand);
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-secondary);
 }
 
 .memo-body :deep(code) {
   padding: 2px 6px;
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   border-radius: 4px;
   font-family: var(--cyp-font-mono);
   font-size: 14px;
-  color: #e83e8c;
+  color: var(--cyp-brand-soft);
 }
 
 .memo-body :deep(pre) {
   margin: 20px 0;
   padding: 20px;
-  background: #282c34;
+  background: var(--cyp-bg-input);
+  border: 1px solid var(--cyp-border);
   border-radius: 8px;
   overflow-x: auto;
 }
@@ -535,7 +547,7 @@ onMounted(async () => {
 .memo-body :deep(pre code) {
   padding: 0;
   background: none;
-  color: #abb2bf;
+  color: var(--cyp-text-secondary);
 }
 
 .memo-body :deep(img) {
@@ -543,7 +555,7 @@ onMounted(async () => {
   height: auto;
   border-radius: 8px;
   margin: 20px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
 .memo-body :deep(table) {
@@ -555,24 +567,24 @@ onMounted(async () => {
 .memo-body :deep(th),
 .memo-body :deep(td) {
   padding: 12px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--cyp-border);
   text-align: left;
 }
 
 .memo-body :deep(th) {
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
   font-weight: 600;
 }
 
 .memo-body :deep(a) {
-  color: #409eff;
+  color: var(--cyp-brand);
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: all 0.2s;
 }
 
 .memo-body :deep(a:hover) {
-  border-bottom-color: #409eff;
+  border-bottom-color: var(--cyp-brand);
 }
 
 .memo-body :deep(ul[data-type='taskList']) {
@@ -599,20 +611,20 @@ onMounted(async () => {
 }
 
 .memo-body :deep(ul[data-type='taskList'] li[data-checked='true'] > div) {
-  color: var(--cyp-text-muted, #909399);
+  color: var(--cyp-text-muted);
   text-decoration: line-through;
 }
 
 .memo-body :deep(mark) {
   border-radius: 2px;
   padding: 0 2px;
-  background: var(--cyp-brand-tint, rgba(0, 153, 255, 0.16));
+  background: var(--cyp-brand-tint);
   color: inherit;
 }
 
 .memo-body :deep(hr) {
   border: none;
-  border-top: 1px solid var(--cyp-border, #e4e7ed);
+  border-top: 1px solid var(--cyp-border);
   margin: 24px 0;
 }
 
@@ -629,13 +641,13 @@ onMounted(async () => {
 .attachments-section {
   margin-top: 48px;
   padding-top: 32px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--cyp-border);
 }
 
 .attachments-title {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
   margin-bottom: 20px;
 }
 
@@ -650,16 +662,20 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: #f5f7fa;
+  background: var(--cyp-chrome-bg-soft);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .attachment-card:hover {
-  background: #ecf5ff;
+  background: var(--cyp-brand-tint);
+  border-color: var(--cyp-brand);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
 .attachment-icon {
@@ -673,16 +689,15 @@ onMounted(async () => {
 .attachment-name {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
   margin-bottom: 4px;
 }
 
 .attachment-action {
   font-size: 12px;
-  color: #409eff;
+  color: var(--cyp-brand);
 }
 
-/* 分享对话框 */
 .share-dialog {
   padding: 20px 0;
 }
@@ -702,7 +717,7 @@ onMounted(async () => {
 .share-option label {
   min-width: 80px;
   font-size: 14px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .share-select,
@@ -710,15 +725,17 @@ onMounted(async () => {
   flex: 1;
   height: 36px;
   padding: 0 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
 }
 
 .share-select:focus,
 .share-input:focus {
   outline: none;
-  border-color: #409eff;
+  border-color: var(--cyp-brand);
 }
 
 .share-result {
@@ -730,7 +747,7 @@ onMounted(async () => {
 .share-success {
   font-size: 16px;
   font-weight: 500;
-  color: #67c23a;
+  color: var(--cyp-success);
   margin: 0;
   text-align: center;
 }
@@ -744,30 +761,31 @@ onMounted(async () => {
   flex: 1;
   height: 40px;
   padding: 0 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--cyp-border);
   border-radius: 4px;
   font-size: 14px;
   font-family: var(--cyp-font-mono);
-  background: #f5f7fa;
+  background: var(--cyp-bg-input);
+  color: var(--cyp-text);
   cursor: pointer;
 }
 
 .share-link-input:focus {
   outline: none;
-  border-color: #409eff;
-  background: white;
+  border-color: var(--cyp-brand);
+  background: var(--cyp-bg-elevated);
 }
 
 .share-info {
   padding: 12px;
-  background: #f0f9ff;
-  border: 1px solid #bfdbfe;
+  background: var(--cyp-brand-tint);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 6px;
 }
 
 .info-item {
   font-size: 14px;
-  color: #1e40af;
+  color: var(--cyp-brand-soft);
   margin: 4px 0;
 }
 
@@ -778,7 +796,6 @@ onMounted(async () => {
   margin-top: 20px;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .action-bar {
     flex-direction: column;
@@ -810,77 +827,5 @@ onMounted(async () => {
   .attachments-grid {
     grid-template-columns: 1fr;
   }
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] .memo-detail-view {
-  background: #141414;
-}
-
-[data-theme='dark'] .action-bar,
-[data-theme='dark'] .memo-article {
-  background: #1d1e1f;
-  border-color: #414243;
-}
-
-[data-theme='dark'] .memo-title,
-[data-theme='dark'] .memo-body,
-[data-theme='dark'] .attachments-title,
-[data-theme='dark'] .attachment-name {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .memo-body :deep(h1) {
-  border-bottom-color: #414243;
-}
-
-[data-theme='dark'] .memo-body :deep(blockquote) {
-  background: #262727;
-  color: #a8abb2;
-}
-
-[data-theme='dark'] .memo-body :deep(code) {
-  background: #262727;
-}
-
-[data-theme='dark'] .memo-body :deep(th),
-[data-theme='dark'] .memo-body :deep(td) {
-  border-color: #414243;
-}
-
-[data-theme='dark'] .memo-body :deep(th) {
-  background: #262727;
-}
-
-[data-theme='dark'] .tag {
-  background: #337ecc;
-  color: white;
-}
-
-[data-theme='dark'] .tag:hover {
-  background: #409eff;
-}
-
-[data-theme='dark'] .divider {
-  background: linear-gradient(to right, transparent, #414243, transparent);
-}
-
-[data-theme='dark'] .attachments-section {
-  border-top-color: #414243;
-}
-
-[data-theme='dark'] .attachment-card {
-  background: #262727;
-}
-
-[data-theme='dark'] .attachment-card:hover {
-  background: #337ecc;
-}
-
-[data-theme='dark'] .share-select,
-[data-theme='dark'] .share-input {
-  background: #262727;
-  border-color: #414243;
-  color: #cfd3dc;
 }
 </style>

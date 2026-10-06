@@ -4,12 +4,13 @@
  */
 
 import express from 'express'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 import cors from 'cors'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
+import https from 'node:https'
 import { fileURLToPath } from 'url'
 import { getDiskSpace, MIN_DISK_SPACE_BYTES, getConfig, getMachineCapacity, type ContainerConfig } from './runtime-base/l0/infra/cfg/ready.js'
 import { database, getFileStorageState, getUploadRoot } from './runtime-base/l0/infra/db/ready.js'
@@ -139,7 +140,7 @@ import {
   resetCircuit,
   listCircuitSnapshotDetail,
 } from './runtime-base/l1/host/resil/ready.js'
-import { getKmsState } from './runtime-base/l1/mgmt/kms/ready.js'
+import { getKmsState } from './runtime-base/l1/mgmt/kms/client.js'
 import { zeroTrustGuard, getZeroTrustStatus, runPublicAccessProbe, isPublicAccessSecurityReady } from './runtime-base/l1/pub/acc/ready.js'
 import { getAuditState, listRecentAudits, recordAuditSafe } from './runtime-base/l1/host/audit/ready.js'
 import { getTracingState, getTraceTree, recordSpan, clearLogsViaBase, deleteOldLogsViaBase, cleanupLogFilesViaBase } from './runtime-base/l1/host/tracean/ready.js'
@@ -190,10 +191,17 @@ type HealthStatus = 'ok' | 'degraded' | 'unhealthy'
 const app = express()
 
 /**
+ * 网关层 Express 实例（产品统一入口端口 PORT）
+ * 职责：静态资源服务 + /api 反向代理 + /mcp 反向代理 + 健康检查
+ */
+const gatewayApp = express()
+
+/**
  * 配置在 bootstrap Phase0 完成前不可用；非法配置不得 listen（CFG-SYS-03）
  */
 let config!: ContainerConfig
 let PORT = 5170
+let API_PORT = 10170
 
 /** 上传目录：仅来自 bootstrap 登记的 dataDir/uploads（R-010） */
 let uploadDir = ''
@@ -261,7 +269,7 @@ app.use((req, res, next) => {
 app.use(zeroTrustGuard)
 // 网关服务：统一入口策略（探活/就绪路径放行；不落访问日志到自有文件）
 app.use((req, res, next) => {
-  if (req.path === '/healthz/ready' || req.path === '/api/health' || req.path === '/api/config') {
+  if (req.path === '/healthz/ready' || req.path === '/health/live' || req.path === '/api/health' || req.path === '/api/config') {
     return next()
   }
   return gatewayIngressMiddleware()(req, res, next)
@@ -300,19 +308,179 @@ app.use((req, res, next) => {
   next()
 })
 
-// ========== 静态文件服务（生产唯一基准 · 唯一产品壳 = app）==========
+// ========== API 反向代理（网关层 → API 服务层）==========
+/**
+ * 将 /api/* 请求反向代理到后端 API 服务（127.0.0.1:API_PORT）
+ * 保留所有请求头、trace_id、认证 token
+ * 参考 mcp-proxy.ts 的实现模式
+ */
+function proxyApiToBackend(req: Request, res: Response): void {
+  const targetHost = '127.0.0.1'
+  const targetPort = API_PORT
+  const originalUrl = req.originalUrl || req.url || req.path
+
+  // 保留所有请求头，更新 host
+  const headers: Record<string, string | string[] | undefined> = { ...req.headers }
+  headers.host = `${targetHost}:${targetPort}`
+  delete headers.connection
+
+  const proxyReq = https.request(
+    {
+      hostname: targetHost,
+      port: targetPort,
+      path: originalUrl,
+      method: req.method,
+      headers,
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2',
+      timeout: 120000, // 2 分钟超时
+    },
+    (proxyRes) => {
+      res.statusCode = proxyRes.statusCode || 502
+      // 转发响应头，跳过 connection 等 hop-by-hop 头
+      for (const [k, v] of Object.entries(proxyRes.headers)) {
+        if (v == null) continue
+        const lk = k.toLowerCase()
+        if (lk === 'connection' || lk === 'transfer-encoding') continue
+        res.setHeader(k, v)
+      }
+      res.setHeader('X-CYP-API-Ingress', 'gateway-proxy')
+      proxyRes.pipe(res)
+    }
+  )
+
+  proxyReq.on('error', (err) => {
+    if (res.headersSent) return
+    logger.warn('api.gateway.proxy_error', {
+      error: err instanceof Error ? err.message : String(err),
+      path: originalUrl,
+      method: req.method,
+    })
+    res.status(502).json({
+      success: false,
+      code: 'E502',
+      message: '后端 API 服务暂不可用',
+      data: { reason: 'API_BACKEND_DOWN', path: originalUrl },
+      timestamp: new Date().toISOString(),
+      request_id: (req as { requestId?: string }).requestId,
+    })
+  })
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy()
+    if (res.headersSent) return
+    res.status(504).json({
+      success: false,
+      code: 'E504',
+      message: '后端 API 服务超时',
+      data: { reason: 'API_BACKEND_TIMEOUT', path: originalUrl },
+      timestamp: new Date().toISOString(),
+      request_id: (req as { requestId?: string }).requestId,
+    })
+  })
+
+  req.pipe(proxyReq)
+}
+
+/**
+ * MCP 协议入站反代（网关层 → MCP 旁路服务）
+ * 复用 runtime-base 中的 mcp-proxy 逻辑
+ */
+function proxyMcpToSidecar(req: Request, res: Response): void {
+  const mcpPort = Number(process.env.CYP_MCP_HTTP_PORT || 13175)
+  const targetHost = '127.0.0.1'
+  const front = String(req.path || '').split('?')[0]
+  const originalUrl = req.originalUrl || req.url || front
+
+  // 路径重写：/mcp → /mcp, /mcp/discover → /discover, /mcp/healthz → /healthz
+  let destPath = originalUrl
+  const q = originalUrl.includes('?') ? originalUrl.slice(originalUrl.indexOf('?')) : ''
+  if (front === '/mcp/discover') {
+    destPath = `/discover${q}`
+  } else if (front === '/mcp/healthz') {
+    destPath = `/healthz${q}`
+  } else if (front === '/mcp' || front.startsWith('/mcp/')) {
+    destPath = originalUrl // 保持 /mcp 前缀（MCP sidecar 期望 /mcp）
+  }
+
+  const headers: Record<string, string | string[] | undefined> = { ...req.headers }
+  headers.host = `${targetHost}:${mcpPort}`
+  delete headers.connection
+
+  const proxyReq = https.request(
+    {
+      hostname: targetHost,
+      port: mcpPort,
+      path: destPath,
+      method: req.method,
+      headers,
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2',
+    },
+    (proxyRes) => {
+      res.statusCode = proxyRes.statusCode || 502
+      for (const [k, v] of Object.entries(proxyRes.headers)) {
+        if (v == null) continue
+        const lk = k.toLowerCase()
+        if (lk === 'connection') continue
+        res.setHeader(k, v)
+      }
+      res.setHeader('X-CYP-Mcp-Ingress', 'gateway-proxy')
+      proxyRes.pipe(res)
+    }
+  )
+
+  proxyReq.on('error', () => {
+    if (res.headersSent) return
+    res.status(502).json({
+      error: {
+        code: -32053,
+        message: 'MCP sidecar unavailable',
+        data: { reason: 'MCP_SIDECAR_DOWN' },
+      },
+    })
+  })
+
+  req.pipe(proxyReq)
+}
+
+function isMcpProtocolIngress(
+  method: string,
+  path: string,
+  headers: Request['headers']
+): boolean {
+  const p = String(path || '').split('?')[0]
+  const m = String(method || 'GET').toUpperCase()
+  if (p === '/mcp/discover' || p === '/mcp/healthz') return true
+  if (p !== '/mcp') return false
+  if (m === 'POST' || m === 'DELETE' || m === 'PUT') return true
+  if (m === 'GET') {
+    const proto = String(headers['mcp-protocol-version'] || '').trim()
+    const accept = String(headers.accept || '').toLowerCase()
+    return Boolean(proto) || accept.includes('text/event-stream')
+  }
+  return false
+}
+
+// ========== 网关层安全中间件 ==========
+// CSP 头：应用于网关层所有响应（含静态资源、API 代理响应、MCP 代理响应）
+gatewayApp.use(contentSecurityPolicy)
+// 请求 ID：网关层生成 request_id，便于跨层追踪
+gatewayApp.use(attachRequestIds)
+
+// ========== 静态文件服务（网关层 · 生产唯一基准 · 唯一产品壳 = app）==========
 {
   const appDistPath = path.join(__dirname, '../../app/dist')
   const appDistExists = fs.existsSync(appDistPath)
 
   // VIEW-05：废止独立 /admin 静态第二产品；旧书签进统一壳
-  app.use('/admin', (_req, res) => {
+  gatewayApp.use('/admin', (_req, res) => {
     res.redirect(302, '/tenant')
   })
 
   if (appDistExists) {
-    app.use(express.static(appDistPath))
-    logger.info('静态文件服务已启用（唯一壳 app）', {
+    gatewayApp.use(express.static(appDistPath))
+    logger.info('静态文件服务已启用（网关层 · 唯一壳 app）', {
       appPath: appDistPath,
       appExists: appDistExists,
       appEnv: 'prod',
@@ -334,6 +502,18 @@ app.use('/api', authenticate)
 app.get('/healthz/ready', (_req, res) => {
   const { statusCode, body } = buildReadyResponse()
   res.status(statusCode).json(body)
+})
+
+/**
+ * 存活探针：仅确认进程存活，不检查数据库/就绪态/任何依赖
+ * bootstrap 完成前即可用，响应时间 < 1s
+ */
+app.get('/health/live', (_req, res) => {
+  res.status(200).json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    version: config?.version ?? '0.0.0',
+  })
 })
 
 // 健康检查（含版本、运行时间、数据库与存储空间）
@@ -3374,16 +3554,18 @@ app.delete('/api/cleanup/all', requirePermission('tenant_database'), async (req,
   }
 })
 
-// ========== SPA 路由回退（唯一产品壳 app · VIEW-05）==========
+// ========== SPA 路由回退（网关层 · 唯一产品壳 app · VIEW-05）==========
 {
   const appDistPath = path.join(__dirname, '../../app/dist')
   const appDistExists = fs.existsSync(appDistPath)
 
   if (appDistExists) {
-    app.get('*', (req, res, next) => {
+    gatewayApp.get('*', (req, res, next) => {
       if (
         req.path.startsWith('/api') ||
         req.path.startsWith('/healthz') ||
+        req.path.startsWith('/health/') ||
+        req.path.startsWith('/mcp') ||
         req.path.startsWith('/admin')
       ) {
         return next()
@@ -3433,6 +3615,7 @@ async function start() {
     // Phase0 已校验配置；此处取单例供路由使用
     config = getConfig()
     PORT = config.port
+    API_PORT = config.apiPort
 
     // 同步 Phase2 登记的上传目录（唯一根 = config.dataDir/uploads）
     try {
@@ -3444,19 +3627,75 @@ async function start() {
       }
     }
 
-    // 启动 HTTP 服务器 - 绑定到所有网络接口 (0.0.0.0)
-    app.listen(PORT, '0.0.0.0', () => {
-      logger.startup(`🚀 CYP-memo API 服务器运行在 http://0.0.0.0:${PORT}`, {
+    // ========== 网关层：挂载 /api 代理、/mcp 代理 ==========
+    // /api/* → 后端 API 服务（127.0.0.1:API_PORT）
+    gatewayApp.use('/api', (req, res) => {
+      proxyApiToBackend(req, res)
+    })
+
+    // /healthz/* → 代理到后端 API 服务（就绪探针）
+    gatewayApp.use('/healthz', (req, res) => {
+      proxyApiToBackend(req, res)
+    })
+
+    // /health/* → 代理到后端 API 服务（存活探针）
+    gatewayApp.use('/health', (req, res) => {
+      proxyApiToBackend(req, res)
+    })
+
+    // /mcp → MCP 旁路服务（127.0.0.1:13175）
+    gatewayApp.use((req, res, next) => {
+      if (isMcpProtocolIngress(req.method, req.path, req.headers)) {
+        proxyMcpToSidecar(req, res)
+        return
+      }
+      next()
+    })
+
+    // 网关层全局错误处理
+    gatewayApp.use((err: Error, _req: Request, res: Response, _next: () => void) => {
+      logger.error('gateway.error', err)
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          code: 'E500',
+          message: '网关内部错误',
+          timestamp: new Date().toISOString(),
+        })
+      }
+    })
+
+    // ========== 启动后端 API 服务（仅环回，不直接对外暴露）==========
+    app.listen(API_PORT, '127.0.0.1', () => {
+      logger.startup(`🔧 CYP-memo 后端 API 服务运行在 http://127.0.0.1:${API_PORT}`, {
+        trace_id: boot.trace_id,
+        totalDurationMs: boot.totalDurationMs
+      })
+      logger.info('api_server.listen', {
+        trace_id: boot.trace_id,
+        apiPort: API_PORT,
+        bind: '127.0.0.1',
+        bootstrapMs: boot.totalDurationMs,
+      })
+    })
+
+    // ========== 启动网关层（产品统一入口，对外暴露）==========
+    gatewayApp.listen(PORT, '0.0.0.0', () => {
+      logger.startup(`🚀 CYP-memo 产品网关运行在 http://0.0.0.0:${PORT}`, {
         trace_id: boot.trace_id,
         totalDurationMs: boot.totalDurationMs
       })
       logger.startup(`📊 健康检查: http://localhost:${PORT}/api/health`)
       logger.startup(`✅ 就绪探针: http://localhost:${PORT}/healthz/ready`)
+      logger.startup(`💚 存活探针: http://localhost:${PORT}/health/live`)
       logger.startup(`🌐 外部访问: http://<your-ip>:${PORT}`)
+      logger.startup(`🔌 API 后端: 127.0.0.1:${API_PORT}（仅环回）`)
+      logger.startup(`🔌 MCP 旁路: 127.0.0.1:${Number(process.env.CYP_MCP_HTTP_PORT || 13175)}（仅环回）`)
 
-      logger.info('server.listen', {
+      logger.info('gateway.listen', {
         trace_id: boot.trace_id,
         port: config.port,
+        apiPort: config.apiPort,
         dataDir: config.dataDir,
         logLevel: config.logLevel,
         nodeEnv: config.nodeEnv,
@@ -3471,11 +3710,12 @@ async function start() {
         }))
       })
 
-      logger.audit(`服务器启动成功，监听端口 ${PORT}`, {
+      logger.audit(`服务器启动成功，网关端口 ${PORT}，API 端口 ${API_PORT}（仅环回）`, {
         type: 'runtime',
         action: 'server_start',
         context: {
           port: config.port,
+          apiPort: config.apiPort,
           dataDir: config.dataDir,
           logLevel: config.logLevel,
           nodeEnv: config.nodeEnv,

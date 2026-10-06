@@ -45,25 +45,31 @@
           </div>
         </div>
 
-        <!-- 存储空间信息 -->
+        <!-- 系统存储空间 vs 文件库存储空间（R-010：同 dataDir 根，两项指标分称，禁止混用数字） -->
         <el-card class="storage-card" shadow="hover">
           <div class="storage-info">
             <div class="storage-icon">
               <el-icon><FolderOpened /></el-icon>
             </div>
             <div class="storage-details">
-              <div class="storage-label">存储空间</div>
+              <div class="storage-label">文件库存储空间</div>
               <div class="storage-value">
-                {{ formatFileSize(storageInfo.used) }} / {{ formatFileSize(storageInfo.total) }}
+                本范围占用 {{ formatFileSize(storageInfo.accountUsed) }}
               </div>
               <div class="storage-account">
-                本账号文件占用 {{ formatFileSize(storageInfo.accountUsed) }} · 可用
+                主账号与子账号合计（开启子账号隔离时仅本人）· 附件文件体积，非整卷已用
+              </div>
+              <div class="storage-system-label">系统存储空间</div>
+              <div class="storage-account">
+                已用 {{ formatFileSize(storageInfo.used) }} / 总量
+                {{ formatFileSize(storageInfo.total) }} · 可用
                 {{ formatFileSize(storageInfo.available) }}
               </div>
               <el-progress
                 :percentage="storagePercentage"
                 :color="getStorageColor(storagePercentage)"
                 :stroke-width="8"
+                :aria-label="`系统存储空间已用 ${storagePercentage}%`"
               />
             </div>
           </div>
@@ -160,6 +166,9 @@
             <div class="attachment-name" :title="file.filename">
               {{ file.filename }}
             </div>
+            <div v-if="file.uploaderUsername" class="attachment-uploader">
+              上传者：{{ file.uploaderUsername }}
+            </div>
             <div class="attachment-memo">
               <template v-if="linkedMemosOf(file).length === 0">
                 <span class="memo-empty">未关联备忘录</span>
@@ -212,6 +221,15 @@
                 {{ formatFileSize(file.size) }}
               </span>
             </div>
+            <label class="mcp-option" @click.stop>
+              <input
+                type="checkbox"
+                :checked="Boolean(file.mcpPublic)"
+                :disabled="mcpPublicBusyId === file.id"
+                @change="toggleMcpPublic(file, ($event.target as HTMLInputElement).checked)"
+              />
+              <span>允许 MCP 公开</span>
+            </label>
           </div>
 
             <div class="attachment-actions">
@@ -314,6 +332,7 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 const selectedFiles = ref<string[]>([])
 const previewVisible = ref(false)
 const previewFile = ref<FileMetadata | null>(null)
+const mcpPublicBusyId = ref<string | null>(null)
 
 // 关联备忘录对话框
 const linkMemoVisible = ref(false)
@@ -619,7 +638,7 @@ async function handleDelete(file: FileMetadata) {
       usage.length > 0
         ? `该文件正被 ${usage.length} 条备忘录使用（${usage
             .map((memo) => memo.title || '无标题备忘录')
-            .join('、')}），删除后这些备忘录都不再包含此文件。`
+            .join('、')}）。删除后会从这些备忘录中去掉该文件，不会删除备忘录本身。`
         : '此操作不可恢复。'
     await ElMessageBox.confirm(
       `确定要删除文件 "${file.filename}" 吗？${usageText}`,
@@ -666,7 +685,7 @@ async function handleBatchDelete() {
     )
     const usageText =
       affected.length > 0
-        ? `其中 ${affected.length} 个文件正被备忘录使用，删除后相关备忘录都会失去这些文件。`
+        ? `其中 ${affected.length} 个文件正被备忘录使用；删除后只会从备忘录中去掉这些文件，不会删除备忘录。`
         : '此操作不可恢复。'
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedFiles.value.length} 个文件吗？${usageText}`,
@@ -775,6 +794,27 @@ async function confirmLinkMemo() {
   } catch (err) {
     console.error('更新备忘录关联失败:', err)
     toast.error('更新备忘录关联失败')
+  }
+}
+
+/**
+ * 切换文件 MCP 公开标记（O7 flag；对齐设计 10.3）
+ */
+async function toggleMcpPublic(file: FileMetadata, next: boolean) {
+  if (mcpPublicBusyId.value) return
+  const prev = Boolean(file.mcpPublic)
+  if (prev === next) return
+  mcpPublicBusyId.value = file.id
+  file.mcpPublic = next
+  try {
+    await fileManager.updateFile(file.id, { mcpPublic: next })
+    toast.success(next ? '已允许 MCP 公开' : '已取消 MCP 公开')
+  } catch (err) {
+    file.mcpPublic = prev
+    console.error('更新 MCP 公开标记失败:', err)
+    toast.error('更新 MCP 公开标记失败')
+  } finally {
+    mcpPublicBusyId.value = null
   }
 }
 
@@ -915,6 +955,13 @@ onUnmounted(() => {
   margin-bottom: 4px;
 }
 
+.storage-system-label {
+  font-size: 14px;
+  color: var(--cyp-text-muted);
+  margin: 12px 0 4px;
+  font-weight: 600;
+}
+
 .storage-value {
   font-size: 18px;
   font-weight: 600;
@@ -935,9 +982,12 @@ onUnmounted(() => {
   align-items: center;
   margin-bottom: 16px;
   padding: 16px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .toolbar-left {
@@ -993,10 +1043,10 @@ onUnmounted(() => {
   top: 12px;
   left: 12px;
   z-index: 10;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
   border-radius: 4px;
   padding: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--cyp-chrome-shadow);
 }
 
 /* 预览区域 */
@@ -1033,6 +1083,12 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.attachment-uploader {
+  font-size: 12px;
+  color: var(--cyp-text-secondary);
+  margin-bottom: 6px;
 }
 
 .selection-impact {
@@ -1105,6 +1161,24 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.mcp-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cyp-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.mcp-option input {
+  margin: 0;
+  accent-color: var(--cyp-brand);
 }
 
 .meta-item {

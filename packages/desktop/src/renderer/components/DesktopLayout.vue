@@ -33,11 +33,15 @@ const goToProfile = () => {
 
 const handleLogout = async () => {
   try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '确认退出', {
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      '确定退出当前账号吗？退出后需重新登录。不会注销账号，也不会清除数据。',
+      '退出当前账号',
+      {
+        confirmButtonText: '退出',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
 
     await authStore.logout()
     router.push('/login')
@@ -100,7 +104,7 @@ onUnmounted(() => {
                   </el-dropdown-item>
                   <el-dropdown-item divided @click="handleLogout">
                     <el-icon><SwitchButton /></el-icon>
-                    <span>退出登录</span>
+                    <span>退出当前账号</span>
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -141,13 +145,16 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #f5f7fa;
+  background: transparent;
 }
 
 .app-header {
   height: 60px;
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--cyp-chrome-bg);
+  border-bottom: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   display: flex;
   align-items: center;
   padding: 0 20px;
@@ -169,7 +176,7 @@ onUnmounted(() => {
   cursor: pointer;
   padding: 8px;
   font-size: 20px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,22 +185,22 @@ onUnmounted(() => {
 }
 
 .menu-toggle:hover {
-  background: #f5f7fa;
-  color: #409eff;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-brand);
 }
 
 .app-title {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cyp-text);
 }
 
 .app-badge {
   font-size: 10px;
   padding: 2px 6px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
   border-radius: 4px;
   font-weight: 500;
 }
@@ -227,18 +234,18 @@ onUnmounted(() => {
 }
 
 .user-dropdown-trigger:hover {
-  background: #f5f7fa;
+  background: var(--cyp-bg-muted);
 }
 
 .user-icon {
   font-size: 20px;
-  color: #606266;
+  color: var(--cyp-text-secondary);
 }
 
 .username {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--cyp-text);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -247,7 +254,7 @@ onUnmounted(() => {
 
 .dropdown-icon {
   font-size: 14px;
-  color: #909399;
+  color: var(--cyp-text-muted);
 }
 
 .app-main {
@@ -258,8 +265,10 @@ onUnmounted(() => {
 
 .app-sidebar {
   width: 240px;
-  background: white;
-  border-right: 1px solid #e4e7ed;
+  background: var(--cyp-chrome-bg);
+  border-right: 1px solid var(--cyp-chrome-border);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   overflow-y: auto;
   transition: all 0.3s;
 }
@@ -277,9 +286,9 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  background: transparent;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .app-header {
     padding: 0 12px;
@@ -303,7 +312,7 @@ onUnmounted(() => {
     top: 60px;
     bottom: 60px;
     z-index: 99;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.28);
   }
 
   .app-sidebar.collapsed {
@@ -312,48 +321,7 @@ onUnmounted(() => {
 
   .app-content {
     padding: 12px;
-    padding-bottom: 72px; /* 为底部导航栏留空间 */
+    padding-bottom: 72px;
   }
-}
-
-/* 深色主题支持 */
-[data-theme='dark'] .app-layout {
-  background: #0a0a0a;
-}
-
-[data-theme='dark'] .app-header {
-  background: #1d1e1f;
-  border-bottom-color: #414243;
-}
-
-[data-theme='dark'] .app-title {
-  color: #e5eaf3;
-}
-
-[data-theme='dark'] .menu-toggle {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .menu-toggle:hover {
-  background: #262727;
-  color: #409eff;
-}
-
-[data-theme='dark'] .user-dropdown-trigger:hover {
-  background: #262727;
-}
-
-[data-theme='dark'] .user-icon,
-[data-theme='dark'] .username {
-  color: #cfd3dc;
-}
-
-[data-theme='dark'] .app-sidebar {
-  background: #1d1e1f;
-  border-right-color: #414243;
-}
-
-[data-theme='dark'] .app-content {
-  background: #0a0a0a;
 }
 </style>

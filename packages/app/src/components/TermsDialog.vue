@@ -31,7 +31,7 @@
         <div class="welcome-card">
           <div class="welcome-icon">🎉</div>
           <div class="welcome-text">
-            <h3>欢迎使用 CYP-memo 容器备忘录系统</h3>
+            <h3>欢迎使用 CYP-memo 备忘录系统</h3>
             <p>一款现代化、安全可靠的个人备忘录管理工具</p>
           </div>
         </div>
@@ -64,7 +64,7 @@
           <div class="info-grid">
             <div class="info-item">
               <span class="info-label">软件名称</span>
-              <span class="info-value">CYP-memo 容器备忘录系统</span>
+              <span class="info-value">CYP-memo 备忘录系统</span>
             </div>
             <div class="info-item">
               <span class="info-label">当前版本</span>
@@ -194,11 +194,14 @@ const handleAccept = () => {
 </script>
 
 <style scoped>
-/* 对话框基础样式 */
 .terms-dialog :deep(.el-dialog) {
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow), 0 25px 80px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .terms-dialog :deep(.el-dialog__header) {
@@ -207,6 +210,7 @@ const handleAccept = () => {
 
 .terms-dialog :deep(.el-dialog__body) {
   padding: 0;
+  background: transparent;
 }
 
 .terms-wrapper {
@@ -215,12 +219,11 @@ const handleAccept = () => {
   max-height: 85vh;
 }
 
-/* 头部区域 */
 .terms-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
   padding: 2rem 2.5rem;
   text-align: center;
-  color: white;
+  color: #ffffff;
 }
 
 .header-icon {
@@ -255,22 +258,21 @@ const handleAccept = () => {
   margin: 0;
 }
 
-/* 内容区域 */
 .terms-content {
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem 2rem;
   max-height: 400px;
-  background: #fafbfc;
+  background: var(--cyp-chrome-bg-soft);
 }
 
-/* 欢迎卡片 */
 .welcome-card {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1.25rem;
-  background: linear-gradient(135deg, #e0e7ff 0%, #f0e6ff 100%);
+  background: var(--cyp-brand-tint);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
   margin-bottom: 1.5rem;
 }
@@ -283,17 +285,16 @@ const handleAccept = () => {
 .welcome-text h3 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #4338ca;
+  color: var(--cyp-brand-soft);
   margin: 0 0 0.25rem 0;
 }
 
 .welcome-text p {
   font-size: 0.875rem;
-  color: #6366f1;
+  color: var(--cyp-text-secondary);
   margin: 0;
 }
 
-/* 协议条款 */
 .terms-sections {
   display: flex;
   flex-direction: column;
@@ -301,11 +302,11 @@ const handleAccept = () => {
 }
 
 .terms-section {
-  background: white;
+  background: var(--cyp-chrome-bg-panel);
   border-radius: 12px;
   padding: 1.25rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e5e7eb;
+  box-shadow: var(--cyp-chrome-shadow);
+  border: 1px solid var(--cyp-chrome-border);
 }
 
 .section-header {
@@ -321,8 +322,8 @@ const handleAccept = () => {
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
@@ -332,13 +333,13 @@ const handleAccept = () => {
 .section-title {
   font-size: 1rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--cyp-text);
   margin: 0;
 }
 
 .section-content p {
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--cyp-text-secondary);
   line-height: 1.7;
   margin: 0;
 }
@@ -357,24 +358,23 @@ const handleAccept = () => {
   align-items: flex-start;
   gap: 0.5rem;
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--cyp-text-secondary);
 }
 
 .list-icon {
-  color: #10b981;
+  color: var(--cyp-success);
   font-weight: bold;
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-/* 信息卡片 */
 .info-card {
-  background: white;
+  background: var(--cyp-chrome-bg-panel);
   border-radius: 12px;
   padding: 1.25rem;
   margin-top: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e5e7eb;
+  box-shadow: var(--cyp-chrome-shadow);
+  border: 1px solid var(--cyp-chrome-border);
 }
 
 .info-header {
@@ -383,7 +383,7 @@ const handleAccept = () => {
   gap: 0.5rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .info-icon {
@@ -393,7 +393,7 @@ const handleAccept = () => {
 .info-title {
   font-size: 1rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--cyp-text);
 }
 
 .info-grid {
@@ -414,14 +414,14 @@ const handleAccept = () => {
 
 .info-label {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--cyp-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .info-value {
   font-size: 0.9rem;
-  color: #374151;
+  color: var(--cyp-text-secondary);
   font-weight: 500;
 }
 
@@ -429,25 +429,25 @@ const handleAccept = () => {
   display: inline-flex;
   align-items: center;
   padding: 0.125rem 0.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
   border-radius: 6px;
   font-size: 0.8rem;
   width: fit-content;
 }
 
 .email-link {
-  color: #667eea;
+  color: var(--cyp-brand);
 }
 
-/* 开源许可徽章 */
 .license-badge {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  background: color-mix(in srgb, var(--cyp-warning) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyp-warning) 35%, var(--cyp-border));
   border-radius: 10px;
   margin-top: 1rem;
 }
@@ -458,18 +458,17 @@ const handleAccept = () => {
 
 .license-text {
   font-size: 0.9rem;
-  color: #92400e;
+  color: var(--cyp-warning);
 }
 
 .license-text strong {
-  color: #78350f;
+  color: var(--cyp-warning-hover);
 }
 
-/* 底部区域 */
 .terms-footer {
   padding: 1.5rem 2rem;
-  background: white;
-  border-top: 1px solid #e5e7eb;
+  background: var(--cyp-chrome-bg);
+  border-top: 1px solid var(--cyp-chrome-border);
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -481,10 +480,10 @@ const handleAccept = () => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: #fef3c7;
+  background: color-mix(in srgb, var(--cyp-warning) 18%, transparent);
   border-radius: 8px;
   font-size: 0.85rem;
-  color: #92400e;
+  color: var(--cyp-warning);
   animation: pulse 2s infinite;
 }
 
@@ -502,7 +501,6 @@ const handleAccept = () => {
   50% { transform: translateY(3px); }
 }
 
-/* 自定义复选框 */
 .agreement-section {
   display: flex;
   justify-content: center;
@@ -528,13 +526,14 @@ const handleAccept = () => {
 .checkbox-mark {
   width: 24px;
   height: 24px;
-  border: 2px solid #d1d5db;
+  border: 2px solid var(--cyp-border);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  background: var(--cyp-bg-input);
 }
 
 .checkbox-mark svg {
@@ -543,11 +542,11 @@ const handleAccept = () => {
   opacity: 0;
   transform: scale(0);
   transition: all 0.2s ease;
-  color: white;
+  color: #ffffff;
 }
 
 .custom-checkbox.checked .checkbox-mark {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
   border-color: transparent;
 }
 
@@ -558,11 +557,10 @@ const handleAccept = () => {
 
 .checkbox-label {
   font-size: 0.95rem;
-  color: #374151;
+  color: var(--cyp-text);
   font-weight: 500;
 }
 
-/* 确认按钮 */
 .accept-button {
   display: flex;
   align-items: center;
@@ -576,19 +574,19 @@ const handleAccept = () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: #e5e7eb;
-  color: #9ca3af;
+  background: var(--cyp-bg-muted);
+  color: var(--cyp-text-muted);
 }
 
 .accept-button.enabled {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 15px var(--cyp-brand-tint-strong);
 }
 
 .accept-button.enabled:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 6px 20px var(--cyp-brand-tint-strong);
 }
 
 .accept-button:disabled {
@@ -599,94 +597,6 @@ const handleAccept = () => {
   font-size: 1.25rem;
 }
 
-/* 深色模式 */
-.dark-mode .terms-content {
-  background: #1f2937;
-}
-
-.dark-mode .welcome-card {
-  background: linear-gradient(135deg, #312e81 0%, #4c1d95 100%);
-}
-
-.dark-mode .welcome-text h3 {
-  color: #c7d2fe;
-}
-
-.dark-mode .welcome-text p {
-  color: #a5b4fc;
-}
-
-.dark-mode .terms-section {
-  background: #374151;
-  border-color: #4b5563;
-}
-
-.dark-mode .section-title {
-  color: #f9fafb;
-}
-
-.dark-mode .section-content p,
-.dark-mode .section-list li {
-  color: #d1d5db;
-}
-
-.dark-mode .info-card {
-  background: #374151;
-  border-color: #4b5563;
-}
-
-.dark-mode .info-header {
-  border-bottom-color: #4b5563;
-}
-
-.dark-mode .info-title {
-  color: #f9fafb;
-}
-
-.dark-mode .info-label {
-  color: #9ca3af;
-}
-
-.dark-mode .info-value {
-  color: #e5e7eb;
-}
-
-.dark-mode .license-badge {
-  background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
-}
-
-.dark-mode .license-text {
-  color: #fef3c7;
-}
-
-.dark-mode .license-text strong {
-  color: #fde68a;
-}
-
-.dark-mode .terms-footer {
-  background: #1f2937;
-  border-top-color: #374151;
-}
-
-.dark-mode .scroll-hint {
-  background: #78350f;
-  color: #fef3c7;
-}
-
-.dark-mode .checkbox-label {
-  color: #e5e7eb;
-}
-
-.dark-mode .checkbox-mark {
-  border-color: #6b7280;
-}
-
-.dark-mode .accept-button {
-  background: #4b5563;
-  color: #9ca3af;
-}
-
-/* 响应式设计 */
 @media (max-width: 640px) {
   .terms-dialog :deep(.el-dialog) {
     width: 95% !important;

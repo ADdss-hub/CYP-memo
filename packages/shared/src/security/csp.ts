@@ -22,10 +22,10 @@ export function buildAppCsp(isLocalTooling: boolean, remoteServerUrl?: string): 
 
   const connectSources = [
     "'self'",
-    'http://localhost:*',
     'http://127.0.0.1:*',
-    'ws://localhost:*',
+    'https://127.0.0.1:*',
     'ws://127.0.0.1:*',
+    'wss://127.0.0.1:*',
   ]
   if (remoteServerUrl) {
     connectSources.push(remoteServerUrl)

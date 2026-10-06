@@ -77,19 +77,19 @@ const config = {
     target: [
       {
         target: 'nsis',
-        arch: ['x64'],  // 移除 ia32，现在很少有 32 位系统了
+        arch: ['x64', 'arm64'],
       },
       {
         target: 'portable',
-        arch: ['x64'],
+        arch: ['x64', 'arm64'],
       },
     ],
     icon: 'resources/icon.ico',
     // 代码签名配置（需求 7.6）
     // 需要设置环境变量: CSC_LINK, CSC_KEY_PASSWORD
     // 或者使用 Windows 证书存储
-    signingHashAlgorithms: ['sha256'],
-    signDlls: true,
+    // 注：electron-builder 26 已移除 signingHashAlgorithms / signDlls 两个选项，
+    // 签名算法改由签名工具链按默认策略决定（Windows 默认 sha256），故不再显式声明。
     // 请求管理员权限（如果需要）
     requestedExecutionLevel: 'asInvoker',
   },
@@ -171,11 +171,11 @@ const config = {
     target: [
       {
         target: 'AppImage',  // 通用格式，大多数用户用这个
-        arch: ['x64'],
+        arch: ['x64', 'arm64'],
       },
       {
         target: 'deb',  // Debian/Ubuntu 用户
-        arch: ['x64'],
+        arch: ['x64', 'arm64'],
       },
       // rpm 和 tar.gz 按需启用，减少构建时间
     ],
@@ -185,13 +185,10 @@ const config = {
     category: 'Office',
     synopsis: 'CYP-memo 备忘录应用',
     description: '一个简洁高效的备忘录管理应用，支持离线使用和多设备同步。',
-    desktop: {
-      Name: 'CYP-memo',
-      Comment: '备忘录管理应用',
-      Categories: 'Office;Utility;',
-      Keywords: 'memo;note;备忘录;笔记;',
-      StartupWMClass: 'cyp-memo',
-    },
+    // 龙芯 loong64：electron-builder 26 无官方 target，禁止用 arm64 包冒充；Server pack 用 uname loongarch64→loong64
+    // 注：electron-builder 26 已废弃 linux.desktop 字段（schema 仅接受 null），
+    // 桌面条目（.desktop）元数据改由打包目标按默认策略生成。
+    // 如需自定义，请改用 deb / rpm / AppImage 各自的段或外部模板文件。
     // 文件关联（可选）
     // mimeTypes: ['x-scheme-handler/cyp-memo'],
   },
@@ -233,12 +230,8 @@ const config = {
   // AppImage 配置
   appImage: {
     artifactName: '${productName}-${version}.${ext}',
-    // 桌面集成
-    desktop: {
-      Name: 'CYP-memo',
-      Comment: '备忘录管理应用',
-      Categories: 'Office;Utility;',
-    },
+    // 桌面集成：electron-builder 26 已废弃 desktop 字段（schema 仅接受 null），
+    // AppImage 的桌面条目改由默认模板生成。
   },
 
   // ==================== 自动更新配置（需求 7.1）====================

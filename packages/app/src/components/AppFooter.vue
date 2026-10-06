@@ -41,8 +41,11 @@ const year = new Date().getFullYear()
   z-index: 90;
   flex-shrink: 0;
   width: 100%;
-  background: var(--cyp-bg-page);
-  border-top: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg);
+  border-top: 1px solid var(--cyp-chrome-border);
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   padding: 12px 16px;
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
   text-align: center;

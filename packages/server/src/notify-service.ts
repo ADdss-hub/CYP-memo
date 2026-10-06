@@ -148,20 +148,96 @@ function writeOutbox(rows: NotifyInboxItem[]): void {
   persistOutbox(next)
 }
 
+/** 界面默认简体中文（P2 #19）：禁止把模板机读键直接当标题 */
+const ENTITY_TYPE_ZH: Record<string, string> = {
+  memo: '备忘录',
+  file: '文件',
+  user: '账号',
+  share: '分享',
+  setting: '系统设置',
+  memo_history: '备忘录历史',
+  share_comment: '分享评论',
+}
+
+const OP_ZH: Record<string, string> = {
+  create: '已创建',
+  update: '已更新',
+  delete: '已删除',
+  changed: '已变更',
+}
+
+const TEMPLATE_TITLE_ZH: Record<string, string> = {
+  entity_create: '数据已创建',
+  entity_update: '数据已更新',
+  entity_delete: '数据已删除',
+  entity_changed: '数据已变更',
+  memo_created: '备忘录已创建',
+  client_upgrade_required: '需要升级客户端',
+  session_expired: '会话已过期',
+  share_comment_received: '收到分享评论',
+  ops_alert: '运维告警',
+}
+
+function isMachineNotifyKey(text: string): boolean {
+  return /^[a-z][a-z0-9_]*$/i.test(text)
+}
+
+function titleFromEntityOp(entityType: string, op: string): string {
+  const entityZh = ENTITY_TYPE_ZH[entityType] || '数据'
+  const opZh = OP_ZH[op] || '已变更'
+  return `${entityZh}${opZh}`
+}
+
+function resolveNotifyTitle(row: Pick<NotifyInboxItem, 'title' | 'templateId'>): string {
+  const raw = String(row.title || '').trim()
+  const tid = String(row.templateId || '').trim()
+  if (raw && !isMachineNotifyKey(raw) && raw !== tid) return raw
+  if (raw && TEMPLATE_TITLE_ZH[raw]) return TEMPLATE_TITLE_ZH[raw]
+  if (tid && TEMPLATE_TITLE_ZH[tid]) return TEMPLATE_TITLE_ZH[tid]
+  if (tid.startsWith('entity_')) {
+    const op = tid.slice('entity_'.length)
+    const opZh = OP_ZH[op] || '已变更'
+    return `数据${opZh}`
+  }
+  if (raw) return raw
+  return '系统通知'
+}
+
+function resolveNotifyBody(row: Pick<NotifyInboxItem, 'body' | 'templateId' | 'title'>): string {
+  const body = String(row.body || '').trim()
+  if (body) return body
+  const tid = String(row.templateId || '').trim()
+  if (tid.startsWith('entity_')) return '系统已记录此项变更'
+  if (tid === 'memo_created') return '新备忘录已保存'
+  if (tid === 'session_expired') return '请重新登录'
+  if (tid === 'client_upgrade_required') return '当前客户端版本过旧，请升级后继续使用'
+  return ''
+}
+
+/** 读出时中文化展示；不改写 outbox 落盘 */
+function presentNotifyForUi(row: NotifyInboxItem): NotifyInboxItem {
+  const title = resolveNotifyTitle(row)
+  const body = resolveNotifyBody(row)
+  if (title === row.title && body === (row.body || '')) return row
+  return { ...row, title, body }
+}
+
 function newerThan(userId: string, since: string): NotifyInboxItem[] {
   return readOutbox()
     .filter((r) => r.userId === userId && String(r.at) > since)
     .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+    .map(presentNotifyForUi)
 }
 
 function wakeWaiters(userId: string, item: NotifyInboxItem): void {
   const list = waiters.get(userId)
   if (!list || list.length === 0) return
   const remain: NotifyWaiter[] = []
+  const presented = presentNotifyForUi(item)
   for (const w of list) {
     if (String(item.at) > w.since) {
       clearTimeout(w.timer)
-      w.resolve([item])
+      w.resolve([presented])
     } else {
       remain.push(w)
     }
@@ -185,7 +261,7 @@ export function waitUserNotifications(
   return new Promise((resolve) => {
     const entry: NotifyWaiter = {
       since,
-      resolve: (items) => resolve(items),
+      resolve: (items) => resolve(items.map(presentNotifyForUi)),
       timer: setTimeout(() => {
         const list = waiters.get(userId) || []
         waiters.set(
@@ -222,13 +298,17 @@ export function requestUserNotify(input: {
     userId: input.userId,
     dedupeKey,
   })
+  const fallbackTitle = resolveNotifyTitle({
+    title: input.title || '',
+    templateId: input.templateId,
+  })
   const row: NotifyInboxItem = {
     id: `N-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     channel: input.channel,
     templateId: input.templateId,
     userId: input.userId,
-    title: input.title || input.templateId,
-    body: input.body || '',
+    title: input.title && !isMachineNotifyKey(input.title) ? input.title : fallbackTitle,
+    body: input.body || resolveNotifyBody({ body: '', templateId: input.templateId, title: input.title || '' }),
     link: input.link,
     dedupeKey,
     at: new Date().toISOString(),
@@ -262,7 +342,7 @@ export function listUserNotifications(
   if (opts?.unreadOnly) {
     rows = rows.filter((r) => !r.readAt)
   }
-  return rows.slice(0, limit)
+  return rows.slice(0, limit).map(presentNotifyForUi)
 }
 
 export function markUserNotificationRead(
@@ -274,7 +354,7 @@ export function markUserNotificationRead(
   if (idx < 0) return null
   rows[idx] = { ...rows[idx], readAt: new Date().toISOString(), result: 'read' }
   writeOutbox(rows)
-  return rows[idx]
+  return presentNotifyForUi(rows[idx])
 }
 
 export function markAllUserNotificationsRead(userId: string): number {
@@ -313,10 +393,14 @@ export function wireNotifySubscriptions(): void {
     // 分享评论已在写服务内显式触达主人；此处跳过避免误投 system
     if (ev.payload?.entityType === 'share_comment') return
     const userId = String(ev.payload.userId || ev.payload.entityId || 'system')
+    const entityType = String(ev.payload.entityType || '')
+    const op = String(ev.payload.op || 'changed')
     requestUserNotify({
       channel: 'in_app',
-      templateId: `entity_${ev.payload.op || 'changed'}`,
+      templateId: `entity_${op}`,
       userId,
+      title: titleFromEntityOp(entityType, op),
+      body: `系统已记录${ENTITY_TYPE_ZH[entityType] || '数据'}变更`,
     })
   })
   subscribeDomainEvent('ClientVersionRejected', async (ev) => {

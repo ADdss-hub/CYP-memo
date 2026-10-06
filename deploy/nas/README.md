@@ -1,4 +1,4 @@
-# CYP-memo · NAS 原生部署（非 Docker）
+# CYP-memo · NAS 原生部署
 
 | NAS | 建议数据目录示例 | 说明 |
 |-----|------------------|------|
@@ -13,7 +13,7 @@
 | 闭集 35 | 安装末步跑 `scripts/verify/verify-five-centers.sh` |
 | 环境 | `APP_ENV=prod` · `NODE_ENV=production` · `DATA_DIR=<上表>` |
 | 权限 | `DATA_DIR` 与 `{DATA_DIR}/logs` · `{DATA_DIR}/governance` 对运行用户可写 |
-| 禁止 | Docker / PUID 容器方案 / compose |
+| 形态 | 仅 NAS 原生 Node 进程（Server 发行包） |
 
 ## 步骤
 

@@ -20,7 +20,7 @@
         </el-menu-item>
         <el-menu-item index="storage" @click="scrollToSection('storage')">
           <el-icon><FolderOpened /></el-icon>
-          <span>存储空间</span>
+          <span>存储使用</span>
         </el-menu-item>
       </el-menu>
     </template>
@@ -78,7 +78,7 @@
               <el-icon><FolderOpened /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-label">文件总大小</div>
+              <div class="stat-label">文件库存储空间</div>
               <div class="stat-value">
                 {{ formatFileSize(statistics.attachmentSize) }}
               </div>
@@ -126,9 +126,9 @@
         </el-card>
       </section>
 
-      <!-- 存储空间 -->
+      <!-- 系统存储空间 + 文件库存储空间（R-010 分称） -->
       <section id="storage" class="stats-section">
-        <h2 class="section-title">存储空间使用情况</h2>
+        <h2 class="section-title">存储使用情况</h2>
         <el-card shadow="hover">
           <div class="storage-info">
             <div class="storage-chart">
@@ -136,19 +136,19 @@
             </div>
             <div class="storage-details">
               <div class="storage-item">
-                <span class="storage-label">本账号文件:</span>
+                <span class="storage-label">文件库存储空间:</span>
                 <span class="storage-value">{{ formatFileSize(statistics.attachmentSize) }}</span>
               </div>
               <div class="storage-item">
-                <span class="storage-label">存储空间已用:</span>
+                <span class="storage-label">系统存储空间已用:</span>
                 <span class="storage-value">{{ formatFileSize(statistics.storageUsed) }}</span>
               </div>
               <div class="storage-item">
-                <span class="storage-label">存储空间可用:</span>
+                <span class="storage-label">系统存储空间可用:</span>
                 <span class="storage-value">{{ formatFileSize(statistics.storageAvailable) }}</span>
               </div>
               <div class="storage-item">
-                <span class="storage-label">存储空间总量:</span>
+                <span class="storage-label">系统存储空间总量:</span>
                 <span class="storage-value">{{ formatFileSize(statistics.storageTotal) }}</span>
               </div>
               <div class="storage-progress">
@@ -156,6 +156,7 @@
                   :percentage="storagePercentage"
                   :color="getStorageColor(storagePercentage)"
                   :stroke-width="12"
+                  :aria-label="`系统存储空间已用 ${storagePercentage}%`"
                 />
               </div>
             </div>
@@ -301,7 +302,7 @@ const storageChartData = computed(() => {
     ? getComputedStyle(root).getPropertyValue('--cyp-border').trim() || '#3a3a3a'
     : '#3a3a3a'
   return {
-    labels: ['已使用', '可用空间'],
+    labels: ['系统已用', '系统可用'],
     datasets: [
       {
         data: [statistics.value.storageUsed, statistics.value.storageAvailable],
@@ -312,7 +313,7 @@ const storageChartData = computed(() => {
   }
 })
 
-// 存储空间图表配置
+// 系统存储空间图表配置
 const storageChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -386,7 +387,7 @@ async function loadStatistics() {
     statistics.value.attachmentCount = files.length
     statistics.value.attachmentSize = files.reduce((sum, file) => sum + file.size, 0)
 
-    // 存储空间（服务器 dataDir 唯一根 · 对外正式名「存储空间」）
+    // 系统存储空间 = used/total/available；文件库存储空间 = accountUsed（R-010 分称）
     statistics.value.storageUsed = storageInfo.used
     statistics.value.storageAvailable = storageInfo.available
     statistics.value.storageTotal = storageInfo.total
@@ -574,7 +575,7 @@ onMounted(() => {
   color: var(--cyp-text);
 }
 
-/* 图表容器 */
+/* 图表区域 */
 .chart-container {
   height: 300px;
   padding: 16px;

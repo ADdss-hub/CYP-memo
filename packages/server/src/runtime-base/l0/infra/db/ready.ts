@@ -35,6 +35,7 @@ import type {
   DeleteUserResult,
   ExportData,
   UserRole,
+  McpPatRecord,
 } from '../../../../types.js'
 import { OWNER_DEFAULT_PERMISSIONS, MEMBER_DEFAULT_PERMISSIONS, normalizeMemberPermissions, liftLegacyPermissions } from '../../../../types.js'
 
@@ -150,9 +151,12 @@ export class SqliteDatabase {
     this.saveInFlight = true
     this.saveDirtyAgain = false
     try {
+      const t0 = Date.now()
       const data = this.db.export()
       const buffer = Buffer.from(data)
       fs.writeFileSync(this.dbPath, buffer)
+      const el = Date.now() - t0
+      if (process.env.CYP_MC_DEBUG && el > 80) console.error(`[FLUSH main] ${el}ms`)
     } finally {
       this.saveInFlight = false
       if (this.saveDirtyAgain) {
@@ -280,6 +284,9 @@ export class SqliteDatabase {
       'CREATE INDEX IF NOT EXISTS idx_share_comments_shareId ON share_comments(shareId, createdAt DESC)'
     )
     this.ensureShareCommentsReplyColumns()
+    this.ensureMcpPublicColumns()
+    this.ensureMcpPatsTable()
+    this.ensureMcpOauthClientsTable()
 
     this.db.run(`
       -- 日志表
@@ -464,6 +471,70 @@ export class SqliteDatabase {
       }
     } catch (err) {
       logger.warn('ensureLogsTraceIdColumn failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  /** MCP：memos/files 补 mcpPublic 公开标记（O7 flag） */
+  private ensureMcpPublicColumns(): void {
+    if (!this.db) return
+    try {
+      for (const table of ['memos', 'files'] as const) {
+        const info = this.db.exec(`PRAGMA table_info(${table})`)
+        const cols = new Set<string>()
+        for (const row of info[0]?.values || []) {
+          if (typeof row[1] === 'string') cols.add(row[1])
+        }
+        if (!cols.has('mcpPublic')) {
+          this.db.run(`ALTER TABLE ${table} ADD COLUMN mcpPublic INTEGER NOT NULL DEFAULT 0`)
+        }
+      }
+    } catch (err) {
+      logger.warn('ensureMcpPublicColumns failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  /** MCP 个人访问令牌表（仅存哈希） */
+  private ensureMcpPatsTable(): void {
+    if (!this.db) return
+    try {
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS mcp_pats (
+          id TEXT PRIMARY KEY,
+          userId TEXT NOT NULL,
+          tokenHash TEXT NOT NULL UNIQUE,
+          tokenPrefix TEXT NOT NULL,
+          label TEXT NOT NULL,
+          expiresAt TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          revokedAt TEXT
+        )
+      `)
+      this.db.run(`CREATE INDEX IF NOT EXISTS idx_mcp_pats_userId ON mcp_pats(userId)`)
+      this.db.run(`CREATE INDEX IF NOT EXISTS idx_mcp_pats_tokenHash ON mcp_pats(tokenHash)`)
+    } catch (err) {
+      logger.warn('ensureMcpPatsTable failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  private ensureMcpOauthClientsTable(): void {
+    if (!this.db) return
+    try {
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS mcp_oauth_clients (
+          clientId TEXT PRIMARY KEY,
+          secretHash TEXT NOT NULL,
+          redirectUris TEXT NOT NULL,
+          createdAt TEXT NOT NULL
+        )
+      `)
+    } catch (err) {
+      logger.warn('ensureMcpOauthClientsTable failed', {
         error: err instanceof Error ? err.message : String(err),
       })
     }
@@ -937,10 +1008,17 @@ export class SqliteDatabase {
 
   /** 文件库关联用：只取 id 与附件列表，不读正文 */
   getMemoAttachmentLinks(userId: string): Array<{ id: string; attachments: string[] }> {
-    if (!this.db) return []
+    return this.getMemoAttachmentLinksByUserIds([userId])
+  }
+
+  getMemoAttachmentLinksByUserIds(userIds: string[]): Array<{ id: string; attachments: string[] }> {
+    if (!this.db || userIds.length === 0) return []
+    const unique = [...new Set(userIds.filter(Boolean))]
+    if (unique.length === 0) return []
+    const ph = unique.map(() => '?').join(',')
     const result = this.db.exec(
-      'SELECT id, attachments FROM memos WHERE userId = ? AND deletedAt IS NULL',
-      [userId]
+      `SELECT id, attachments FROM memos WHERE userId IN (${ph}) AND deletedAt IS NULL`,
+      unique
     )
     return this.rowsToObjects(result).map((row) => {
       let attachments: string[] = []
@@ -965,7 +1043,8 @@ export class SqliteDatabase {
       attachments: JSON.parse((memo.attachments as string) || '[]'),
       deletedAt: memo.deletedAt as string | null,
       createdAt: memo.createdAt as string,
-      updatedAt: memo.updatedAt as string
+      updatedAt: memo.updatedAt as string,
+      mcpPublic: Boolean(memo.mcpPublic),
     }
   }
 
@@ -973,8 +1052,8 @@ export class SqliteDatabase {
     if (!this.db) return ''
     const id = memo.id || uuidv4()
     this.db.run(
-      `INSERT INTO memos (id, userId, title, content, tags, priority, attachments, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO memos (id, userId, title, content, tags, priority, attachments, createdAt, updatedAt, mcpPublic)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         memo.userId,
@@ -984,7 +1063,8 @@ export class SqliteDatabase {
         memo.priority ?? null,
         JSON.stringify(memo.attachments || []),
         memo.createdAt || new Date().toISOString(),
-        memo.updatedAt || new Date().toISOString()
+        memo.updatedAt || new Date().toISOString(),
+        (memo as CreateMemoParams & { mcpPublic?: boolean }).mcpPublic ? 1 : 0,
       ]
     )
     this.saveToFile()
@@ -1000,6 +1080,9 @@ export class SqliteDatabase {
       if (key === 'tags' || key === 'attachments') {
         fields.push(`${key} = ?`)
         values.push(JSON.stringify(value))
+      } else if (key === 'mcpPublic') {
+        fields.push('mcpPublic = ?')
+        values.push(value ? 1 : 0)
       } else {
         fields.push(`${key} = ?`)
         values.push(value)
@@ -1037,6 +1120,16 @@ export class SqliteDatabase {
   getFilesByUserId(userId: string): FileRecord[] {
     if (!this.db) return []
     const result = this.db.exec('SELECT * FROM files WHERE userId = ?', [userId])
+    return this.rowsToObjects(result) as unknown as FileRecord[]
+  }
+
+  /** 本范围（主+子）文件列表；与备忘录租户口径一致 */
+  getFilesByUserIds(userIds: string[]): FileRecord[] {
+    if (!this.db || userIds.length === 0) return []
+    const unique = [...new Set(userIds.filter(Boolean))]
+    if (unique.length === 0) return []
+    const ph = unique.map(() => '?').join(',')
+    const result = this.db.exec(`SELECT * FROM files WHERE userId IN (${ph})`, unique)
     return this.rowsToObjects(result) as unknown as FileRecord[]
   }
 
@@ -1081,6 +1174,156 @@ export class SqliteDatabase {
     if (!this.db) return
     this.db.run('DELETE FROM files WHERE id = ?', [id])
     this.saveToFile()
+  }
+
+  updateFileMcpMeta(id: string, updates: { filename?: string; mcpPublic?: boolean }): void {
+    if (!this.db) return
+    const fields: string[] = []
+    const values: unknown[] = []
+    if (updates.filename !== undefined) {
+      fields.push('filename = ?')
+      values.push(updates.filename)
+    }
+    if (updates.mcpPublic !== undefined) {
+      fields.push('mcpPublic = ?')
+      values.push(updates.mcpPublic ? 1 : 0)
+    }
+    if (fields.length === 0) return
+    values.push(id)
+    this.db.run(`UPDATE files SET ${fields.join(', ')} WHERE id = ?`, values)
+    this.saveToFile()
+  }
+
+  listMcpPublicMemos(): Memo[] {
+    if (!this.db) return []
+    const result = this.db.exec(
+      `SELECT * FROM memos WHERE deletedAt IS NULL AND mcpPublic = 1 ORDER BY updatedAt DESC`
+    )
+    return (this.rowsToObjects(result) as Record<string, unknown>[]).map((r) => this.parseMemo(r))
+  }
+
+  /** 未删除备忘录全表（公开选择器 requireFlag=false 时的候选池） */
+  listActiveMemos(): Memo[] {
+    if (!this.db) return []
+    const result = this.db.exec(
+      `SELECT * FROM memos WHERE deletedAt IS NULL ORDER BY updatedAt DESC`
+    )
+    return (this.rowsToObjects(result) as Record<string, unknown>[]).map((r) => this.parseMemo(r))
+  }
+
+  listMcpPublicFiles(): FileRecord[] {
+    if (!this.db) return []
+    const result = this.db.exec(`SELECT * FROM files WHERE mcpPublic = 1 ORDER BY createdAt DESC`)
+    return (this.rowsToObjects(result) as FileRecord[]).map((f) => ({
+      ...f,
+      mcpPublic: Boolean((f as FileRecord & { mcpPublic?: number | boolean }).mcpPublic),
+    }))
+  }
+
+  listAllFiles(): FileRecord[] {
+    if (!this.db) return []
+    const result = this.db.exec(`SELECT * FROM files ORDER BY createdAt DESC`)
+    return (this.rowsToObjects(result) as FileRecord[]).map((f) => ({
+      ...f,
+      mcpPublic: Boolean((f as FileRecord & { mcpPublic?: number | boolean }).mcpPublic),
+    }))
+  }
+
+  createMcpPat(input: {
+    userId: string
+    tokenHash: string
+    tokenPrefix: string
+    label: string
+    expiresAt: string
+  }): string {
+    if (!this.db) return ''
+    const id = uuidv4()
+    const createdAt = new Date().toISOString()
+    this.db.run(
+      `INSERT INTO mcp_pats (id, userId, tokenHash, tokenPrefix, label, expiresAt, createdAt, revokedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+      [id, input.userId, input.tokenHash, input.tokenPrefix, input.label, input.expiresAt, createdAt]
+    )
+    this.saveToFile()
+    return id
+  }
+
+  listMcpPatsByUserId(userId: string): McpPatRecord[] {
+    if (!this.db) return []
+    const result = this.db.exec(
+      `SELECT * FROM mcp_pats WHERE userId = ? ORDER BY createdAt DESC`,
+      [userId]
+    )
+    return this.rowsToObjects(result) as unknown as McpPatRecord[]
+  }
+
+  revokeMcpPat(id: string, userId: string): boolean {
+    if (!this.db) return false
+    const existing = this.db.exec(`SELECT id FROM mcp_pats WHERE id = ? AND userId = ?`, [id, userId])
+    if (!existing[0]?.values?.length) return false
+    this.db.run(`UPDATE mcp_pats SET revokedAt = ? WHERE id = ?`, [new Date().toISOString(), id])
+    this.saveToFile()
+    return true
+  }
+
+  /** 用明文 PAT 查找绑定用户；无效/过期/吊销返回 undefined */
+  getUserByMcpPat(rawToken: string): User | undefined {
+    if (!this.db || !rawToken) return undefined
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
+    const result = this.db.exec(
+      `SELECT * FROM mcp_pats WHERE tokenHash = ? AND revokedAt IS NULL LIMIT 1`,
+      [tokenHash]
+    )
+    const rows = this.rowsToObjects(result) as unknown as McpPatRecord[]
+    const pat = rows[0]
+    if (!pat) return undefined
+    if (pat.expiresAt && new Date(pat.expiresAt).getTime() < Date.now()) return undefined
+    return this.getUserById(pat.userId)
+  }
+
+  getMcpPatByRawToken(rawToken: string): McpPatRecord | undefined {
+    if (!this.db || !rawToken) return undefined
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
+    const result = this.db.exec(
+      `SELECT * FROM mcp_pats WHERE tokenHash = ? AND revokedAt IS NULL LIMIT 1`,
+      [tokenHash]
+    )
+    const rows = this.rowsToObjects(result) as unknown as McpPatRecord[]
+    const pat = rows[0]
+    if (!pat) return undefined
+    if (pat.expiresAt && new Date(pat.expiresAt).getTime() < Date.now()) return undefined
+    return pat
+  }
+
+  getMcpPatById(id: string): McpPatRecord | undefined {
+    if (!this.db || !id) return undefined
+    const result = this.db.exec(`SELECT * FROM mcp_pats WHERE id = ? LIMIT 1`, [id])
+    const rows = this.rowsToObjects(result) as unknown as McpPatRecord[]
+    return rows[0]
+  }
+
+  createMcpOauthClient(input: { clientId: string; secretHash: string; redirectUris: string[] }): void {
+    if (!this.db) return
+    this.db.run(
+      `INSERT INTO mcp_oauth_clients (clientId, secretHash, redirectUris, createdAt) VALUES (?, ?, ?, ?)`,
+      [input.clientId, input.secretHash, JSON.stringify(input.redirectUris), new Date().toISOString()]
+    )
+    this.saveToFile()
+  }
+
+  getMcpOauthClient(clientId: string): { clientId: string; secretHash: string; redirectUris: string[] } | undefined {
+    if (!this.db || !clientId) return undefined
+    const result = this.db.exec(`SELECT * FROM mcp_oauth_clients WHERE clientId = ? LIMIT 1`, [clientId])
+    const rows = this.rowsToObjects(result) as { clientId: string; secretHash: string; redirectUris: string }[]
+    const row = rows[0]
+    if (!row) return undefined
+    let uris: string[] = []
+    try {
+      uris = JSON.parse(row.redirectUris)
+    } catch {
+      uris = []
+    }
+    return { clientId: row.clientId, secretHash: row.secretHash, redirectUris: uris }
   }
 
   // ========== 备忘录历史操作 ==========
@@ -1180,8 +1423,20 @@ export class SqliteDatabase {
 
   deleteShare(id: string): void {
     if (!this.db) return
+    // 分享评论随链接一并清除，避免孤儿评论
+    this.db.run('DELETE FROM share_comments WHERE shareId = ?', [id])
     this.db.run('DELETE FROM shares WHERE id = ?', [id])
     this.saveToFile()
+  }
+
+  /** 按备忘录撤销全部分享（含评论）；备忘录软删/硬删共用 */
+  deleteSharesByMemoId(memoId: string): number {
+    if (!this.db || !memoId) return 0
+    const rows = this.getSharesByMemoId(memoId)
+    for (const share of rows) {
+      if (share.id) this.deleteShare(share.id)
+    }
+    return rows.length
   }
 
   /**
@@ -1248,10 +1503,10 @@ export class SqliteDatabase {
 
   getShareCommentsByShareId(shareId: string, limit = 100): ShareComment[] {
     if (!this.db) return []
-    const safeLimit = Math.min(Math.max(1, limit), 200)
+    const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 200)
     const result = this.db.exec(
-      `SELECT * FROM share_comments WHERE shareId = ? ORDER BY createdAt DESC LIMIT ${safeLimit}`,
-      [shareId]
+      'SELECT * FROM share_comments WHERE shareId = ? ORDER BY createdAt DESC LIMIT ?',
+      [shareId, safeLimit]
     )
     return this.rowsToObjects(result) as unknown as ShareComment[]
   }
@@ -1367,8 +1622,8 @@ export class SqliteDatabase {
     const n = Math.min(Math.max(Math.floor(limit), 1), 200)
     const like = `%${token}%`
     const result = this.db.exec(
-      `SELECT * FROM logs WHERE message LIKE ? OR IFNULL(details, '') LIKE ? OR IFNULL(action, '') LIKE ? ORDER BY createdAt DESC LIMIT ${n}`,
-      [like, like, like]
+      "SELECT * FROM logs WHERE message LIKE ? OR IFNULL(details, '') LIKE ? OR IFNULL(action, '') LIKE ? ORDER BY createdAt DESC LIMIT ?",
+      [like, like, like, n]
     )
     return this.rowsToObjects(result) as unknown as LogEntry[]
   }
@@ -1487,52 +1742,65 @@ export class SqliteDatabase {
   }
 
   /**
-   * 删除用户的所有相关数据（包括子账号及其数据）
+   * 删除用户。purgeRelated=true 时一并清除备忘录/文件/分享及子账号相关内容。
    */
-  deleteUserWithData(userId: string): DeleteUserResult {
+  deleteUserWithData(userId: string, purgeRelated = true): DeleteUserResult {
     if (!this.db) return { memos: 0, files: 0, shares: 0, subAccounts: 0 }
-    
-    // 先获取该用户的所有子账号
+
     const subAccountsResult = this.db.exec('SELECT id FROM users WHERE parentUserId = ?', [userId])
-    const subAccountIds: string[] = subAccountsResult[0]?.values?.map((row: unknown[]) => row[0] as string) || []
-    
+    const subAccountIds: string[] =
+      subAccountsResult[0]?.values?.map((row: unknown[]) => row[0] as string) || []
+
     let totalMemos = 0
     let totalFiles = 0
     let totalShares = 0
-    
-    // 删除所有子账号及其数据
+
     for (const subAccountId of subAccountIds) {
-      const subMemosResult = this.db.exec('SELECT COUNT(*) FROM memos WHERE userId = ?', [subAccountId])
-      const subFilesResult = this.db.exec('SELECT COUNT(*) FROM files WHERE userId = ?', [subAccountId])
-      const subSharesResult = this.db.exec('SELECT COUNT(*) FROM shares WHERE userId = ?', [subAccountId])
-      
-      totalMemos += (subMemosResult[0]?.values[0]?.[0] as number) || 0
-      totalFiles += (subFilesResult[0]?.values[0]?.[0] as number) || 0
-      totalShares += (subSharesResult[0]?.values[0]?.[0] as number) || 0
-      
-      this.db.run('DELETE FROM memos WHERE userId = ?', [subAccountId])
-      this.db.run('DELETE FROM files WHERE userId = ?', [subAccountId])
-      this.db.run('DELETE FROM shares WHERE userId = ?', [subAccountId])
+      if (purgeRelated) {
+        const subMemosResult = this.db.exec('SELECT COUNT(*) FROM memos WHERE userId = ?', [
+          subAccountId,
+        ])
+        const subFilesResult = this.db.exec('SELECT COUNT(*) FROM files WHERE userId = ?', [
+          subAccountId,
+        ])
+        const subSharesResult = this.db.exec('SELECT COUNT(*) FROM shares WHERE userId = ?', [
+          subAccountId,
+        ])
+
+        totalMemos += (subMemosResult[0]?.values[0]?.[0] as number) || 0
+        totalFiles += (subFilesResult[0]?.values[0]?.[0] as number) || 0
+        totalShares += (subSharesResult[0]?.values[0]?.[0] as number) || 0
+
+        this.db.run('DELETE FROM memos WHERE userId = ?', [subAccountId])
+        this.db.run('DELETE FROM files WHERE userId = ?', [subAccountId])
+        this.db.run('DELETE FROM shares WHERE userId = ?', [subAccountId])
+      }
       this.db.run('DELETE FROM users WHERE id = ?', [subAccountId])
     }
-    
-    // 统计主账号要删除的数据
-    const memosResult = this.db.exec('SELECT COUNT(*) FROM memos WHERE userId = ?', [userId])
-    const filesResult = this.db.exec('SELECT COUNT(*) FROM files WHERE userId = ?', [userId])
-    const sharesResult = this.db.exec('SELECT COUNT(*) FROM shares WHERE userId = ?', [userId])
-    
-    totalMemos += (memosResult[0]?.values[0]?.[0] as number) || 0
-    totalFiles += (filesResult[0]?.values[0]?.[0] as number) || 0
-    totalShares += (sharesResult[0]?.values[0]?.[0] as number) || 0
-    
-    // 删除主账号数据
-    this.db.run('DELETE FROM memos WHERE userId = ?', [userId])
-    this.db.run('DELETE FROM files WHERE userId = ?', [userId])
-    this.db.run('DELETE FROM shares WHERE userId = ?', [userId])
+
+    if (purgeRelated) {
+      const memosResult = this.db.exec('SELECT COUNT(*) FROM memos WHERE userId = ?', [userId])
+      const filesResult = this.db.exec('SELECT COUNT(*) FROM files WHERE userId = ?', [userId])
+      const sharesResult = this.db.exec('SELECT COUNT(*) FROM shares WHERE userId = ?', [userId])
+
+      totalMemos += (memosResult[0]?.values[0]?.[0] as number) || 0
+      totalFiles += (filesResult[0]?.values[0]?.[0] as number) || 0
+      totalShares += (sharesResult[0]?.values[0]?.[0] as number) || 0
+
+      this.db.run('DELETE FROM memos WHERE userId = ?', [userId])
+      this.db.run('DELETE FROM files WHERE userId = ?', [userId])
+      this.db.run('DELETE FROM shares WHERE userId = ?', [userId])
+    }
+
     this.db.run('DELETE FROM users WHERE id = ?', [userId])
-    
+
     this.saveToFile()
-    return { memos: totalMemos, files: totalFiles, shares: totalShares, subAccounts: subAccountIds.length }
+    return {
+      memos: totalMemos,
+      files: totalFiles,
+      shares: totalShares,
+      subAccounts: subAccountIds.length,
+    }
   }
 
   // ========== 统计 ==========
@@ -1764,7 +2032,8 @@ export function isFileStorageReady(): boolean {
 }
 
 export function initFileStorage(opts: { dataDir: string }): FileStorageState {
-  // R-010 / R-015：uploads = 对象/文件存储根，只存附件等大 blob；禁止作为秒级小日志主路径。
+  // 对象存储扩展点实现（本机 {dataDir}/uploads）：外部依赖 · 不进闭集 35 · 不设独立就绪键（架构 V1.8.5）。
+  // R-010 / R-015：uploads = 大 blob 根；禁止作为秒级小日志主路径。
   // 元数据在核心业务库；观测流水在 logs/（JSONL + observability.sqlite）。
   const root = path.join(opts.dataDir, 'uploads')
   if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true })

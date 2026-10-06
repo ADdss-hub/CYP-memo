@@ -15,14 +15,12 @@
 1. **NPM 包**: 使用淘宝镜像 (registry.npmmirror.com)
 2. **Electron**: 使用 npmmirror 镜像
 3. **原生模块**: better-sqlite3, sharp 等使用国内镜像
-4. **Docker**: 使用中科大镜像
 5. **Ubuntu APT**: 使用阿里云镜像
 6. **Alpine APK**: 使用阿里云镜像
 
 ### 预期提升
 - NPM 安装速度: 5x 提升
 - Electron 下载: 20x 提升
-- Docker 拉取: 6x 提升
 
 ---
 
@@ -30,7 +28,6 @@
 
 根据四个构建日志文件的检查，发现以下问题：
 
-### 1. Docker 构建 - ⚠️ 卡住未完成
 - **问题**: 构建在管理员端应用编译阶段停止（323.1秒处）
 - **原因**: ARM64 架构构建速度慢，可能超时
 
@@ -93,9 +90,7 @@ permissions:
 
 ---
 
-### ✅ 修复 4: 优化 Docker 构建（防止超时）
 
-**文件**: `.github/workflows/release.yml`, `docker/Dockerfile`
 
 **修改内容**:
 
@@ -104,7 +99,6 @@ permissions:
    - 优化 Buildx 配置
    - 添加构建参数（VERSION, BUILD_DATE, GIT_COMMIT）
 
-2. **Dockerfile**:
    - 添加 `--ignore-scripts` 标志跳过不必要的构建脚本
    - 减少 ARM64 架构的构建时间
 
@@ -125,9 +119,7 @@ permissions:
    - 所有 job 都配置了 npm 镜像
    - Electron 下载使用国内镜像
    - Ubuntu APT 使用阿里云镜像
-   - Docker Buildx 使用中科大镜像
 
-3. **Dockerfile**:
    - Alpine APK 使用阿里云镜像
    - NPM 使用淘宝镜像
    - 添加 `--ignore-scripts` 跳过不必要的构建脚本
@@ -180,7 +172,6 @@ git push origin v1.8.1
 - ✅ **Windows**: 生成 .exe 安装程序和便携版
 - ✅ **macOS**: 生成 .dmg 和 .zip 文件，并成功发布到 GitHub Release
 - ✅ **Linux**: 生成 .AppImage, .deb, .rpm, .tar.gz 文件
-- ✅ **Docker**: 成功构建并推送 amd64 和 arm64 镜像
 
 ---
 
@@ -195,7 +186,6 @@ git push origin v1.8.1
    - Windows: 配置 CSC_LINK 和 CSC_KEY_PASSWORD
    - macOS: 配置 APPLE_ID, APPLE_ID_PASSWORD, APPLE_TEAM_ID
 
-3. **Docker 优化**: 考虑分离 amd64 和 arm64 构建任务以并行执行
 
 4. **监控构建时间**: 跟踪各平台构建时间，持续优化
 
@@ -207,4 +197,3 @@ git push origin v1.8.1
 - `packages/desktop/package.json` - 添加 homepage
 - `packages/desktop/scripts/create-placeholder-icons.mjs` - 更新图标尺寸
 - `.github/workflows/release.yml` - 添加权限和优化配置
-- `docker/Dockerfile` - 优化构建速度

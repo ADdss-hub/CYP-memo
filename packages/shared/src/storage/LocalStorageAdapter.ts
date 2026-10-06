@@ -5,6 +5,7 @@
  */
 
 import { db } from '../database/db'
+import { authStorage } from '../managers/auth/AuthStorage'
 import type { User, Memo, MemoHistory, FileMetadata, ShareLink, LogEntry, StorageInfo } from '../types'
 import type { IStorageAdapter, StorageMode, QueryOptions, FileBlob } from './StorageAdapter'
 
@@ -92,6 +93,14 @@ export class LocalStorageAdapter implements IStorageAdapter {
 
   async deleteUser(id: string): Promise<void> {
     await db.users.delete(id)
+  }
+
+  async cancelOwnAccount(): Promise<{ message: string; purgeRelated: boolean }> {
+    const info = authStorage.getAuthInfo()
+    if (!info?.userId) throw new Error('未登录')
+    await this.deleteUser(info.userId)
+    authStorage.clearAuthInfo()
+    return { message: '已注销本账号', purgeRelated: true }
   }
 
   async usernameExists(username: string): Promise<boolean> {

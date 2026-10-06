@@ -6,6 +6,8 @@
 export * from './config/version'
 export * from './config/resolveApiBase'
 export * from './security/csp'
+export * from './security/sanitizeHtml'
+export * from './tls/identity'
 export * from './types'
 export * from './database'
 export type {

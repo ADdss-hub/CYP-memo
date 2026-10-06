@@ -10,12 +10,10 @@
         <div class="left-actions">
           <Button type="text" @click="handleCancel"> ← 返回 </Button>
           <div v-if="lastSaved" class="save-status">
-            <span class="save-icon"></span>
             <span class="save-text">{{ lastSaved }}</span>
           </div>
         </div>
         <div class="right-actions">
-          <Button type="default" @click="handleCancel"> 取消 </Button>
           <Button type="primary" :loading="isSaving" @click="handleSave">
             {{ isSaving ? '保存中...' : '保存' }}
           </Button>
@@ -27,8 +25,8 @@
         <Loading v-if="isLoading" />
 
         <div v-else class="form-content">
-          <!-- 标题输入 -->
-          <div class="form-group">
+          <!-- 标题 -->
+          <div class="form-group title-group">
             <input
               v-model="title"
               type="text"
@@ -38,62 +36,73 @@
             />
           </div>
 
-          <!-- 标签管理 -->
-          <div class="form-group">
-            <div class="tags-section">
-              <div class="tags-label">标签:</div>
-              <div class="tags-container">
-                <div class="tag-chips">
-                  <span v-for="(tag, index) in tags" :key="index" class="tag-chip">
-                    {{ tag }}
-                    <button class="tag-remove" @click="removeTag(index)">×</button>
-                  </span>
-                  <div class="tag-input-wrapper">
-                    <input
-                      ref="tagInputRef"
-                      v-model="newTag"
-                      type="text"
-                      class="tag-input"
-                      placeholder="添加标签..."
-                      @keydown.enter="addTag"
-                      @keydown.space="addTag"
-                      @input="handleTagInput"
-                      @focus="showTagDropdown = true"
-                      @blur="handleTagInputBlur"
-                      @keydown.down.prevent="navigateDropdown('down')"
-                      @keydown.up.prevent="navigateDropdown('up')"
-                      @keydown.escape="showTagDropdown = false"
-                    />
-                    <!-- 标签自动完成下拉框 -->
-                    <div v-if="showTagDropdown && filteredDatabaseTags.length > 0" class="tag-dropdown">
+          <!-- 元信息：标签 + MCP 同排 -->
+          <div class="form-group meta-group">
+            <div class="edit-meta">
+              <div class="tags-section">
+                <span class="meta-label">标签</span>
+                <div class="tags-container">
+                  <div class="tag-chips">
+                    <span v-for="(tag, index) in tags" :key="index" class="tag-chip">
+                      {{ tag }}
+                      <button type="button" class="tag-remove" aria-label="移除标签" @click="removeTag(index)">
+                        ×
+                      </button>
+                    </span>
+                    <div class="tag-input-wrapper">
+                      <input
+                        ref="tagInputRef"
+                        v-model="newTag"
+                        type="text"
+                        class="tag-input"
+                        placeholder="添加标签..."
+                        @keydown.enter="addTag"
+                        @keydown.space="addTag"
+                        @input="handleTagInput"
+                        @focus="showTagDropdown = true"
+                        @blur="handleTagInputBlur"
+                        @keydown.down.prevent="navigateDropdown('down')"
+                        @keydown.up.prevent="navigateDropdown('up')"
+                        @keydown.escape="showTagDropdown = false"
+                      />
                       <div
-                        v-for="(tag, index) in filteredDatabaseTags"
-                        :key="tag"
-                        :class="['tag-dropdown-item', { active: dropdownIndex === index }]"
-                        @mousedown.prevent="selectDropdownTag(tag)"
-                        @mouseenter="dropdownIndex = index"
+                        v-if="showTagDropdown && filteredDatabaseTags.length > 0"
+                        class="tag-dropdown"
                       >
-                        {{ tag }}
+                        <div
+                          v-for="(tag, index) in filteredDatabaseTags"
+                          :key="tag"
+                          :class="['tag-dropdown-item', { active: dropdownIndex === index }]"
+                          @mousedown.prevent="selectDropdownTag(tag)"
+                          @mouseenter="dropdownIndex = index"
+                        >
+                          {{ tag }}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div v-if="suggestedTags.length > 0" class="tag-suggestions">
-                  <span class="suggestions-label">建议:</span>
-                  <button
-                    v-for="tag in suggestedTags"
-                    :key="tag"
-                    class="suggested-tag"
-                    @click="addSuggestedTag(tag)"
-                  >
-                    + {{ tag }}
-                  </button>
+                  <div v-if="suggestedTags.length > 0" class="tag-suggestions">
+                    <span class="suggestions-label">建议</span>
+                    <button
+                      v-for="tag in suggestedTags"
+                      :key="tag"
+                      type="button"
+                      class="suggested-tag"
+                      @click="addSuggestedTag(tag)"
+                    >
+                      + {{ tag }}
+                    </button>
+                  </div>
                 </div>
               </div>
+              <label class="mcp-option">
+                <input v-model="mcpPublic" type="checkbox" />
+                <span>允许 MCP 公开查询</span>
+              </label>
             </div>
           </div>
 
-          <!-- 编辑器 -->
+          <!-- 编辑器（主工作区） -->
           <div class="form-group editor-group">
             <MemoEditor
               v-model="content"
@@ -105,8 +114,8 @@
             />
           </div>
 
-          <!-- 附件列表 -->
-          <div class="form-group">
+          <!-- 附件底栏 -->
+          <div class="form-group attachments-group">
             <div class="attachments-section">
               <div class="attachments-header">
                 <div class="attachments-label">
@@ -121,7 +130,7 @@
                 v-if="linkedAttachments.length === 0 && pendingFiles.length === 0"
                 class="attachments-empty"
               >
-                暂无文件。可从编辑器插入任意格式，或从文件库选择已有文件。
+                暂无文件。可从编辑器插入，或从文件库选择。
               </div>
 
               <div v-else class="attachments-list">
@@ -135,6 +144,7 @@
                   <span class="attachment-size">{{ formatFileSize(file.size) }}</span>
                   <span class="attachment-badge">已入库</span>
                   <button
+                    type="button"
                     class="attachment-remove"
                     title="取消关联（保留在文件库）"
                     @click="unlinkLinkedAttachment(file.id)"
@@ -151,7 +161,9 @@
                   <span class="attachment-name" :title="file.name">{{ file.name }}</span>
                   <span class="attachment-size">{{ formatFileSize(file.size) }}</span>
                   <span class="attachment-badge pending-badge">待上传</span>
-                  <button class="attachment-remove" @click="removePendingFile(index)">×</button>
+                  <button type="button" class="attachment-remove" @click="removePendingFile(index)">
+                    ×
+                  </button>
                 </div>
               </div>
             </div>
@@ -210,7 +222,7 @@ import { useMemoStore } from '../../stores/memo'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading, MemoEditor, Modal } from '../../components'
-import { fileManager, generateUUID } from '@cyp-memo/shared'
+import { fileManager, generateUUID, resolveApiBaseUrl, storageManager } from '@cyp-memo/shared'
 import type { FileMetadata } from '@cyp-memo/shared'
 
 const router = useRouter()
@@ -225,6 +237,7 @@ const isSaving = ref(false)
 const title = ref('')
 const content = ref('')
 const tags = ref<string[]>([])
+const mcpPublic = ref(false)
 const newTag = ref('')
 /** 已关联文件库的文件（编辑加载 / 库内选用） */
 const linkedAttachments = ref<FileMetadata[]>([])
@@ -307,6 +320,7 @@ const loadMemo = async () => {
       title.value = memo.title
       content.value = memo.content
       tags.value = [...memo.tags]
+      mcpPublic.value = Boolean(memo.mcpPublic)
       try {
         const files = await fileManager.getMemoAttachments(memoId.value)
         // 合并 memo.attachments 中有但 getByMemoId 漏掉的（历史不一致）
@@ -551,6 +565,31 @@ const uploadPendingFiles = async (targetMemoId?: string): Promise<string[]> => {
   return uploaded
 }
 
+async function persistMcpPublic(id: string) {
+  const adapter = storageManager.getAdapter() as { getAccessToken?: () => string | undefined }
+  const token = adapter.getAccessToken?.()
+  if (!token) return
+  const api = resolveApiBaseUrl({
+    VITE_API_BASE: import.meta.env.VITE_API_BASE as string | undefined,
+    PROD: import.meta.env.PROD,
+  })
+  const rid =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().replace(/-/g, '')
+      : `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`
+  await fetch(`${api}/memos/${id}/mcp-public`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      'Idempotency-Key': rid,
+      'X-Request-Id': rid,
+      'X-Trace-Id': rid,
+    },
+    body: JSON.stringify({ mcpPublic: mcpPublic.value }),
+  })
+}
+
 const handleSave = async () => {
   if (!authStore.currentUser) {
     toast.error('请先登录')
@@ -575,13 +614,16 @@ const handleSave = async () => {
         ...linkedAttachments.value.map((f) => f.id),
         ...uploadedIds,
       ]
-      await memoStore.updateMemo(
-        memoId.value,
-        title.value,
-        content.value,
-        tags.value,
-        finalIds
-      )
+      await Promise.all([
+        memoStore.updateMemo(
+          memoId.value,
+          title.value,
+          content.value,
+          tags.value,
+          finalIds
+        ),
+        persistMcpPublic(memoId.value),
+      ])
       toast.success('保存成功')
     } else {
       // 先并行上传（不绑 memo，避免预分配 id 触发 guardMemoAccess 404）
@@ -600,6 +642,7 @@ const handleSave = async () => {
       if (!newMemo) {
         throw new Error('创建失败')
       }
+      await persistMcpPublic(newMemo.id || newId)
       memoStore.clearDraft()
       toast.success('创建成功')
     }
@@ -658,7 +701,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--cyp-bg-muted);
+  background: transparent;
 }
 
 .memo-edit-view *,
@@ -676,11 +719,14 @@ onBeforeUnmount(() => {
   gap: 8px 12px;
   flex-shrink: 0;
   width: 100%;
-  padding: 12px 16px;
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  padding: 8px 12px;
+  background: var(--cyp-chrome-bg);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  box-shadow: var(--cyp-chrome-shadow);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .left-actions {
@@ -694,12 +740,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--cyp-success);
-}
-
-.save-icon {
-  font-size: 16px;
 }
 
 .save-text {
@@ -730,11 +772,15 @@ onBeforeUnmount(() => {
   min-width: 0;
   width: 100%;
   display: grid;
-  grid-template-rows: auto auto minmax(280px, 1fr) auto;
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  /* 标题 | 元信息 | 编辑器主区 | 附件底栏 */
+  grid-template-rows: auto auto minmax(320px, 1fr) auto;
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 10px;
   overflow: hidden;
+  box-shadow: var(--cyp-chrome-shadow), 0 8px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
 }
 
 .form-group {
@@ -752,13 +798,15 @@ onBeforeUnmount(() => {
   border-radius: 0;
   box-shadow: none;
   overflow: hidden;
+  border-top: 1px solid var(--cyp-border);
+  border-bottom: 1px solid var(--cyp-border);
 }
 
 .title-input {
   display: block;
   width: 100%;
   max-width: 100%;
-  padding: 14px 16px 10px;
+  padding: 12px 16px 8px;
   font-size: 22px;
   font-weight: 600;
   line-height: 1.3;
@@ -779,14 +827,11 @@ onBeforeUnmount(() => {
   font-weight: 500;
 }
 
-.tags-section {
+.edit-meta {
   display: flex;
-  flex-direction: row;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
-  width: auto;
-  max-width: 100%;
+  align-items: flex-start;
+  gap: 8px 16px;
   margin: 0 12px 10px;
   padding: 8px 10px;
   background: var(--cyp-bg-muted);
@@ -794,45 +839,79 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
+.tags-section {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 10px;
+  min-width: 0;
+}
+
+.meta-label,
 .tags-label {
   flex-shrink: 0;
   margin: 0;
-  font-size: 13px;
+  padding-top: 6px;
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--cyp-text-secondary);
+}
+
+.mcp-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin: 0;
+  margin-left: auto;
+  padding: 4px 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cyp-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.mcp-option input {
+  margin: 0;
+  accent-color: var(--cyp-brand);
 }
 
 .tags-container {
   display: flex;
-  flex: 1 1 200px;
+  flex: 1 1 160px;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .tag-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .tag-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 4px;
+  padding: 4px 10px;
   background: rgba(0, 153, 255, 0.12);
   color: var(--cyp-brand);
-  border-radius: 16px;
-  font-size: 14px;
+  border-radius: 14px;
+  font-size: 13px;
 }
 
 .tag-remove {
   background: none;
   border: none;
   color: var(--cyp-brand);
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   padding: 0;
   width: 16px;
@@ -841,7 +920,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.2s;
+  transition: background 0.15s;
 }
 
 .tag-remove:hover {
@@ -850,11 +929,11 @@ onBeforeUnmount(() => {
 
 .tag-input {
   flex: 1;
-  min-width: 120px;
-  padding: 6px 12px;
+  min-width: 100px;
+  padding: 4px 10px;
   border: 1px solid transparent;
-  border-radius: 16px;
-  font-size: 14px;
+  border-radius: 14px;
+  font-size: 13px;
   background: var(--cyp-bg-input);
   color: var(--cyp-text);
 }
@@ -866,8 +945,8 @@ onBeforeUnmount(() => {
 
 .tag-input-wrapper {
   position: relative;
-  flex: 0 1 180px;
-  min-width: 120px;
+  flex: 0 1 160px;
+  min-width: 100px;
 }
 
 .tag-input-wrapper .tag-input {
@@ -880,10 +959,12 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  background: var(--cyp-chrome-bg-panel);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--cyp-chrome-shadow), 0 4px 12px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   max-height: 200px;
   overflow-y: auto;
   z-index: 100;
@@ -892,9 +973,9 @@ onBeforeUnmount(() => {
 .tag-dropdown-item {
   padding: 8px 12px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--cyp-text-secondary);
-  transition: all 0.2s;
+  transition: background 0.15s;
 }
 
 .tag-dropdown-item:hover,
@@ -914,7 +995,7 @@ onBeforeUnmount(() => {
 .tag-suggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -924,14 +1005,14 @@ onBeforeUnmount(() => {
 }
 
 .suggested-tag {
-  padding: 4px 10px;
+  padding: 3px 8px;
   background: var(--cyp-bg-muted);
   border: 1px solid var(--cyp-border);
   border-radius: 12px;
   font-size: 12px;
   color: var(--cyp-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .suggested-tag:hover {
@@ -940,16 +1021,17 @@ onBeforeUnmount(() => {
   color: var(--cyp-brand);
 }
 
-.form-content > .form-group:last-child {
-  margin-bottom: 0;
+.attachments-group {
+  max-height: 28vh;
+  overflow: auto;
 }
 
 .attachments-section {
-  margin: 0 14px 14px;
-  padding: 12px 14px;
-  background: var(--cyp-bg-muted);
-  border: 1px solid var(--cyp-border);
-  border-radius: 8px;
+  margin: 0;
+  padding: 10px 14px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   box-shadow: none;
 }
 
@@ -959,13 +1041,13 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .attachments-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--cyp-text);
+  color: var(--cyp-text-secondary);
   margin: 0;
 }
 
@@ -975,26 +1057,26 @@ onBeforeUnmount(() => {
 }
 
 .attachments-empty {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--cyp-text-muted);
-  padding: 8px 0;
+  padding: 2px 0 4px;
 }
 
 .attachments-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .attachment-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--cyp-bg-card);
-  border: 1px solid var(--cyp-border);
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--cyp-chrome-bg-soft);
+  border: 1px solid var(--cyp-chrome-border);
   border-radius: 6px;
-  transition: all 0.2s;
+  transition: background 0.15s;
 }
 
 .attachment-badge {
@@ -1077,7 +1159,7 @@ onBeforeUnmount(() => {
 .library-used {
   flex-shrink: 0;
   font-size: 12px;
-  color: #0077cc;
+  color: var(--cyp-brand-hover);
 }
 
 .library-meta {
@@ -1131,20 +1213,30 @@ onBeforeUnmount(() => {
 /* 移动端：保持横排，只收紧间距；禁止整栏改纵向把布局打散 */
 @media (max-width: 768px) {
   .action-bar {
-    padding: 10px 12px;
+    padding: 8px 10px;
   }
 
   .title-input {
     font-size: 20px;
-    padding: 12px 14px 8px;
+    padding: 10px 14px 6px;
   }
 
-  .tags-section {
-    margin: 0 10px 10px;
+  .edit-meta {
+    margin: 0 10px 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mcp-option {
+    margin-left: 0;
   }
 
   .form-content {
     grid-template-rows: auto auto minmax(220px, 1fr) auto;
+  }
+
+  .attachments-group {
+    max-height: 32vh;
   }
 }
 

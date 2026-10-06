@@ -70,7 +70,7 @@ async clearAllData(): Promise<void> {
 const confirmClear = async () => {
   try {
     // 调用服务器端 API 清除数据
-    const response = await fetch('http://localhost:5170/api/data/clear', {
+    const response = await fetch('http://127.0.0.1:5170/api/data/clear', {
       method: 'DELETE',
     })
     
@@ -97,7 +97,7 @@ async function initializeStorage() {
   try {
     await storageManager.initialize({
       mode: 'remote',
-      apiUrl: 'http://localhost:5170/api'
+      apiUrl: 'http://127.0.0.1:5170/api'
     })
     console.log('✅ 存储管理器初始化成功 - 使用服务器端存储')
   } catch (err) {

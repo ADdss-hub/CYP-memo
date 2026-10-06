@@ -175,37 +175,28 @@ CREATE INDEX idx_files_memoId ON files(memoId);
 
 ## 📦 部署方案
 
-### 方案 1: Docker（推荐）
+权威：根目录 [`DEPLOY.md`](../DEPLOY.md)。
+
+### 方案 1: 原生进程（推荐）
 
 **优点**：
-- ✅ 零配置
-- ✅ 跨平台
-- ✅ 易于管理
-
-**使用**：
-```bash
-docker-compose up -d
-```
-
-### 方案 2: 传统部署
-
-**优点**：
-- ✅ 直接控制
-- ✅ 性能最优
+- 直接控制
+- 与生产同口径
+- 无平行部署通道
 
 **使用**：
 ```bash
 pnpm install
 pnpm build
-pnpm start
+# 或安装 scripts/install/ 对应通道
 ```
 
-### 方案 3: PM2 管理
+### 方案 2: PM2 管理
 
 **优点**：
-- ✅ 进程守护
-- ✅ 自动重启
-- ✅ 日志管理
+- 进程守护
+- 自动重启
+- 日志管理
 
 **使用**：
 ```bash
@@ -224,7 +215,7 @@ pm2 save
 - 家庭 NAS
 - 小型团队（<100 用户）
 - 中小型应用（<10万备忘录）
-- 容器部署
+- 原生进程部署
 - 云服务器
 
 ### ⚠️ 考虑其他方案
@@ -354,7 +345,7 @@ pm2 save
    - 体验提升
 
 3. **生产部署**
-   - 使用 Docker
+   - 使用 `DEPLOY.md` / `scripts/install/`
    - 配置备份
    - 监控运行
 
@@ -376,9 +367,7 @@ pnpm local
 ### 生产环境
 
 ```bash
-# 使用 Docker
-docker-compose up -d
-
+# 使用 Server 发行包 + scripts/install/（见 DEPLOY.md）
 # 或使用 PM2
 pm2 start dist/index.js --name cyp-memo
 

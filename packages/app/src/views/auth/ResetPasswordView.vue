@@ -19,7 +19,7 @@
           </div>
           <div class="function-info">
             <h3 class="function-title">找回账号</h3>
-            <p class="function-desc">忘记了账号？通过个人令牌或安全问题找回您的账号</p>
+            <p class="function-desc">忘记了账号？通过个人令牌找回您的账号</p>
           </div>
           <div class="function-arrow">
             <ArrowRight />
@@ -92,17 +92,17 @@ const goToResetPassword = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--cyp-bg-page);
+  background: transparent;
   padding: 20px;
 }
 
 .select-container {
   width: 100%;
   max-width: 480px;
-  background: var(--cyp-bg-card);
+  background: var(--cyp-chrome-bg-panel);
   border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  border: 1px solid var(--cyp-border);
+  box-shadow: var(--cyp-chrome-shadow), 0 12px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--cyp-chrome-border);
   padding: 40px;
 }
 
@@ -155,16 +155,25 @@ const goToResetPassword = () => {
 }
 
 .function-icon {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-soft) 100%);
-  border-radius: 12px;
-  color: white;
-  font-size: 24px;
+  border-radius: 8px;
+  color: #ffffff;
   flex-shrink: 0;
+}
+
+.function-icon :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.function-arrow :deep(svg) {
+  width: 16px;
+  height: 16px;
 }
 
 .function-info {
@@ -186,7 +195,7 @@ const goToResetPassword = () => {
 }
 
 .function-arrow {
-  color: #c0c4cc;
+  color: var(--cyp-text-muted);
   font-size: 20px;
   flex-shrink: 0;
   transition: all 0.3s;
@@ -253,7 +262,7 @@ const goToResetPassword = () => {
 }
 
 .separator {
-  color: #c0c4cc;
+  color: var(--cyp-text-muted);
 }
 
 /* 深色主题支持 */
@@ -272,9 +281,13 @@ const goToResetPassword = () => {
   }
 
   .function-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 20px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .function-icon :deep(svg) {
+    width: 14px;
+    height: 14px;
   }
 
   .function-title {

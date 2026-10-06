@@ -10,7 +10,7 @@ import { validateTagName } from '../utils/validation'
 import { logManager } from './LogManager'
 import { fileManager } from './FileManager'
 import { generateUUID } from '../utils/crypto'
-import { storageManager } from '../storage/StorageManager'
+import { storageManager, getStorage } from '../storage/StorageManager'
 import type { RemoteStorageAdapter } from '../storage/RemoteStorageAdapter'
 import type { FileMetadata, Memo, MemoHistory } from '../types'
 import { resolveTenantRootId } from '../types'
@@ -189,7 +189,21 @@ export class MemoManager {
     // 先清理关联附件，再软删除（附件管理页同步消失）
     await this.deleteMemoAttachments(memo)
 
-    // 软删除备忘录
+    // 删除时一并撤销该备忘录的分享记录（远程由服务端软删级联；本地在此清）
+    try {
+      const shares = await getStorage().getSharesByMemoId(memoId)
+      for (const share of shares) {
+        if (share?.id) await getStorage().deleteShare(share.id)
+      }
+    } catch (err) {
+      await logManager.warn('删除备忘录时撤销分享失败', {
+        memoId,
+        error: err instanceof Error ? err.message : String(err),
+        action: 'memo_delete_revoke_shares_fail',
+      })
+    }
+
+    // 软删除备忘录（远程 PATCH deletedAt 服务端也会级联撤销分享）
     await memoDAO.softDelete(memoId)
 
     if (storageManager.getMode() === 'remote') {

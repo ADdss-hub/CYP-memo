@@ -217,6 +217,39 @@ const routes: RouteRecordRaw[] = [
     },
   },
 
+  // 帮助中心 · 知识
+  {
+    path: '/help/knowledge',
+    name: 'help-knowledge',
+    component: () => import('../views/help/HelpKnowledgeView.vue'),
+    meta: {
+      requiresAuth: true,
+      title: '知识',
+    },
+  },
+  // 帮助中心 · MCP（独立界面）
+  {
+    path: '/help/mcp',
+    name: 'help-mcp',
+    component: () => import('../views/help/HelpMcpView.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'MCP',
+    },
+  },
+  // MCP OAuth 同意页（交互客户端 PKCE）
+  {
+    path: '/help/mcp/oauth/consent',
+    name: 'help-mcp-oauth-consent',
+    component: () => import('../views/help/HelpMcpOauthConsentView.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'MCP 授权',
+    },
+  },
+  { path: '/help', redirect: '/help/knowledge' },
+  { path: '/mcp', redirect: '/help/mcp' },
+
   // 个人资料
   {
     path: '/profile',
@@ -240,16 +273,8 @@ const routes: RouteRecordRaw[] = [
       title: '运维概览',
     },
   },
-  {
-    path: '/tenant/database',
-    name: 'tenant-database',
-    component: () => import('../views/tenant/TenantDatabaseView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiredPermissions: [Permission.TENANT_DATABASE],
-      title: '数据维护',
-    },
-  },
+  /** 数据维护入口已取消 → 系统设置（账号注销清除） */
+  { path: '/tenant/database', redirect: '/settings' },
   {
     path: '/tenant/monitor',
     name: 'tenant-monitor',
@@ -258,6 +283,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiredPermissions: [Permission.TENANT_MONITOR],
       title: '运行监控',
+      /** 侧栏默认隐藏；经运维概览窗口进入 */
+      hideFromMenu: true,
     },
   },
   {
@@ -270,6 +297,16 @@ const routes: RouteRecordRaw[] = [
       title: '运行日志',
     },
   },
+  {
+    path: '/tenant/open-portal',
+    name: 'tenant-open-portal',
+    component: () => import('../views/tenant/TenantOpenPortalView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiredPermissions: [Permission.TENANT_MONITOR],
+      title: '开放门户',
+    },
+  },
   // 旧「用户列表」与子用户管理重叠 → 成员业务唯一入口
   { path: '/tenant/users', redirect: '/accounts' },
 
@@ -278,7 +315,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/admin/login', redirect: '/login' },
   { path: '/admin/users', redirect: '/accounts' },
   { path: '/admin/dashboard', redirect: '/tenant' },
-  { path: '/admin/database', redirect: '/tenant/database' },
+  { path: '/admin/database', redirect: '/settings' },
   { path: '/admin/monitor', redirect: '/tenant/monitor' },
 
   // 法律文案（页脚公开可访问，无需登录）
@@ -365,6 +402,7 @@ router.beforeEach(async (to, from, next) => {
     to.name !== 'share-view' &&
     to.name !== 'terms' &&
     to.name !== 'privacy' &&
+    to.name !== 'help-mcp-oauth-consent' &&
     to.name !== 'not-found'
   ) {
     // 加载设置以获取最新的首次使用状态

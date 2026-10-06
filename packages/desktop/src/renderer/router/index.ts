@@ -230,6 +230,29 @@ const routes: RouteRecordRaw[] = [
     },
   },
 
+  // 帮助中心 · 知识
+  {
+    path: '/help/knowledge',
+    name: 'help-knowledge',
+    component: () => import('@app-views/help/HelpKnowledgeView.vue'),
+    meta: {
+      requiresAuth: true,
+      title: '知识',
+    },
+  },
+  // 帮助中心 · MCP（独立界面）
+  {
+    path: '/help/mcp',
+    name: 'help-mcp',
+    component: () => import('@app-views/help/HelpMcpView.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'MCP',
+    },
+  },
+  { path: '/help', redirect: '/help/knowledge' },
+  { path: '/mcp', redirect: '/help/mcp' },
+
   // 个人资料
   {
     path: '/profile',

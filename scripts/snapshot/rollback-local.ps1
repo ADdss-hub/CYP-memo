@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 $Root = Get-Root $PSScriptRoot
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
-$snapRoot = Join-Path $Root 'backups\snapshots'
+$snapRoot = if ($env:CYP_SNAPSHOT_ROOT) { $env:CYP_SNAPSHOT_ROOT } else { Join-Path $Root 'backups\snapshots' }
 $latestFile = Join-Path $snapRoot 'LATEST.txt'
 $src = $null
 if ($args.Count -ge 1 -and $args[0]) {
@@ -19,7 +19,10 @@ if (-not $src -or -not (Test-Path -LiteralPath $src)) {
   exit 1
 }
 
-$dataDir = Join-Path $Root 'packages\server\data'
+& node (Join-Path $Root 'scripts\verify\verify-dir-manifest.mjs') $src
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$dataDir = if ($env:CYP_SNAPSHOT_DATA_DIR) { $env:CYP_SNAPSHOT_DATA_DIR } else { Join-Path $Root 'packages\server\data' }
 if (-not (Test-Path -LiteralPath $dataDir)) {
   New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 }
@@ -27,14 +30,14 @@ if (-not (Test-Path -LiteralPath $dataDir)) {
 # 回滚前自动再拍一份安全点
 $safety = Join-Path $snapRoot ("pre-rollback-" + (Get-Date -Format 'yyyyMMdd_HHmmss'))
 New-Item -ItemType Directory -Force -Path $safety | Out-Null
-Copy-Item -LiteralPath (Join-Path $dataDir '*') -Destination $safety -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item -Path (Join-Path $dataDir '*') -Destination $safety -Recurse -Force -ErrorAction SilentlyContinue
 
 Get-ChildItem -LiteralPath $dataDir -Force -ErrorAction SilentlyContinue |
   Where-Object { $_.Name -ne '.' } |
   Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 Get-ChildItem -LiteralPath $src -Force |
-  Where-Object { $_.Name -ne 'SNAPSHOT.json' } |
+  Where-Object { $_.Name -ne 'SNAPSHOT.json' -and $_.Name -ne 'MANIFEST.sha256' } |
   ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $dataDir -Recurse -Force }
 
 $sw.Stop()

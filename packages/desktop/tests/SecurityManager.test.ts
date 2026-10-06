@@ -262,7 +262,7 @@ describe('SecurityManager', () => {
 
     it('should allow websocket in local tooling', () => {
       const csp = securityManager.getCSPConfig(true)
-      expect(csp).toContain('ws://localhost:*')
+      expect(csp).toContain('ws://127.0.0.1:*')
     })
 
     it('should include remote server URL when provided', () => {

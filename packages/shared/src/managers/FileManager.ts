@@ -99,11 +99,14 @@ export class FileManager {
       throw new Error('文件不存在')
     }
 
-    // 从全部关联备忘录的 attachments 中移除（多备忘录共用时不能只解主关联）
-    await this.detachFileFromMemos(fileId, metadata.userId, undefined, true)
-
-    // 删除文件
-    await fileDAO.delete(fileId)
+    // 远程：服务端 DELETE 会从本范围备忘录 attachments 解绑并删 blob，禁止先 PATCH 解绑以免双删
+    if (storageManager.getMode() === 'remote') {
+      await fileDAO.delete(fileId)
+    } else {
+      // 本地：先从关联备忘录 attachments 移除（不删备忘录），再删文件
+      await this.detachFileFromMemos(fileId, metadata.userId, undefined, true)
+      await fileDAO.delete(fileId)
+    }
 
     // 记录日志
     await logManager.info('文件删除成功', {
@@ -211,16 +214,18 @@ export class FileManager {
     const metadataList = await Promise.all(fileIds.map((id) => fileDAO.getMetadata(id)))
     const validMetadata = metadataList.filter((m) => m !== undefined)
 
-    // 逐个从备忘录 detach（含反查兜底），再批量删文件
-    for (const metadata of validMetadata) {
-      if (!metadata) continue
-      await this.detachFileFromMemos(metadata.id, metadata.userId, undefined, true)
+    const remote = storageManager.getMode() === 'remote'
+    if (!remote) {
+      // 本地：先从关联备忘录 attachments 移除（不删备忘录），再删文件
+      for (const metadata of validMetadata) {
+        if (!metadata) continue
+        await this.detachFileFromMemos(metadata.id, metadata.userId, undefined, true)
+      }
     }
+    // 远程：服务端 DELETE 会解绑并删 blob；禁止客户端先 PATCH 解绑
 
-    // 批量删除文件
     await fileDAO.bulkDelete(fileIds)
 
-    // 记录日志
     await logManager.info('批量删除文件成功', {
       fileIds,
       count: fileIds.length,
@@ -230,7 +235,7 @@ export class FileManager {
   }
 
   /**
-   * 获取存储空间（远程 = 服务器 dataDir 唯一根所在卷；对外正式名「存储空间」）
+   * 获取系统存储空间 + 文件库存储空间（R-010 分称；同 dataDir 根）
    */
   async getStorageUsage(userId: string): Promise<StorageInfo> {
     const storage = getStorage() as {
@@ -239,7 +244,7 @@ export class FileManager {
     }
 
     if (typeof storage.getStorageInfo !== 'function') {
-      throw new Error('存储适配器缺少 getStorageInfo：禁止用账号占用冒充磁盘口径（R-010）')
+      throw new Error('存储适配器缺少 getStorageInfo：禁止用文件库占用冒充系统存储空间（R-010）')
     }
     return await storage.getStorageInfo(userId)
   }
@@ -383,6 +388,17 @@ export class FileManager {
     })
 
     return orphanedFiles.length
+  }
+
+  /**
+   * 更新文件元数据（文件名 / MCP 公开标记等）
+   */
+  async updateFile(fileId: string, updates: Partial<Pick<FileMetadata, 'filename' | 'mcpPublic'>>): Promise<void> {
+    const metadata = await fileDAO.getMetadata(fileId)
+    if (!metadata) {
+      throw new Error('文件不存在')
+    }
+    await fileDAO.updateMetadata(fileId, updates)
   }
 
   /**

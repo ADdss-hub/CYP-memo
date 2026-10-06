@@ -8,7 +8,7 @@
 
 import { app } from 'electron'
 import { spawn, ChildProcess } from 'child_process'
-import http from 'http'
+import https from 'https'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath, pathToFileURL } from 'url'
@@ -20,8 +20,11 @@ const __dirname = path.dirname(__filename)
 // 默认端口
 const DEFAULT_PORT = 5170
 
-// 服务器启动超时时间（毫秒）
-const SERVER_START_TIMEOUT = 30000
+// 服务器启动超时时间（毫秒）；机检可 CYP_EMBED_START_TIMEOUT_MS 覆盖
+const SERVER_START_TIMEOUT = (() => {
+  const n = Number(process.env.CYP_EMBED_START_TIMEOUT_MS || 30000)
+  return Number.isFinite(n) && n >= 5000 ? n : 30000
+})()
 
 const READY_POLL_INTERVAL_MS = 250
 
@@ -155,9 +158,9 @@ export class EmbeddedServer {
 
         const probeReady = (): Promise<boolean> =>
           new Promise((resolveProbe) => {
-            const req = http.get(
-              `http://127.0.0.1:${this.port}/healthz/ready`,
-              { timeout: 2000 },
+            const req = https.get(
+              `https://127.0.0.1:${this.port}/healthz/ready`,
+              { timeout: 2000, rejectUnauthorized: false },
               (res) => {
                 let body = ''
                 res.on('data', (chunk: Buffer | string) => {
@@ -256,7 +259,7 @@ export class EmbeddedServer {
    * 获取服务器 URL
    */
   getUrl(): string {
-    return `http://localhost:${this.port}`
+    return `https://127.0.0.1:${this.port}`
   }
 
   /**
@@ -394,12 +397,23 @@ export class EmbeddedServer {
 
     for (const serverPath of distCandidates) {
       console.log('[EmbeddedServer] Checking dist:', serverPath)
-      if (fs.existsSync(serverPath)) {
-        return {
-          command: nodeBin,
-          args: ['--conditions=cyp-node', serverPath],
-          cwd: path.dirname(serverPath),
+      if (!fs.existsSync(serverPath)) continue
+      // 联调：陈旧 HTTP dist 会导致 HTTPS 就绪探针永远超时（R-TLS-001）
+      if (isLocalTooling) {
+        try {
+          const body = fs.readFileSync(serverPath, 'utf8')
+          if (!/ensureApiTlsMaterial|createHttpsServer/.test(body)) {
+            console.warn('[EmbeddedServer] Skipping stale HTTP dist (no TLS):', serverPath)
+            continue
+          }
+        } catch {
+          continue
         }
+      }
+      return {
+        command: nodeBin,
+        args: ['--conditions=cyp-node', serverPath],
+        cwd: path.dirname(serverPath),
       }
     }
 

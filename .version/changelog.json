@@ -8,6 +8,526 @@
       "changes": [
         {
           "type": "fix",
+          "description": "采证脚本唯一HTTPS入口且隔离才可写；Release打包后校验并上传sha256"
+        },
+        {
+          "type": "feat",
+          "description": "恢复前回校验sha256；快照MANIFEST；回滚缺清单拒绝；Windows restore-local.ps1；deploy/signing公钥槽"
+        },
+        {
+          "type": "chore",
+          "description": "scripts根目录Node入口迁入start/install/verify/diagnose/_internal"
+        },
+        {
+          "type": "feat",
+          "description": "发行包与tar备份写sha256；CYP_GPG_SIGN_KEY才gpg签名；uname loongarch64登记loong64"
+        },
+        {
+          "type": "feat",
+          "description": "Windows SCM注册卸载（NSSM或WinSW）；失败自动重启"
+        },
+        {
+          "type": "chore",
+          "description": "scripts根目录sh/ps1迁入snapshot与install八子目录"
+        },
+        {
+          "type": "feat",
+          "description": "systemd Type=notify与TimeoutStartSec；监听后READY=1"
+        },
+        {
+          "type": "feat",
+          "description": "桌面Win/Linux构建补arm64；macOS仍universal"
+        },
+        {
+          "type": "fix",
+          "description": "verify-e2e只强制:5170；:5173不再当产品壳门禁"
+        },
+        {
+          "type": "chore",
+          "description": "start-local写出start-time.json规范字段"
+        },
+        {
+          "type": "docs",
+          "description": "一键启停诊断与唯一入口对齐；快照回滚补Unix入口"
+        },
+        {
+          "type": "feat",
+          "description": "MCP旁路仅环回；产品入口/mcp门面反代；契约CDC消费者期望机检"
+        },
+        {
+          "type": "feat",
+          "description": "TLS签发收口shared/tls/issue；开放门户/tenant/open-portal"
+        },
+        {
+          "type": "feat",
+          "description": "嵌入式5.7等价：工单审计、对账回放、进程内发现（NR-12不等于完善）"
+        },
+        {
+          "type": "feat",
+          "description": "核算聚合计数；服务协作进程内路由拒绝核验"
+        },
+        {
+          "type": "docs",
+          "description": "运行底座完成判定唯一执行面COMPLETION_STANDARD；军械库4.2/ANTI-90禁闭集落地平行口径"
+        },
+        {
+          "type": "docs",
+          "description": "交付物对齐V1.8.6；十二3合规台账不进闭集不挡底座完成判定；completeForm不等于NR-05"
+        },
+        {
+          "type": "docs",
+          "description": "嵌入式5.7等价表EMBEDDED_EQUIVALENTS（NR-12不等于完善）"
+        },
+        {
+          "type": "docs",
+          "description": "闭集35张组件卡片component-cards（十一交付物不等于NR-05）"
+        },
+        {
+          "type": "docs",
+          "description": "U1按计划每窗1万；累计access 70000/400000；产品库未污染；仍未满额"
+        },
+        {
+          "type": "test",
+          "description": "残留整改：v2-product-entry-chain；交互窗4工人p95=77；fileBodyParse TipTap3"
+        },
+        {
+          "type": "fix",
+          "description": "残留整改：去掉selfsigned/node-forge改peculiar x509；TipTap升至3.30.5"
+        },
+        {
+          "type": "docs",
+          "description": "波次3 B8复检：隔离交互窗p95与U1短窗；产品库未污染；PERF-EVID缺口保留"
+        },
+        {
+          "type": "test",
+          "description": "波次3 B8：load-isolation-refuse；隔离交互窗与U1短窗实机报告"
+        },
+        {
+          "type": "fix",
+          "description": "波次3 B8：压测隔离强制API_BASE与dataDir核对；禁默认打产品端口"
+        },
+        {
+          "type": "docs",
+          "description": "波次2复检：CSP/HSTS/LIMIT/MCP TLS机检；audit余node-forge与tiptap；5170未监听"
+        },
+        {
+          "type": "test",
+          "description": "波次2：csp/security-headers/sql-limit-bind/MCP禁全局TLS放宽机检"
+        },
+        {
+          "type": "fix",
+          "description": "波次2 B4/B5/B6/B7：CSP去裸https:+HSTS、LIMIT绑定、MCP按请求TLS、uuid与markdown-it/body-parser收口"
+        },
+        {
+          "type": "test",
+          "description": "波次1：sanitizeHtml/XSS、禁持久化 apiKey、upload-guard 与 auth-cookie 机检"
+        },
+        {
+          "type": "fix",
+          "description": "波次1 B1–B3：富文本净化、HttpOnly 会话 Cookie、上传类型/魔数门禁"
+        },
+        {
+          "type": "docs",
+          "description": "安全与性能分批整改计划：docs/design P5 计划 B1–B8 + V0–V4 复合检验（未实施代码）"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 旁路随 local:all/start-local 自动同启；APP_ENV=prod 自动局域网；禁手工第二条命令（规则 24.21）"
+        },
+        {
+          "type": "perf",
+          "description": "帮助中心 MCP 页布局：接入/策略/审核三分区；客户端配置上移；公开与能力并排；长提示收折；?tab= 深链"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 个人令牌轮换：POST /api/mcp/pat/:id/rotate；壳内轮换按钮与 30 天说明；知识样例改帮助中心 MCP 页签发"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 审核流水可视：帮助中心查 mcp.audit 与 source=mcp 告警；运行日志可筛 MCP 审核；GET /api/mcp/audit"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 公开配置补 requireFlag 壳内开关；旁路热叠读快照纳入 requireFlag"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 配置热叠读：旁路监视 mcp-public/cap-config.json，无需重启；写能力新开 list_changed；关写 MCP_CAP_OFF"
+        },
+        {
+          "type": "feat",
+          "description": "MCP OAuth 同意页：浏览器授权进 /help/mcp/oauth/consent；POST consent 批准/拒绝；JSON+Bearer 仍可直接发码"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 能力开关矩阵：壳内可配 enabled/query/写/公开轨/分段/连接器；落 mcp-cap-config.json；旁路叠读"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 公开选择器 tag/ids：白名单录入；REST 与旁路按 mode 过滤；旁路叠读 mcp-public-config.json"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 公开投影：文件库勾选允许公开；MCP 页可配 maxLayer/选择器；落 dataDir；selector=none 公开列表为空"
+        },
+        {
+          "type": "feat",
+          "description": "帮助中心独立 MCP 页 /help/mcp：令牌签发、端点与 Cursor stdio；设置页迁出操作面"
+        },
+        {
+          "type": "feat",
+          "description": "帮助中心知识页增加 MCP 客户端配置（stdio 样例、端点、协议头、实时基址可复制）"
+        },
+        {
+          "type": "feat",
+          "description": "新增帮助中心「知识」：侧栏 /help/knowledge 内置说明并可搜索"
+        },
+        {
+          "type": "perf",
+          "description": "备忘录编辑页：标签与 MCP 同排；编辑器主区占满余高；附件底栏"
+        },
+        {
+          "type": "fix",
+          "description": "MCP 旁路签发补 Idempotency-Key；ensure-app-dist 源码新于 dist 时自动重建"
+        },
+        {
+          "type": "perf",
+          "description": "子账号权限改下拉多选；产品入口唯一面 local:all 仅 :5170 同域静态"
+        },
+        {
+          "type": "fix",
+          "description": "恢复系统设置 MCP 个人令牌与备忘录公开查询；PAT/换发/IAM 双轨重新可用"
+        },
+        {
+          "type": "perf",
+          "description": "重置密码安全问题提示图标固定 18px，避免撑满信息框"
+        },
+        {
+          "type": "docs",
+          "description": "清理产品与活动文档中残留的编排部署字眼；统一原生进程口径（ServerConfig）"
+        },
+        {
+          "type": "docs",
+          "description": "全站联调 HTTPS：App/API/MCP 一律 TLS；环回 MCP 不再明文；主链接改 https"
+        },
+        {
+          "type": "fix",
+          "description": "App Vite 与 MCP 环回一律 HTTPS（同套 dataDir/tls；同端口拒绝明文）"
+        },
+        {
+          "type": "fix",
+          "description": "找回账号去掉安全问题路径，仅保留个人令牌找回"
+        },
+        {
+          "type": "fix",
+          "description": "系统设置 MCP 个人令牌与备忘录公开查询可用；PAT/换发/IAM 双轨认证"
+        },
+        {
+          "type": "fix",
+          "description": "找回/重置密码选择页功能图标框缩小（32px 图标框 + 16px SVG）"
+        },
+        {
+          "type": "docs",
+          "description": "军械库 TLS 规范 v1.2 §〇 镜像：门禁同步产品名 CN（禁 MCP）+ 内容完备"
+        },
+        {
+          "type": "fix",
+          "description": "TLS 证书身份统一为 CYP-memo（禁 MCP）；叶子改落 tls/leaf；完整 DN/SAN/KU/EKU"
+        },
+        {
+          "type": "test",
+          "description": "嵌入冒烟：联调跳过无 TLS 陈旧 server/dist 回退 tsx；探针对齐 HTTPS"
+        },
+        {
+          "type": "test",
+          "description": "R-008 静态核验认 Promise.all 内单次 updateMemo；大载荷复测默认 HTTPS"
+        },
+        {
+          "type": "perf",
+          "description": "备忘录列表窗口分页：首屏 50 条+加载更多；标签计数一次扫描；避免大库一次挂满 DOM"
+        },
+        {
+          "type": "test",
+          "description": "性能单测：10000 条列表断言窗口分页首屏≤50 卡且耗时<5s"
+        },
+        {
+          "type": "feat",
+          "description": "主 API 默认 HTTPS：ensureApiTlsMaterial（official→tls/leaf→私有CA/自签）；同端口不再明文 HTTP"
+        },
+        {
+          "type": "test",
+          "description": "主 API api-tls-probe：HTTPS health + 明文拒绝；API_TLS_PROBE_PASS（pnpm api:tls-probe）"
+        },
+        {
+          "type": "docs",
+          "description": "主 API HTTPS（R-TLS-001）：README/LOCAL_DEV/DEPLOY/启动脚本主链接改 https://<网卡IP>:5170"
+        },
+        {
+          "type": "feat",
+          "description": "MCP/产品 TLS：正规优先否则私有 CA ECDSA 自签；口径升为全产品凡需 TLS 一律用证"
+        },
+        {
+          "type": "test",
+          "description": "MCP tls-probe：private-ca ECDSA 探活、明文拒绝、official 优先、SAN 含环回"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 禁 PAT 原样转发：exchange 下游令牌；OAuth 授权码+PKCE+DCR；Resources 模板 cypmemo://memo/{id}/{layer}"
+        },
+        {
+          "type": "feat",
+          "description": "系统设置签发/吊销 MCP PAT；备忘录编辑允许 MCP 公开查询"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 公开选择器 flag/tag/ids/none 接线到公开轨 list/get；未命中 MCP_NOT_FOUND"
+        },
+        {
+          "type": "docs",
+          "description": "MCP 功能域 P3 设计审计报告（安全/权限/分段/观测 4/4）；设计 §16 修订⑬"
+        },
+        {
+          "type": "test",
+          "description": "MCP open-items：O1–O7 建议默认机检 OPEN_ITEMS_O1_O7_PASS"
+        },
+        {
+          "type": "docs",
+          "description": "设计 §17 修订⑫：O1–O7 产品已按建议默认落地；老板书面确认标可选"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 明示不做嵌入 server 同进程；CYP_MCP_EMBED_SERVER 拒绝；discover.embeddedInServer=false / deployment=sidecar"
+        },
+        {
+          "type": "test",
+          "description": "MCP http-probe：EMBED_SERVER 拒绝；业务 API /mcp 非协议面；discover embeddedInServer=false"
+        },
+        {
+          "type": "docs",
+          "description": "设计 §11.1 修订⑪ + README/DEPLOY：嵌入 server 不做；旁路唯一协议面"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 明示不做独立旧 HTTP+SSE；discover.transports；CYP_MCP_SSE_LEGACY 拒绝；/sse→MCP_SSE_LEGACY_DISABLED"
+        },
+        {
+          "type": "test",
+          "description": "MCP http-probe：SSE 通道 event:message；/sse 404；SSE_LEGACY env 拒绝；discover.transports"
+        },
+        {
+          "type": "docs",
+          "description": "设计 §11.1 修订⑩ + README/DEPLOY：旧 SSE 独立端点不做"
+        },
+        {
+          "type": "feat",
+          "description": "MCP file Resources：cypmemo://file/{id}/{layer} 与 memo 对称；共用分段门禁与抽取语义"
+        },
+        {
+          "type": "test",
+          "description": "MCP accept A_res_file + crosscheck 断言 file Resources 模板列出"
+        },
+        {
+          "type": "docs",
+          "description": "设计报告 §8.4 补 file Resources URI 与模板说明（修订⑨）"
+        },
+        {
+          "type": "test",
+          "description": "MCP accept 补 A3c：file_write 实机 upload→update metadata→delete（list_changed + MCP_ACCEPT_PASS）"
+        },
+        {
+          "type": "test",
+          "description": "MCP A1–A10 实机验收：写工具 create/update/delete + 环回 HTTP list/title + A10 禁用 503（MCP_ACCEPT_PASS）"
+        },
+        {
+          "type": "docs",
+          "description": "MCP 接入补 Cursor stdio 样例；局域网 allow_lan 自动自签 HTTPS；设计报告诚实标注 SDK 会话与产品发现基线双轨"
+        },
+        {
+          "type": "test",
+          "description": "MCP 交叉复核/http-probe/stdio-probe：公开 blob、协议头、discover、选择器 ids/tag、O4 不阻断、stdio 真连 tools/list、PAT 禁转发、exchange、OAuth PKCE、Resources 模板"
+        },
+        {
+          "type": "test",
+          "description": "MCP A9 静稳：夹具写后等业务库 mtime 连续静稳再压 audit"
+        },
+        {
+          "type": "fix",
+          "description": "公开投影 REST 默认不回传全文；服务端用途摘要；超层 404（O5）"
+        },
+        {
+          "type": "fix",
+          "description": "公开文件 blob 非 full 最高层 404；文件元数据按 layer 摘要"
+        },
+        {
+          "type": "fix",
+          "description": "MCP HTTP 缺/错协议头→400/-32020；/discover；accepted 含 2026-07-28 与 SDK 2025-11-25"
+        },
+        {
+          "type": "fix",
+          "description": "MCP 工具错误统一 isError+reason；连接器 requireName 生效；设计 A8 对齐 O6"
+        },
+        {
+          "type": "feat",
+          "description": "MCP 旁路 packages/mcp：stdio+环回 HTTP；默认 query；分段阅读/诚实报告；PAT；mcpPublic 公开投影；enableWriteCaps 补发 list_changed"
+        },
+        {
+          "type": "docs",
+          "description": "MCP 客户端接入说明并入 README/LOCAL_DEV/DEPLOY（mcp:local / mcp:stdio）"
+        },
+        {
+          "type": "fix",
+          "description": "CI02 访问对齐生产：Vite 默认 0.0.0.0；CORS/启动日志广告实机网卡 IP"
+        },
+        {
+          "type": "docs",
+          "description": "本机联调访问对齐生产：绑定 0.0.0.0、对外实机网卡 IP；禁 localhost/环回冒充生产访问"
+        },
+        {
+          "type": "docs",
+          "description": "设计报告归口 R-028：正文 SSOT 落 docs/design；资料库仅指针；MCP 设计报告迁回产品仓"
+        },
+        {
+          "type": "docs",
+          "description": "运行底座对齐军械库 V1.8.5：对象存储明确外部依赖不进闭集；接线/README/门禁镜像同步"
+        },
+        {
+          "type": "fix",
+          "description": "文件库与备忘录附件双向同步：库删只解绑备忘录；备忘录去掉独占附件则删库文件"
+        },
+        {
+          "type": "fix",
+          "description": "备忘录删除时级联撤销分享记录与评论（软删/硬删同口径）"
+        },
+        {
+          "type": "fix",
+          "description": "运维概览/运行日志/运行监控 OpsPageShell 水平居中"
+        },
+        {
+          "type": "fix",
+          "description": "自助注销 API 登记业务路由目录，避免底座未登记拒绝；设置页改用应用内确认框"
+        },
+        {
+          "type": "fix",
+          "description": "系统设置注销本账号改用应用内确认框；补 Bearer 回填与危险按钮对比色"
+        },
+        {
+          "type": "fix",
+          "description": "存储口径分称：系统存储空间=dataDir卷；文件库存储空间=本范围附件合计；禁止混用数字"
+        },
+        {
+          "type": "feat",
+          "description": "子账号权限增加备忘录/文件库子账号隔离选项；默认主+全部子共用，勾选后仅见本人"
+        },
+        {
+          "type": "fix",
+          "description": "设置补退出/注销本账号按钮；文件库主+子同范围共享与占用合计；列表标上传者"
+        },
+        {
+          "type": "fix",
+          "description": "退出当前账号与账号注销口径分清；文件库本账号占用置顶+卷容量分标；体积单位字节中文化"
+        },
+        {
+          "type": "fix",
+          "description": "站内通知标题简体中文：entity_update 等机读键改为数据已更新等；读写两侧中文化"
+        },
+        {
+          "type": "docs",
+          "description": "PERF-EVID：U0 实机满额通过（fullLadderPass stopAfter=U0）；缺口改为 U1～U3 与访问混合 p95 微调"
+        },
+        {
+          "type": "fix",
+          "description": "压测硬隔离：未专用 DATA_DIR 拒绝写入产品库；清理 u-ladder 夹具"
+        },
+        {
+          "type": "perf",
+          "description": "认证壳背景：品牌蓝光晕+细网格+暗角；卡片半透明毛玻璃；浅色主题同步"
+        },
+        {
+          "type": "perf",
+          "description": "全站页底氛围与认证壳同构：body固定氛围层；布局/欢迎/分享/404/法务透出"
+        },
+        {
+          "type": "fix",
+          "description": "业务壳布局：列表/编辑/详情全幅贴边；取消内容区悬浮岛；氛围底保留"
+        },
+        {
+          "type": "fix",
+          "description": "壳层磨砂面：顶栏/侧栏/页脚/搜索栏/列表统一 --cyp-chrome-* 半透明模糊"
+        },
+        {
+          "type": "fix",
+          "description": "磨砂面全局化：卡片/面板 Token 半透明；布局壳与 Element 浮层统一 blur"
+        },
+        {
+          "type": "perf",
+          "description": "磨砂面补齐：详情/协议去硬编码；编辑分享法务Modal监控编辑器接 chrome；blur 选择器扩面"
+        },
+        {
+          "type": "fix",
+          "description": "磨砂面复检收口：欢迎页去紫灰硬编码；会话过期/通知/Tooltip/更新条接 chrome；认证提示框语义色"
+        },
+        {
+          "type": "fix",
+          "description": "桌面端主题对齐：去紫渐变与EP蓝；Setup/Layout/TitleBar/更新条/设置接chrome与品牌token"
+        },
+        {
+          "type": "fix",
+          "description": "主题终扫收口：桌面控件底恢复实体；el页底透明透出氛围；Loading/滚动条/登录注册Tab接chrome"
+        },
+        {
+          "type": "fix",
+          "description": "主题全面补扫：Setup去紫rgba；浅色el-card/dialog/表格/输入/下拉接chrome；日志工具条磨砂"
+        },
+        {
+          "type": "fix",
+          "description": "浅色EP皮肤齐套：菜单/分页/标签/日期/文本域/抽屉/Tooltip；Setup成败语义色；监控健康模块chrome"
+        },
+        {
+          "type": "fix",
+          "description": "业务壳页底分面：登录后AppLayout稳工作面；认证/欢迎等仍强氛围"
+        },
+        {
+          "type": "fix",
+          "description": "全局轻提示一律视口正中（禁顶/底/左右）"
+        },
+        {
+          "type": "fix",
+          "description": "健康判定：时延达标即正常；自动派单仅工作异常才不正常"
+        },
+        {
+          "type": "fix",
+          "description": "运维概览「整体健康」文案：正常 / 不正常"
+        },
+        {
+          "type": "perf",
+          "description": "运维 IA：概览全模块健康；侧栏隐藏运行监控；取消数据维护；设置注销后清除相关内容"
+        },
+        {
+          "type": "perf",
+          "description": "运维监控：时延卡只看当前窗；历史越阈迁入整体健康；可点开查看各模块与底座组件"
+        },
+        {
+          "type": "perf",
+          "description": "U 阶梯分批短窗：CYP_U_BATCH_SIZE+累计状态；退出码 3=需续批"
+        },
+        {
+          "type": "perf",
+          "description": "性能路由分型交互/标准/重写 SLA；U 阶梯负载端 maxWorkers=24+429 退避/status0 重试"
+        },
+        {
+          "type": "test",
+          "description": "R-008 大载荷整链复测入 gates；U0 实机证据 capacity-u200-ladder-1790571099450.json"
+        },
+        {
+          "type": "docs",
+          "description": "性能优化新标准清单：CAP-PERF-DIM+PERF-EVID；verify:perf-evid/r008/perf-* 入 gates；缺口进 EVID gap"
+        },
+        {
+          "type": "docs",
+          "description": "运行底座对齐军械库 V1.8.4 完全满足：SSOT 引用；出站禁 raw allowlist；verify:gates 并入底座/三档/半开混沌；桌面禁日志中心"
+        },
+        {
+          "type": "fix",
           "description": "首次协议对话框接 legal.ts 同源；去掉整文件回滚打回的过期禁止商业用途文案；详情分享失败展示真实错误"
         },
         {

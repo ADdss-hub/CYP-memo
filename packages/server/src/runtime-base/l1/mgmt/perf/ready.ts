@@ -1,7 +1,7 @@
 /**
  * CYP-memo · 性能运行管控（嵌入式 · 非减配）
  * 基线 · SLA · 频率 · 路由分位 · 越界处置钩子。弹性状态只作调度推迟信号，不冒充本服务就绪。
- * SLA 默认对齐军械库性能专项 1.6.3 三维高标准（标准路由）；运维可热改，不得宽于高标准。
+ * SLA 对齐军械库性能专项 1.6.3：交互/标准/重写三分型；默认窗阈=标准路由；运维可热改，不得宽于高标准。
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 
@@ -165,7 +165,18 @@ export interface PerfPressure {
   checkedAt: string
 }
 
-/** 军械库 1.6.3 标准路由高标准（产品全局单阈默认；运维可收紧，不可放宽） */
+/** 军械库 1.6.3 路由分型（交互 / 标准 / 重写） */
+export type PerfRouteClass = 'interactive' | 'standard' | 'heavy'
+
+/** 交互路由高标准（列表/详情/轻写） */
+export const INTERACTIVE_HIGH_STANDARD_SLA: PerfSlaConfig = {
+  requestMs: 500,
+  p95Ms: 300,
+  errorRate: 0.01,
+  alertAfterBreaches: 2,
+}
+
+/** 标准路由高标准（产品默认窗阈；运维可收紧，不可放宽） */
 export const HIGH_STANDARD_SLA: PerfSlaConfig = {
   requestMs: 1000,
   p95Ms: 500,
@@ -173,7 +184,57 @@ export const HIGH_STANDARD_SLA: PerfSlaConfig = {
   alertAfterBreaches: 2,
 }
 
+/** 重写路由高标准（大附件/导入导出/批量） */
+export const HEAVY_HIGH_STANDARD_SLA: PerfSlaConfig = {
+  requestMs: 3000,
+  p95Ms: 2000,
+  errorRate: 0.01,
+  alertAfterBreaches: 2,
+}
+
 const DEFAULT_SLA: PerfSlaConfig = { ...HIGH_STANDARD_SLA }
+
+/**
+ * 路由分型：交互=列表/详情/轻写；重写=上传/导入导出；其余标准。
+ * 观测豁免路由仍由 isDurationSlaExempt 先行过滤。
+ */
+export function classifyPerfRoute(route: string): PerfRouteClass {
+  const raw = String(route || '').trim()
+  const space = raw.indexOf(' ')
+  const method = (space > 0 ? raw.slice(0, space) : 'GET').toUpperCase()
+  const pathOnly = (space > 0 ? raw.slice(space + 1) : raw).split('?')[0] || ''
+  const lower = pathOnly.toLowerCase()
+  const p = lower.startsWith('/api/')
+    ? lower
+    : lower.startsWith('/')
+      ? `/api${lower}`
+      : `/${lower}`
+
+  if (
+    ((method === 'POST' || method === 'PUT') &&
+      (p.includes('/files') || p.includes('/upload'))) ||
+    p.includes('/import') ||
+    p.includes('/export') ||
+    p.includes('/backup') ||
+    p.includes('/migrate')
+  ) {
+    return 'heavy'
+  }
+
+  if (
+    (method === 'GET' &&
+      (p === '/api/memos' ||
+        /^\/api\/memos\/[^/]+$/.test(p) ||
+        /^\/api\/users\/[^/]+\/memos$/.test(p) ||
+        /^\/api\/users\/[^/]+\/memos\/search$/.test(p))) ||
+    (method === 'PATCH' && /^\/api\/memos\/[^/]+$/.test(p)) ||
+    (method === 'POST' && p === '/api/memos')
+  ) {
+    return 'interactive'
+  }
+
+  return 'standard'
+}
 
 const WINDOW = 200
 /** 分位窗只保留近 60s。监控轮询留下的慢样本必须过期，禁止一直占着 P95 弹预警。 */
@@ -279,7 +340,18 @@ const state: {
 }
 
 const ring: { at: number; ms: number; status: number }[] = []
+/** 交互路由独立分位窗（1.6.3 p95=300） */
+const interactiveRing: { at: number; ms: number; status: number }[] = []
+let interactiveP95Ms: number | null = null
 const recentAts: number[] = []
+
+/** 按分型取硬阈；标准档用当前配置（已钳制不得宽于 HIGH_STANDARD） */
+export function resolveRouteSla(route: string): PerfSlaConfig {
+  const cls = classifyPerfRoute(route)
+  if (cls === 'interactive') return { ...INTERACTIVE_HIGH_STANDARD_SLA }
+  if (cls === 'heavy') return { ...HEAVY_HIGH_STANDARD_SLA }
+  return { ...state.sla }
+}
 const routeMap = new Map<
   string,
   { count: number; errorCount: number; maxMs: number; sumMs: number; ring: number[] }
@@ -1072,6 +1144,10 @@ function pruneSlaRing(now = Date.now()): void {
   const cut = now - SLA_RING_TTL_MS
   while (ring.length > 0 && ring[0].at < cut) ring.shift()
   if (ring.length > WINDOW) ring.splice(0, ring.length - WINDOW)
+  while (interactiveRing.length > 0 && interactiveRing[0].at < cut) interactiveRing.shift()
+  if (interactiveRing.length > WINDOW) {
+    interactiveRing.splice(0, interactiveRing.length - WINDOW)
+  }
 }
 
 function recomputeWindows(): void {
@@ -1080,12 +1156,24 @@ function recomputeWindows(): void {
     state.p50Ms = null
     state.p95Ms = null
     state.p99Ms = null
-    return
+  } else {
+    const sorted = ring.map((s) => s.ms).sort((a, b) => a - b)
+    state.p50Ms = percentile(sorted, 0.5)
+    state.p95Ms = percentile(sorted, 0.95)
+    state.p99Ms = percentile(sorted, 0.99)
   }
-  const sorted = ring.map((s) => s.ms).sort((a, b) => a - b)
-  state.p50Ms = percentile(sorted, 0.5)
-  state.p95Ms = percentile(sorted, 0.95)
-  state.p99Ms = percentile(sorted, 0.99)
+  if (interactiveRing.length === 0) {
+    interactiveP95Ms = null
+  } else {
+    const isorted = interactiveRing.map((s) => s.ms).sort((a, b) => a - b)
+    interactiveP95Ms = percentile(isorted, 0.95)
+  }
+}
+
+function interactiveWindowBreached(): boolean {
+  if (interactiveRing.length < 10) return false
+  if (interactiveP95Ms == null) return false
+  return interactiveP95Ms > INTERACTIVE_HIGH_STANDARD_SLA.p95Ms
 }
 
 function currentErrorRate(): number {
@@ -1271,8 +1359,17 @@ export function shouldDeferScheduleForPerf(): { defer: boolean; reason: string }
   return { defer: true, reason: control }
 }
 
-export function getPerfState(): PerfState {
+export function getPerfState(): PerfState & {
+  routeClassSla: {
+    interactive: PerfSlaConfig
+    standard: PerfSlaConfig
+    heavy: PerfSlaConfig
+  }
+  interactiveP95Ms: number | null
+  interactiveSampleCount: number
+} {
   const applied = getElasticityState().applied
+  recomputeWindows()
   return {
     ready: state.ready,
     sampleCount: state.sampleCount,
@@ -1286,7 +1383,7 @@ export function getPerfState(): PerfState {
     windowSize: WINDOW,
     sla: { ...state.sla },
     baseline: state.baseline ? { ...state.baseline } : null,
-    slaOk: computeSlaOk(),
+    slaOk: computeSlaOk() && !interactiveWindowBreached(),
     effectiveP95Ms: effectiveP95Sla(),
     topSlowRoutes: topSlowRoutes(),
     appliedConcurrency: applied?.concurrency ?? null,
@@ -1296,6 +1393,13 @@ export function getPerfState(): PerfState {
     lastRecoveredAt: state.lastRecoveredAt,
     pressure: evaluatePerfPressure(),
     automation: automationView(evaluatePerfPressure()),
+    routeClassSla: {
+      interactive: { ...INTERACTIVE_HIGH_STANDARD_SLA },
+      standard: { ...state.sla },
+      heavy: { ...HEAVY_HIGH_STANDARD_SLA },
+    },
+    interactiveP95Ms,
+    interactiveSampleCount: interactiveRing.length,
   }
 }
 
@@ -1382,14 +1486,23 @@ export function recordPerfSample(input: {
   touchRoute(sample.route, input.durationMs, input.statusCode)
 
   const slaExempt = isDurationSlaExempt(sample.route)
+  const routeClass = classifyPerfRoute(sample.route)
+  const routeSla = resolveRouteSla(sample.route)
   if (!slaExempt) {
     ring.push({ at: Date.now(), ms: input.durationMs, status: input.statusCode })
+    if (routeClass === 'interactive') {
+      interactiveRing.push({
+        at: Date.now(),
+        ms: input.durationMs,
+        status: input.statusCode,
+      })
+    }
     pruneSlaRing()
     recomputeWindows()
   }
 
   // 自动基线：健康窗首次固化；持续更优则刷新（闭环固化，不放宽 SLA 上限）
-  if (!slaExempt && computeSlaOk() && state.sampleCount >= 50) {
+  if (!slaExempt && computeSlaOk() && !interactiveWindowBreached() && state.sampleCount >= 50) {
     const p95 = state.p95Ms
     if (!state.baseline) {
       capturePerfBaseline(false)
@@ -1406,8 +1519,8 @@ export function recordPerfSample(input: {
 
   if (slaExempt) return
 
-  const requestBreach = input.durationMs >= state.sla.requestMs
-  const windowBreach = !computeSlaOk()
+  const requestBreach = input.durationMs >= routeSla.requestMs
+  const windowBreach = !computeSlaOk() || (routeClass === 'interactive' && interactiveWindowBreached())
   if (requestBreach || windowBreach) {
     state.breachCount += 1
     state.consecutiveBreaches += 1

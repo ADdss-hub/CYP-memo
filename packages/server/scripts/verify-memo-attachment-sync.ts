@@ -1,5 +1,9 @@
 /**
- * 真实 API 核验：备忘录 ↔ 附件库双向关联（选用 / 解绑 / updateMemo 反写）
+ * 真实 API 核验：备忘录 ↔ 文件库双向删除同步
+ * - 文件库删文件：备忘录保留，仅去掉 attachments
+ * - 备忘录去掉独占附件：文件库删文件
+ * - 多备忘录共用：从一条去掉后文件仍保留
+ * - PATCH memoId=null：解绑保留文件
  * Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
  */
 const base = process.env.CYP_API || 'http://127.0.0.1:5170'
@@ -22,8 +26,28 @@ async function req(
     body = JSON.stringify(opts.body)
   }
   const res = await fetch(`${base}${path}`, { method, headers, body })
-  const json = await res.json()
+  const json = await res.json().catch(() => ({}))
   return { status: res.status, ...json }
+}
+
+async function uploadOrphan(token: string, uid: string, name: string) {
+  const fileId = crypto.randomUUID()
+  const form = new FormData()
+  form.append(
+    'metadata',
+    JSON.stringify({
+      id: fileId,
+      userId: uid,
+      filename: name,
+      type: 'text/plain',
+      size: 8,
+      uploadedAt: new Date().toISOString(),
+    })
+  )
+  form.append('file', new Blob(['library!'], { type: 'text/plain' }), name)
+  const upload = await req('POST', '/api/files', { token, form })
+  if (!upload.success) throw new Error(`upload ${name}: ${JSON.stringify(upload)}`)
+  return (upload.data?.id as string) || fileId
 }
 
 async function main() {
@@ -54,70 +78,105 @@ async function main() {
   const idA = memoA.data.id as string
   const idB = memoB.data.id as string
 
-  // 上传孤儿文件（无 memoId）
-  const fileId = crypto.randomUUID()
-  const form = new FormData()
-  form.append(
-    'metadata',
-    JSON.stringify({
-      id: fileId,
-      userId: uid,
-      filename: 'library-pick.txt',
-      type: 'text/plain',
-      size: 8,
-      uploadedAt: new Date().toISOString(),
-    })
-  )
-  form.append('file', new Blob(['library!'], { type: 'text/plain' }), 'library-pick.txt')
-  const upload = await req('POST', '/api/files', { token, form })
-  if (!upload.success) throw new Error(`upload: ${JSON.stringify(upload)}`)
-  const fid = (upload.data?.id as string) || fileId
-
-  // 1) PATCH 关联到 A（服务端双向同步）
-  const patchA = await req('PATCH', `/api/files/${fid}`, { token, body: { memoId: idA } })
-  if (!patchA.success) throw new Error(`patchA: ${JSON.stringify(patchA)}`)
-  const afterA = await req('GET', `/api/memos/${idA}`, { token })
-  const metaA = await req('GET', `/api/files/${fid}/metadata`, { token })
-  const attA = afterA.data?.attachments || []
-  const linkOk = attA.includes(fid) && metaA.data?.memoId === idA
-
-  // 2) updateMemo attachments 权威列表切到 B（一次写，反写 memoId）
-  await req('PATCH', `/api/memos/${idA}`, { token, body: { attachments: [] } })
-  await req('PATCH', `/api/memos/${idB}`, {
+  // —— 1) 关联到 A，再独占从 A 清空 attachments → 文件库应删除 ——
+  const fidExclusive = await uploadOrphan(token, uid, 'exclusive-drop.txt')
+  const patchEx = await req('PATCH', `/api/files/${fidExclusive}`, {
     token,
-    body: { title: 'link-b', content: 'b', tags: [], attachments: [fid] },
+    body: { memoId: idA },
   })
-  const metaB = await req('GET', `/api/files/${fid}/metadata`, { token })
-  const afterB = await req('GET', `/api/memos/${idB}`, { token })
-  const afterA2 = await req('GET', `/api/memos/${idA}`, { token })
-  const moveOk =
-    metaB.data?.memoId === idB &&
-    (afterB.data?.attachments || []).includes(fid) &&
-    !(afterA2.data?.attachments || []).includes(fid)
+  if (!patchEx.success) throw new Error(`patchEx: ${JSON.stringify(patchEx)}`)
+  const clearA = await req('PATCH', `/api/memos/${idA}`, {
+    token,
+    body: { attachments: [] },
+  })
+  if (!clearA.success) throw new Error(`clearA: ${JSON.stringify(clearA)}`)
+  const metaGone = await req('GET', `/api/files/${fidExclusive}/metadata`, { token })
+  const afterAEx = await req('GET', `/api/memos/${idA}`, { token })
+  const exclusiveDropOk =
+    metaGone.status === 404 ||
+    metaGone.success === false ||
+    !metaGone.data ||
+    (!(afterAEx.data?.attachments || []).includes(fidExclusive) &&
+      !metaGone.data?.id)
 
-  // 3) PATCH memoId=null 解绑（保留文件）
-  const unlink = await req('PATCH', `/api/files/${fid}`, { token, body: { memoId: null } })
+  // —— 2) 同一文件挂 A+B，从 A 去掉 → 文件保留且仍在 B ——
+  const fidShared = await uploadOrphan(token, uid, 'shared-keep.txt')
+  await req('PATCH', `/api/files/${fidShared}`, {
+    token,
+    body: { linkedMemoIds: [idA, idB] },
+  })
+  const afterLink = await req('GET', `/api/memos/${idA}`, { token })
+  const afterLinkB = await req('GET', `/api/memos/${idB}`, { token })
+  const linkedBoth =
+    (afterLink.data?.attachments || []).includes(fidShared) &&
+    (afterLinkB.data?.attachments || []).includes(fidShared)
+
+  await req('PATCH', `/api/memos/${idA}`, {
+    token,
+    body: {
+      title: 'link-a',
+      content: 'a',
+      tags: [],
+      attachments: (afterLink.data?.attachments || []).filter(
+        (x: string) => x !== fidShared
+      ),
+    },
+  })
+  const metaShared = await req('GET', `/api/files/${fidShared}/metadata`, { token })
+  const afterAShared = await req('GET', `/api/memos/${idA}`, { token })
+  const afterBShared = await req('GET', `/api/memos/${idB}`, { token })
+  const sharedKeepOk =
+    linkedBoth &&
+    !!metaShared.data?.id &&
+    !(afterAShared.data?.attachments || []).includes(fidShared) &&
+    (afterBShared.data?.attachments || []).includes(fidShared)
+
+  // —— 3) 文件库 DELETE：备忘录保留，attachments 去掉 ——
+  const fidLib = await uploadOrphan(token, uid, 'lib-delete.txt')
+  await req('PATCH', `/api/files/${fidLib}`, { token, body: { memoId: idB } })
+  const beforeDel = await req('GET', `/api/memos/${idB}`, { token })
+  const delLib = await req('DELETE', `/api/files/${fidLib}`, { token })
+  if (!delLib.success) throw new Error(`delLib: ${JSON.stringify(delLib)}`)
+  const afterDelB = await req('GET', `/api/memos/${idB}`, { token })
+  const memoStill = await req('GET', `/api/memos/${idB}`, { token })
+  const libDeleteOk =
+    (beforeDel.data?.attachments || []).includes(fidLib) &&
+    !(afterDelB.data?.attachments || []).includes(fidLib) &&
+    !!memoStill.data?.id &&
+    !memoStill.data?.deletedAt
+
+  // —— 4) PATCH memoId=null 解绑（保留文件，不删库） ——
+  const fidUnlink = await uploadOrphan(token, uid, 'unlink-keep.txt')
+  await req('PATCH', `/api/files/${fidUnlink}`, { token, body: { memoId: idA } })
+  const unlink = await req('PATCH', `/api/files/${fidUnlink}`, {
+    token,
+    body: { memoId: null },
+  })
   if (!unlink.success) throw new Error(`unlink: ${JSON.stringify(unlink)}`)
-  const metaU = await req('GET', `/api/files/${fid}/metadata`, { token })
-  const afterBU = await req('GET', `/api/memos/${idB}`, { token })
+  const metaU = await req('GET', `/api/files/${fidUnlink}/metadata`, { token })
+  const afterAU = await req('GET', `/api/memos/${idA}`, { token })
   const unlinkOk =
-    !metaU.data?.memoId && !(afterBU.data?.attachments || []).includes(fid)
+    !!metaU.data?.id &&
+    !metaU.data?.memoId &&
+    !(afterAU.data?.attachments || []).includes(fidUnlink)
 
   // 清理
-  await req('DELETE', `/api/files/${fid}`, { token })
+  await req('DELETE', `/api/files/${fidShared}`, { token })
+  await req('DELETE', `/api/files/${fidUnlink}`, { token })
   await req('DELETE', `/api/memos/${idA}`, { token })
   await req('DELETE', `/api/memos/${idB}`, { token })
 
-  const passAll = linkOk && moveOk && unlinkOk
+  const passAll = exclusiveDropOk && sharedKeepOk && libDeleteOk && unlinkOk
   console.log(
     JSON.stringify(
       {
         ok: passAll,
-        linkOk,
-        moveOk,
+        exclusiveDropOk,
+        sharedKeepOk,
+        libDeleteOk,
         unlinkOk,
         path:
-          'PATCH /api/files memoId → updateMemo attachments → PATCH memoId null',
+          'exclusive drop→delete file | shared keep | lib DELETE→memo kept | PATCH null keep file',
       },
       null,
       2

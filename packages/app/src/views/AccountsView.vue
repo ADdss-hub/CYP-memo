@@ -52,64 +52,87 @@
       <!-- 创建子账号 -->
       <section id="create" class="account-section">
         <h2 class="section-title">创建子账号</h2>
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="create-card">
           <el-form
             ref="createFormRef"
             :model="createForm"
             :rules="createRules"
-            label-width="100px"
+            label-width="88px"
+            class="create-form"
             @submit.prevent="handleCreate"
           >
-            <el-form-item label="用户名" prop="username">
-              <el-input 
-                id="create-username"
-                v-model="createForm.username" 
-                placeholder="请输入用户名" 
-                clearable 
-              />
-            </el-form-item>
+            <div class="create-block">
+              <h3 class="create-block-title">账号信息</h3>
+              <el-form-item label="用户名" prop="username">
+                <el-input
+                  id="create-username"
+                  v-model="createForm.username"
+                  placeholder="请输入用户名"
+                  clearable
+                />
+              </el-form-item>
 
-            <el-form-item label="密码" prop="password">
-              <el-input
-                id="create-password"
-                v-model="createForm.password"
-                type="password"
-                placeholder="至少 8 位，包含字母和数字"
-                show-password
-                clearable
-              />
-            </el-form-item>
+              <div class="create-credentials-row">
+                <el-form-item label="密码" prop="password">
+                  <el-input
+                    id="create-password"
+                    v-model="createForm.password"
+                    type="password"
+                    placeholder="至少 8 位，包含字母和数字"
+                    show-password
+                    clearable
+                  />
+                </el-form-item>
 
-            <el-form-item label="确认密码" prop="confirmPassword">
-              <el-input
-                id="create-confirm-password"
-                v-model="createForm.confirmPassword"
-                type="password"
-                placeholder="请再次输入密码"
-                show-password
-                clearable
-              />
-            </el-form-item>
+                <el-form-item label="确认密码" prop="confirmPassword">
+                  <el-input
+                    id="create-confirm-password"
+                    v-model="createForm.confirmPassword"
+                    type="password"
+                    placeholder="请再次输入密码"
+                    show-password
+                    clearable
+                  />
+                </el-form-item>
+              </div>
+            </div>
 
-            <el-form-item label="权限设置" prop="permissions">
-              <el-checkbox-group v-model="createForm.permissions" class="perm-grid">
-                <el-checkbox
-                  v-for="item in permissionItems"
-                  :key="item.permission"
-                  :value="item.permission"
-                  :disabled="item.permission === Permission.PROFILE_SELF"
+            <div class="create-block">
+              <h3 class="create-block-title">权限设置</h3>
+              <el-form-item prop="permissions" label="权限" class="perm-form-item">
+                <el-select
+                  v-model="createForm.permissions"
+                  multiple
+                  filterable
+                  collapse-tags
+                  collapse-tags-tooltip
+                  placeholder="请选择权限"
+                  class="perm-select"
                 >
-                  {{ PERMISSION_LABELS[item.permission] }}
-                  <span v-if="item.hint" class="perm-tag">{{ item.hint }}</span>
-                </el-checkbox>
-              </el-checkbox-group>
-              <p class="form-tip">与侧栏入口一一对应；不可分配「子用户管理」。</p>
-            </el-form-item>
+                  <el-option-group
+                    v-for="group in permissionGroups"
+                    :key="group.title"
+                    :label="group.title"
+                  >
+                    <el-option
+                      v-for="item in group.items"
+                      :key="item.permission"
+                      :label="permOptionLabel(item)"
+                      :value="item.permission"
+                      :disabled="item.permission === Permission.PROFILE_SELF"
+                    />
+                  </el-option-group>
+                </el-select>
+                <p class="form-tip">
+                  下拉多选；个人资料必选；隔离默认关闭（本范围共享）；不可分配「子用户管理」。
+                </p>
+              </el-form-item>
+            </div>
 
-            <el-form-item>
-              <el-button 
-                type="primary" 
-                :loading="isCreating" 
+            <el-form-item label-width="0" class="create-actions">
+              <el-button
+                type="primary"
+                :loading="isCreating"
                 :disabled="isCreating"
                 @click="handleCreate"
               >
@@ -166,24 +189,38 @@
     </div>
 
     <!-- 权限设置对话框 -->
-    <el-dialog v-model="permissionDialogVisible" title="设置权限" width="640px">
-      <el-form label-width="88px">
+    <el-dialog v-model="permissionDialogVisible" title="设置权限" width="680px">
+      <el-form label-width="72px">
         <el-form-item label="用户名">
           <span>{{ selectedAccount?.username }}</span>
         </el-form-item>
-        <el-form-item label="权限设置">
-          <el-checkbox-group v-model="permissionForm.permissions" class="perm-grid">
-            <el-checkbox
-              v-for="item in permissionItems"
-              :key="'dlg-' + item.permission"
-              :value="item.permission"
-              :disabled="item.permission === Permission.PROFILE_SELF"
+        <el-form-item label="权限" class="perm-form-item">
+          <el-select
+            v-model="permissionForm.permissions"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="请选择权限"
+            class="perm-select"
+          >
+            <el-option-group
+              v-for="group in permissionGroups"
+              :key="'dlg-' + group.title"
+              :label="group.title"
             >
-              {{ PERMISSION_LABELS[item.permission] }}
-              <span v-if="item.hint" class="perm-tag">{{ item.hint }}</span>
-            </el-checkbox>
-          </el-checkbox-group>
-          <p class="form-tip">保存后按侧栏入口生效；可单独收回。</p>
+              <el-option
+                v-for="item in group.items"
+                :key="'dlg-' + item.permission"
+                :label="permOptionLabel(item)"
+                :value="item.permission"
+                :disabled="item.permission === Permission.PROFILE_SELF"
+              />
+            </el-option-group>
+          </el-select>
+          <p class="form-tip">
+            保存后按侧栏入口生效；隔离默认关闭（本范围共享），勾选后该子账号仅见本人。
+          </p>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -197,7 +234,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { authManager, Permission, PERMISSION_LABELS, ASSIGNABLE_PERMISSION_ITEMS, normalizeMemberPermissions } from '@cyp-memo/shared'
@@ -214,6 +251,41 @@ const activeMenu = ref('create')
 
 /** 扁平：一入口一权（不含子用户管理） */
 const permissionItems = ASSIGNABLE_PERMISSION_ITEMS
+
+const FEATURE_PERMS = new Set([
+  Permission.MEMO_MANAGE,
+  Permission.MEMO_DATA,
+  Permission.SHARE_MANAGE,
+  Permission.STATISTICS_VIEW,
+  Permission.ATTACHMENT_MANAGE,
+  Permission.SETTINGS_MANAGE,
+  Permission.PROFILE_SELF,
+])
+const OPS_PERMS = new Set([
+  Permission.TENANT_DASHBOARD,
+  Permission.TENANT_MONITOR,
+  Permission.TENANT_LOGS,
+])
+const ISOLATE_PERMS = new Set([
+  Permission.MEMO_ISOLATE_PEERS,
+  Permission.ATTACHMENT_ISOLATE_PEERS,
+])
+
+const permissionGroups = computed(() => {
+  const feature = permissionItems.filter((i) => FEATURE_PERMS.has(i.permission))
+  const ops = permissionItems.filter((i) => OPS_PERMS.has(i.permission))
+  const isolate = permissionItems.filter((i) => ISOLATE_PERMS.has(i.permission))
+  return [
+    { title: '业务入口', items: feature },
+    { title: '运维入口', items: ops },
+    { title: '隔离策略', items: isolate },
+  ]
+})
+
+function permOptionLabel(item: { permission: Permission; hint?: string }): string {
+  const base = PERMISSION_LABELS[item.permission]
+  return item.hint ? `${base}（${item.hint}）` : base
+}
 
 const defaultMemberPermissions = (): Permission[] =>
   normalizeMemberPermissions([Permission.MEMO_MANAGE, Permission.PROFILE_SELF])
@@ -416,8 +488,20 @@ async function handleUpdatePermission() {
  */
 async function confirmDelete(account: User) {
   try {
+    let purgeHint = '若系统设置已开启「账号注销后清除内容」，将同时清除该账号备忘录、文件与分享。'
+    try {
+      const raw = localStorage.getItem('cyp-memo-settings')
+      if (raw) {
+        const parsed = JSON.parse(raw) as { purgeRelatedOnAccountDelete?: boolean }
+        if (parsed.purgeRelatedOnAccountDelete === false) {
+          purgeHint = '当前未开启账号注销后清除：仅注销账号，不自动清除业务内容。'
+        }
+      }
+    } catch {
+      /* keep default hint */
+    }
     await ElMessageBox.confirm(
-      `确定要删除子账号 "${account.username}" 吗？此操作不可恢复。`,
+      `确定要删除子账号 "${account.username}" 吗？${purgeHint}`,
       '确认删除',
       {
         confirmButtonText: '删除',
@@ -588,7 +672,57 @@ onMounted(() => {
 .form-tip {
   font-size: 12px;
   color: var(--cyp-text-muted);
-  margin-top: 8px;
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.create-card :deep(.el-card__body) {
+  padding: 20px 24px;
+}
+
+.create-form {
+  width: 100%;
+}
+
+.create-block {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--cyp-border);
+}
+
+.create-block:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.create-block-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cyp-text);
+}
+
+.create-credentials-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.create-actions {
+  margin-bottom: 0;
+}
+
+.perm-form-item {
+  margin-bottom: 0;
+}
+
+.perm-form-item :deep(.el-form-item__content) {
+  display: block;
+  width: 100%;
+}
+
+.perm-select {
+  width: 100%;
 }
 
 /* 侧边栏菜单 */
@@ -596,30 +730,14 @@ onMounted(() => {
   border-right: none;
 }
 
-.perm-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 6px 12px;
-  width: 100%;
-}
-
-.perm-grid :deep(.el-checkbox) {
-  height: auto;
-  margin-right: 0;
-  white-space: nowrap;
-}
-
-.perm-tag {
-  margin-left: 4px;
-  font-size: 12px;
-  color: var(--cyp-text-muted);
-  font-weight: 400;
-}
-
 /* 移动端适配 */
 @media (max-width: 768px) {
   .page-title {
     font-size: 24px;
+  }
+
+  .create-credentials-row {
+    grid-template-columns: 1fr;
   }
 
   .main-account-info {

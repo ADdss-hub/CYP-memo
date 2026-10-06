@@ -24,7 +24,7 @@ pnpm install
 pnpm local
 ```
 
-进程仍强制 `APP_ENV=prod` / `NODE_ENV=production`。服务器：`http://localhost:5170`
+进程仍强制 `APP_ENV=prod` / `NODE_ENV=production`。访问：`http://<服务器IP>:5170`（绑定 `0.0.0.0`）
 
 ### 生产构建
 

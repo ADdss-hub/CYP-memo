@@ -32,14 +32,11 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 // Mock Element Plus icons
-vi.mock('@element-plus/icons-vue', () => ({
-  Document: { name: 'Document' },
-  CollectionTag: { name: 'CollectionTag' },
-  Paperclip: { name: 'Paperclip' },
-  FolderOpened: { name: 'FolderOpened' },
-  DataAnalysis: { name: 'DataAnalysis' },
-  TrendCharts: { name: 'TrendCharts' }
-}))
+// Mock Element Plus icons：基于真实模块展开，避免白名单式 mock 缺失图标导致收集失败
+vi.mock('@element-plus/icons-vue', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return { ...actual }
+})
 
 describe('StatisticsView - 数据计算测试', () => {
   let authStore: ReturnType<typeof useAuthStore>

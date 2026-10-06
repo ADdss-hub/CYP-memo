@@ -148,7 +148,10 @@ class StorageManager {
     try {
       const saved = localStorage.getItem(STORAGE_CONFIG_KEY)
       if (saved) {
-        this.config = JSON.parse(saved)
+        const parsed = JSON.parse(saved) as StorageConfig
+        delete parsed.apiKey
+        this.config = parsed
+        localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(parsed))
       }
     } catch {
       // 解析失败，使用默认配置
@@ -161,7 +164,9 @@ class StorageManager {
    */
   private saveConfig(): void {
     try {
-      localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(this.config))
+      const persist = { ...this.config }
+      delete persist.apiKey
+      localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(persist))
     } catch {
       console.warn('无法保存存储配置到 localStorage')
     }
