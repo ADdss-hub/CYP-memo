@@ -160,15 +160,33 @@ const accepting = ref(false)
 
 const TERMS_ACCEPTED_KEY = 'cyp-memo-terms-accepted'
 const TERMS_ACCEPTED_AT_KEY = 'cyp-memo-terms-accepted-date'
+const TERMS_ACCEPTED_VER_KEY = 'cyp-memo-terms-accepted-version'
 
 /** 同页会话记忆：手机自签 HTTPS 下 localStorage 可能写失败或读不到 */
 let termsAcceptedMemory = false
+let termsAcceptedMemoryVersion = ''
+
+function readStorageVersion(store: Storage | undefined): string {
+  if (!store) return ''
+  try {
+    return store.getItem(TERMS_ACCEPTED_VER_KEY) || ''
+  } catch {
+    return ''
+  }
+}
 
 function readStorageFlag(store: Storage | undefined): boolean {
   if (!store) return false
   try {
     const v = store.getItem(TERMS_ACCEPTED_KEY)
-    return v === 'true' || v === '1' || v === 'yes'
+    const ver = readStorageVersion(store)
+    // 条款生效日变更后须重新同意
+    if (ver && ver !== LEGAL_EFFECTIVE_DATE) return false
+    if (!ver && (v === 'true' || v === '1' || v === 'yes')) {
+      // 旧同意无版本戳：与现行生效日不一致则作废
+      return false
+    }
+    return (v === 'true' || v === '1' || v === 'yes') && ver === LEGAL_EFFECTIVE_DATE
   } catch {
     return false
   }
@@ -176,29 +194,39 @@ function readStorageFlag(store: Storage | undefined): boolean {
 
 function readCookieFlag(): boolean {
   try {
-    return typeof document !== 'undefined' && document.cookie.split(';').some((c) => {
-      const t = c.trim()
-      return t === `${TERMS_ACCEPTED_KEY}=1` || t.startsWith(`${TERMS_ACCEPTED_KEY}=1;`)
-    })
+    if (typeof document === 'undefined') return false
+    const parts = document.cookie.split(';').map((c) => c.trim())
+    const ok = parts.some((t) => t === `${TERMS_ACCEPTED_KEY}=1` || t.startsWith(`${TERMS_ACCEPTED_KEY}=1;`))
+    const verPart = parts.find((t) => t.startsWith(`${TERMS_ACCEPTED_VER_KEY}=`))
+    const ver = verPart ? decodeURIComponent(verPart.split('=').slice(1).join('=')) : ''
+    return ok && ver === LEGAL_EFFECTIVE_DATE
   } catch {
     return false
   }
 }
 
 function hasAcceptedTerms(): boolean {
-  if (accepted.value || termsAcceptedMemory) return true
+  if (
+    (accepted.value || termsAcceptedMemory) &&
+    termsAcceptedMemoryVersion === LEGAL_EFFECTIVE_DATE
+  ) {
+    return true
+  }
   if (readStorageFlag(typeof localStorage !== 'undefined' ? localStorage : undefined)) {
     termsAcceptedMemory = true
+    termsAcceptedMemoryVersion = LEGAL_EFFECTIVE_DATE
     accepted.value = true
     return true
   }
   if (readStorageFlag(typeof sessionStorage !== 'undefined' ? sessionStorage : undefined)) {
     termsAcceptedMemory = true
+    termsAcceptedMemoryVersion = LEGAL_EFFECTIVE_DATE
     accepted.value = true
     return true
   }
   if (readCookieFlag()) {
     termsAcceptedMemory = true
+    termsAcceptedMemoryVersion = LEGAL_EFFECTIVE_DATE
     accepted.value = true
     return true
   }
@@ -207,22 +235,27 @@ function hasAcceptedTerms(): boolean {
 
 function persistAcceptedTerms(): void {
   termsAcceptedMemory = true
+  termsAcceptedMemoryVersion = LEGAL_EFFECTIVE_DATE
   accepted.value = true
   const now = new Date().toISOString()
   try {
     localStorage.setItem(TERMS_ACCEPTED_KEY, 'true')
     localStorage.setItem(TERMS_ACCEPTED_AT_KEY, now)
+    localStorage.setItem(TERMS_ACCEPTED_VER_KEY, LEGAL_EFFECTIVE_DATE)
   } catch {
     /* 私密模式 / 策略拦截 */
   }
   try {
     sessionStorage.setItem(TERMS_ACCEPTED_KEY, 'true')
     sessionStorage.setItem(TERMS_ACCEPTED_AT_KEY, now)
+    sessionStorage.setItem(TERMS_ACCEPTED_VER_KEY, LEGAL_EFFECTIVE_DATE)
   } catch {
     /* ignore */
   }
   try {
+    const ver = encodeURIComponent(LEGAL_EFFECTIVE_DATE)
     document.cookie = `${TERMS_ACCEPTED_KEY}=1; path=/; max-age=31536000; SameSite=Lax`
+    document.cookie = `${TERMS_ACCEPTED_VER_KEY}=${ver}; path=/; max-age=31536000; SameSite=Lax`
   } catch {
     /* ignore */
   }
@@ -280,7 +313,7 @@ const isDarkMode = computed(() => {
   return document.documentElement.getAttribute('data-theme') === 'dark'
 })
 
-// 与 /terms、页脚协议同源（2.0.0 现行能力；禁止再内嵌过期「禁止商业用途」文案）
+// 与 /terms、页脚协议同源（2.0.1 现行能力；正文 SSOT：content/legal.ts）
 const sections = TERMS_SECTIONS
 const legalEffective = LEGAL_EFFECTIVE_DATE
 

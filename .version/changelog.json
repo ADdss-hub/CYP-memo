@@ -25,6 +25,10 @@
         {
           "type": "perf",
           "description": "网关CSP支持HTTPS；buildCorsOrigins动态扫描网卡"
+        },
+        {
+          "type": "docs",
+          "description": "使用条款与隐私政策按2.0.1重写：MCP/TLS/存储分称/观测隔离；生效日2026-10-07须重新同意"
         }
       ]
     },
