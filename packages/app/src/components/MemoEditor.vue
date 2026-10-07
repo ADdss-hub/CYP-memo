@@ -382,6 +382,7 @@ import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import { common, createLowlight } from 'lowlight'
 import Button from './Button.vue'
+import { ElMessageBox } from 'element-plus'
 import { formatByteSize, parseFileForBody, type BodyParseResult } from './fileBodyParse'
 
 const lowlight = createLowlight(common)
@@ -652,10 +653,19 @@ const setHighlightColor = (event: Event) => {
 }
 
 // 插入链接
-const insertLink = () => {
-  const url = prompt('请输入链接地址:')
-  if (url) {
-    editor.value?.chain().focus().setLink({ href: url }).run()
+const insertLink = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入链接地址:', '插入链接', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /.+/,
+      inputErrorMessage: '链接地址不能为空',
+    })
+    if (value) {
+      editor.value?.chain().focus().setLink({ href: value }).run()
+    }
+  } catch {
+    // 用户取消，不做处理
   }
 }
 
@@ -1396,10 +1406,14 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 .file-parse-dialog {
-  width: min(440px, 92vw);
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
   padding: 20px;
   border-radius: 8px;
   background: var(--cyp-chrome-bg-panel);
@@ -1434,5 +1448,28 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .toolbar-group {
+    height: 2.75rem;
+  }
+
+  .toolbar-btn {
+    min-width: 2.75rem;
+    padding: 0 0.55rem;
+    font-size: 0.8125rem;
+  }
+
+  .toolbar-btn-solo {
+    height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .editor-toolbar {
+    max-height: none;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 </style>

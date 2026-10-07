@@ -5,15 +5,35 @@
 <template>
   <Teleport to="body">
     <Transition name="modal-fade">
-      <div v-if="modelValue" class="modal-overlay" @click="handleOverlayClick">
+      <div
+        v-if="modelValue"
+        class="modal-overlay"
+        @click="handleOverlayClick"
+      >
         <Transition name="modal-slide">
-          <div v-if="modelValue" class="modal-container" :style="{ width: width }" @click.stop>
+          <div
+            v-if="modelValue"
+            ref="dialogRef"
+            class="modal-container"
+            role="dialog"
+            aria-modal="true"
+            :aria-labelledby="titleId"
+            :style="{ width: width }"
+            tabindex="-1"
+            @click.stop
+          >
             <div class="modal-header">
-              <h3 class="modal-title">
+              <h3 :id="titleId" class="modal-title">
                 {{ title }}
               </h3>
-              <button v-if="closable" class="modal-close" @click="handleClose">
-                <Close />
+              <button
+                v-if="closable"
+                type="button"
+                class="modal-close"
+                aria-label="关闭对话框"
+                @click="handleClose"
+              >
+                <Close aria-hidden="true" />
               </button>
             </div>
             <div class="modal-body">
@@ -37,8 +57,10 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed, toRef } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import Button from './Button.vue'
+import { useFocusTrap } from '../composables/useFocusTrap'
 
 export interface ModalProps {
   modelValue: boolean
@@ -72,10 +94,16 @@ const emit = defineEmits<{
   confirm: []
 }>()
 
+const dialogRef = ref<HTMLElement | null>(null)
+const titleId = computed(() => 'cyp-modal-title')
+const open = toRef(props, 'modelValue')
+
 const handleClose = () => {
   emit('update:modelValue', false)
   emit('close')
 }
+
+useFocusTrap(open, dialogRef, { onEscape: handleClose })
 
 const handleOverlayClick = () => {
   if (props.closeOnClickOverlay) {
@@ -100,24 +128,27 @@ const handleConfirm = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--cyp-overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9998;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 .modal-container {
   background: var(--cyp-chrome-bg-panel);
   border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
-  box-shadow: var(--cyp-chrome-shadow), 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--cyp-chrome-shadow), var(--cyp-shadow-md);
   backdrop-filter: blur(var(--cyp-chrome-blur));
   -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: min(90vw, calc(100vw - 24px));
+  max-height: min(90vh, calc(100dvh - 24px));
   display: flex;
   flex-direction: column;
+  outline: none;
 }
 
 .modal-header {
@@ -126,6 +157,7 @@ const handleConfirm = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .modal-title {
@@ -139,7 +171,9 @@ const handleConfirm = () => {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
   font-size: 18px;
   color: var(--cyp-text-muted);
   display: flex;
@@ -147,6 +181,7 @@ const handleConfirm = () => {
   justify-content: center;
   border-radius: 4px;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .modal-close:hover {
@@ -195,5 +230,14 @@ const handleConfirm = () => {
 .modal-slide-leave-to {
   opacity: 0;
   transform: scale(0.9) translateY(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-fade-enter-active,
+  .modal-fade-leave-active,
+  .modal-slide-enter-active,
+  .modal-slide-leave-active {
+    transition: none;
+  }
 }
 </style>

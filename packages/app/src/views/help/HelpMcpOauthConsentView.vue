@@ -149,10 +149,14 @@ function deny() {
 <style scoped>
 .oauth-consent-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
+  padding-top: max(24px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   color: var(--cyp-text);
   background: transparent;
 }

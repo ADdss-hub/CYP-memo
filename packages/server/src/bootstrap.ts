@@ -76,13 +76,13 @@ import {
   resetKms,
   getKmsState,
   isKmsReady,
-} from './runtime-base/l1/mgmt/kms/client.js'
+} from './_kms-internal/client.js'
 import {
   initMtls,
   shutdownMtls,
   getMtlsState,
   isMtlsReady,
-} from './runtime-base/l1/mgmt/kms/mtls.js'
+} from './_kms-internal/mtls.js'
 import {
   initRateLimiter,
   shutdownRateLimiter,
@@ -90,13 +90,13 @@ import {
   stopBucketCleanup,
   getRateLimiterState,
   isRateLimiterReady,
-} from './runtime-base/l1/host/biz/rate-limiter.js'
+} from './runtime-base/l1/host/biz/ready.js'
 import {
   initEwTraffic,
   shutdownEwTraffic,
   getEwTrafficState,
   isEwTrafficReady,
-} from './runtime-base/l1/col/svc/ew-traffic-middleware.js'
+} from './runtime-base/l1/col/svc/ready.js'
 import {
   initAudit,
   resetAudit,

@@ -2,6 +2,33 @@
   "schema": "2.1.0",
   "history": [
     {
+      "version": "2.0.1",
+      "timestamp": "2026-10-07T11:15:00.000Z",
+      "author": "CYP",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "手机浏览器适配与无障碍：safe-area、底栏唯一底栏、44px触控、skip-link、焦点陷阱、ARIA与reduced-motion"
+        },
+        {
+          "type": "fix",
+          "description": "使用协议同意后多路持久化（内存/localStorage/sessionStorage/Cookie），手机不再重复弹出"
+        },
+        {
+          "type": "fix",
+          "description": "手机同意协议后卸载遮罩并清理body锁，避免挡住登录页"
+        },
+        {
+          "type": "fix",
+          "description": "网关HTTPS化与CORS补齐局域网HTTPS origin；原生弹窗换ElMessageBox；系统窗口主题变量化"
+        },
+        {
+          "type": "perf",
+          "description": "网关CSP支持HTTPS；buildCorsOrigins动态扫描网卡"
+        }
+      ]
+    },
+    {
       "version": "2.0.0",
       "timestamp": "2026-08-16T05:54:28.764Z",
       "author": "CYP",

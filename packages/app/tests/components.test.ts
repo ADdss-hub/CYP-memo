@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { VERSION } from '@shared/config/version'
 import Button from '../src/components/Button.vue'
 import Loading from '../src/components/Loading.vue'
 import AppFooter from '../src/components/AppFooter.vue'
@@ -58,7 +59,7 @@ describe('基础组件测试', () => {
         },
       },
     })
-    expect(wrapper.text()).toContain('V2.0.0')
+    expect(wrapper.text()).toContain(`V${VERSION.full}`)
     expect(wrapper.text()).toContain('作者')
     expect(wrapper.text()).toContain('CYP')
   })

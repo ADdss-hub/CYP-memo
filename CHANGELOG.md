@@ -3,6 +3,38 @@
 本文档记录 CYP-memo 备忘录系统的所有重要变更。
 
 
+## [2.0.1] - 2026-10-07
+
+### 修复
+
+- **手机浏览器适配与无障碍（cyp-browser-a11y / R-023 / R-025）**：
+  - 移动端隐藏页脚、仅保留底栏，避免双底栏重叠；顶栏/底栏/侧栏/内容区接入 `safe-area`；`viewport-fit=cover`
+  - 触控目标抬升至约 44px（菜单、通知铃、列表操作、编辑器工具栏、Modal/Toast 关闭）
+  - 跳到主内容、唯一 `<main>`、列表搜索/排序可访问名、卡片键盘可操作
+  - `Modal` / 通知面板 / 会话失效框：`role="dialog"` + 焦点陷阱 + Esc；Toast `role="alert"`；全局 `:focus-visible` 与 `prefers-reduced-motion`
+  - 认证壳窄屏铺满与安全区；禁止横向撑开；产品入口 `index.html` 禁止缓存；已重编 `packages/app/dist` 供手机唯一入口加载
+  - 使用协议弹层在手机上改为铺满视口：头栏缩小、条款区可滚、勾选与按钮不再被裁切叠到登录页脚上
+  - 全面收口同类窄屏裁切：全部 Element 对话框/确认框/表单标签、会话失效层、更新条、文件解析确认、通知面板、引导页标题、法律文档与 MCP 授权页
+  - 同意使用协议后不再重复弹出：内存 + localStorage + sessionStorage + Cookie 多路落盘；已同意态响应式拦截再次打开
+  - 手机同意协议后遮罩残留挡住登录：去掉 overlay `display:!important`，同意后卸载弹层并清理 body 锁，必要时 `replace('/login')`
+- **网关 HTTPS 化**：产品统一网关（:5170）由 HTTP 改为 HTTPS，使用 `ensureApiTlsMaterial()` 自动签发私有 CA 证书，与 MCP 旁路 TLS 体系统一
+- **CORS 白名单补齐 HTTPS 与局域网 IP**：`defaultCorsOrigins` 改为 `buildCorsOrigins()` 函数，动态追加本机所有非环回 IPv4 的 HTTP + HTTPS origin，解决 `https://<局域网IP>:5170` 被 CORS 拦截的问题
+- **原生浏览器弹窗全部替换为 ElMessageBox**：6 处原生 `confirm()` / `prompt()`（MemoDetailView / MemoListView / MemoEditView / ShareManageView×2 / MemoEditor）替换为 Element Plus `ElMessageBox.confirm` / `ElMessageBox.prompt`，确保深色模式下视觉一致性
+- **系统窗口主题全面合规化**：8 个自定义窗口/弹窗组件硬编码颜色全部变量化
+  - `theme.css` 新增 14 个语义化变量（阴影 7 档 / 遮罩 3 档 / 品牌对比色 4 级），深浅双主题齐全
+  - `Modal.vue` / `SessionExpiredDialog.vue`：遮罩背景 + box-shadow 变量化
+  - `TermsDialog.vue`：6 处白色文字变量化 + box-shadow 变量化 + 清理 `:deep(.el-dialog)` 冗余覆盖
+  - `UpdateNotification.vue`：文字色 + 底部边框 + box-shadow 变量化
+  - `NotifyBell.vue`：徽章文字 + box-shadow 变量化 + 清理 fallback 硬编码
+  - `Toast.vue` / `Tooltip.vue`：box-shadow 变量化
+  - `Loading.vue`：遮罩背景 + blur 变量化 + 纳入全局磨砂列表（chrome 壳层规范）
+
+### 优化
+
+- 网关层 CSP 支持 HTTPS 端点；`buildCorsOrigins` 动态扫描网卡，局域网访问无需手动配置环境变量
+- 全局 `sr-only` 与焦点环；Loading 提供 `aria-busy` / `aria-live`
+
+
 ## [2.0.0] - 2026-08-16
 
 ### 功能

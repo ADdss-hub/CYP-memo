@@ -160,6 +160,7 @@ import { useMemoStore } from '../../stores/memo'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading, Modal } from '../../components'
+import { ElMessageBox } from 'element-plus'
 import { shareManager, sanitizeHtml } from '@cyp-memo/shared'
 import type { Memo, ShareLink } from '@cyp-memo/shared'
 
@@ -235,7 +236,13 @@ const handleEdit = () => {
 }
 
 const handleDelete = async () => {
-  if (!confirm('确定要删除这个备忘录吗？此操作无法撤销。')) {
+  try {
+    await ElMessageBox.confirm('确定要删除这个备忘录吗？此操作无法撤销。', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
     return
   }
 

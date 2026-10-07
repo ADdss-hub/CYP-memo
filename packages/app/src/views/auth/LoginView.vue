@@ -590,7 +590,7 @@ onMounted(() => {
   color: var(--cyp-text-muted);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .challenge-body {
     flex-direction: column;
   }
@@ -601,12 +601,14 @@ onMounted(() => {
     min-height: 44px;
   }
 
-  .auth-card {
-    padding: 24px;
+  .login-title {
+    font-size: 22px;
   }
 
-  .login-title {
-    font-size: 24px;
+  .tab-button {
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 13px;
   }
 }
 

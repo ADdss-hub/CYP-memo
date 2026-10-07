@@ -24,9 +24,9 @@ import {
   WORKLOAD_CERT_TTL_MS,
   shouldRotateWorkloadCert,
   rotateExpiredWorkloadCert,
-} from './ready.js'
-import { toSpiffeId, isValidSpiffeId, SPIFFE_TRUST_DOMAIN } from '../../../l0/coord/plt/ready.js'
-import { log } from '../../../l0/infra/log/ready.js'
+} from '../runtime-base/l1/mgmt/kms/ready.js'
+import { toSpiffeId, isValidSpiffeId, SPIFFE_TRUST_DOMAIN } from '../runtime-base/l0/coord/plt/ready.js'
+import { log } from '../runtime-base/l0/infra/log/ready.js'
 
 // ============================================================
 // 类型定义

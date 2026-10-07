@@ -8,16 +8,27 @@
       type="button"
       class="notify-trigger"
       :aria-label="unreadCount > 0 ? `有 ${unreadCount} 条未读通知` : '系统通知'"
+      :aria-expanded="open"
+      :aria-controls="open ? 'notify-panel' : undefined"
       :title="unreadCount > 0 ? `${unreadCount} 条未读` : '系统通知'"
       @click="togglePanel"
     >
       <span class="bell-icon" aria-hidden="true">🔔</span>
-      <span v-if="unreadCount > 0" class="bell-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+      <span v-if="unreadCount > 0" class="bell-badge" aria-hidden="true">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
     </button>
 
-    <div v-if="open" class="notify-panel" role="dialog" aria-label="系统通知">
+    <div
+      v-if="open"
+      id="notify-panel"
+      ref="panelRef"
+      class="notify-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-label="系统通知"
+      tabindex="-1"
+    >
       <div class="notify-panel-head">
-        <strong>系统通知</strong>
+        <strong id="notify-panel-title">系统通知</strong>
         <button
           v-if="unreadCount > 0"
           type="button"
@@ -33,14 +44,19 @@
           :key="n.id"
           class="notify-item"
           :class="{ unread: !n.readAt, 'is-ops': isOpsAlert(n) }"
-          @click="handleOpen(n)"
         >
-          <div class="notify-title">
-            <span v-if="isOpsAlert(n)" class="notify-kind">运维</span>
-            {{ displayTitle(n) }}
-          </div>
-          <div v-if="displayBody(n)" class="notify-body">{{ displayBody(n) }}</div>
-          <time class="notify-time">{{ formatTime(n.at) }}</time>
+          <button
+            type="button"
+            class="notify-item-btn"
+            @click="handleOpen(n)"
+          >
+            <div class="notify-title">
+              <span v-if="isOpsAlert(n)" class="notify-kind">运维</span>
+              {{ displayTitle(n) }}
+            </div>
+            <div v-if="displayBody(n)" class="notify-body">{{ displayBody(n) }}</div>
+            <time class="notify-time">{{ formatTime(n.at) }}</time>
+          </button>
         </li>
       </ul>
       <p v-else class="notify-empty">暂无通知。分享评论与运维告警会出现在这里。</p>
@@ -53,6 +69,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { shareManager } from '@cyp-memo/shared'
 import { useAuthStore } from '../stores/auth'
+import { useFocusTrap } from '../composables/useFocusTrap'
 
 interface NotifyItem {
   id: string
@@ -72,6 +89,13 @@ const open = ref(false)
 const items = ref<NotifyItem[]>([])
 const unreadCount = ref(0)
 const rootRef = ref<HTMLElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
+
+useFocusTrap(open, panelRef, {
+  onEscape: () => {
+    open.value = false
+  },
+})
 
 let alive = false
 let sinceCursor = '1970-01-01T00:00:00.000Z'
@@ -289,8 +313,10 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -316,7 +342,7 @@ watch(
   padding: 0 4px;
   border-radius: 8px;
   background: var(--cyp-danger);
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
   font-size: 10px;
   font-weight: 700;
   line-height: 16px;
@@ -328,12 +354,13 @@ watch(
   top: calc(100% + 8px);
   right: 0;
   width: min(360px, 86vw);
-  max-height: 420px;
+  max-width: calc(100vw - 16px);
+  max-height: min(420px, 70dvh);
   overflow: auto;
   background: var(--cyp-chrome-bg-panel);
   border: 1px solid var(--cyp-chrome-border);
   border-radius: 12px;
-  box-shadow: var(--cyp-chrome-shadow), 0 12px 32px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--cyp-chrome-shadow), var(--cyp-shadow-sm);
   backdrop-filter: blur(var(--cyp-chrome-blur));
   -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   z-index: 40;
@@ -350,9 +377,12 @@ watch(
 .mark-all {
   border: none;
   background: transparent;
-  color: var(--cyp-brand, #0099ff);
+  color: var(--cyp-brand);
   font-size: 12px;
   cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 10px;
 }
 
 .notify-list {
@@ -362,20 +392,33 @@ watch(
 }
 
 .notify-item {
-  padding: 12px 14px;
   border-bottom: 1px solid var(--cyp-border);
-  cursor: pointer;
+  margin: 0;
+  padding: 0;
 }
 
-.notify-item:hover {
+.notify-item-btn {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.notify-item-btn:hover {
   background: var(--cyp-bg-muted);
 }
 
-.notify-item.unread {
+.notify-item.unread .notify-item-btn {
   background: var(--cyp-brand-tint);
 }
 
-.notify-item.is-ops.unread {
+.notify-item.is-ops.unread .notify-item-btn {
   background: color-mix(in srgb, var(--cyp-danger) 10%, transparent);
 }
 
@@ -420,5 +463,15 @@ watch(
   font-size: 13px;
   color: var(--cyp-text-muted);
   text-align: center;
+}
+
+@media (max-width: 768px) {
+  .notify-panel {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
 }
 </style>

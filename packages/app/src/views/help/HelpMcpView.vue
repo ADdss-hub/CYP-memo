@@ -417,7 +417,7 @@ import { resolveApiBaseUrl, storageManager } from '@cyp-memo/shared'
 import AppLayout from '../../components/AppLayout.vue'
 import Button from '../../components/Button.vue'
 import { useToast } from '../../composables/useToast'
-import { MCP_CLIENT_STDIO_SAMPLE } from '../../content/helpKnowledge'
+import { MCP_CLIENT_STDIO_TEMPLATE } from '../../content/helpKnowledge'
 
 const toast = useToast()
 const route = useRoute()
@@ -538,8 +538,6 @@ function listsToText(list: string[]): string {
   return Array.isArray(list) ? list.join(', ') : ''
 }
 
-const stdioSample = MCP_CLIENT_STDIO_SAMPLE
-
 const liveApiBase = computed(() => {
   const resolved = resolveApiBaseUrl({
     VITE_API_BASE: import.meta.env.VITE_API_BASE as string | undefined,
@@ -559,6 +557,10 @@ const liveMcpHost = computed(() => {
 })
 
 const liveMcpDiscover = computed(() => `${liveMcpHost.value.replace(/\/mcp$/, '')}/mcp/discover`)
+
+const stdioSample = computed(() =>
+  MCP_CLIENT_STDIO_TEMPLATE.replace('__API_BASE__', liveApiBase.value)
+)
 
 function mcpApi(): string {
   return resolveApiBaseUrl({

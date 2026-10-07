@@ -6,7 +6,7 @@
 
 - **作者**: CYP
 - **邮箱**: nasDSSCYP@outlook.com
-- **版本**: 2.0.0
+- **版本**: 2.0.1
 
 ---
 
@@ -290,7 +290,7 @@ cyp-memo/
 | Linux / macOS | `scripts/install/install-unix.sh` · `deploy/systemd/cyp-memo.service` |
 | 本机联调（生产配置基准） | `scripts/start/start-local.*`（见 `LOCAL_DEV.md`） |
 
-验收：`node scripts/verify/verify-runtime-base.mjs` 与 `node scripts/verify/verify-complete-form.mjs`，再加 `GET /healthz/ready`。闭集是 `data.runtimeBase.items` 的 35 个稳定 ID。质量门禁、生产 Mock、一键部署、系统通知与**对象存储**不进闭集（对象存储仅为扩展点，本机 `{dataDir}/uploads`）。
+验收：`node scripts/verify/verify-runtime-base.mjs` 与 `node scripts/verify/verify-complete-form.mjs`，再加 `GET /healthz/ready`。闭集是 `data.runtimeBase.items` 的 35 个稳定 ID。质量门禁、生产 Mock、一键部署、系统通知与**对象存储**不进闭集（均为旧命名/外部扩展项，不属于运行底座闭集标准；对象存储仅为扩展点，本机 `{dataDir}/uploads`）。
 SSOT：军械库统一运行底座架构 V1.8.6。
 
 ### 环境变量（配置管控注入）

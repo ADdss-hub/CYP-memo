@@ -420,7 +420,7 @@ jobs:
             packages/desktop/release/**/latest-linux.yml
 
 
-  # ========== 构建 Server 发行包（非容器 · 五大中心） ==========
+  # ========== 构建 Server 发行包（非容器 · 五层能力域） ==========
   build-server-release:
     runs-on: ubuntu-latest
     timeout-minutes: 30

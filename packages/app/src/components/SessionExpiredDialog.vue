@@ -6,8 +6,16 @@
   <Teleport to="body">
     <Transition name="fade">
       <div v-if="visible" class="session-expired-overlay" @click.self="handleOverlayClick">
-        <div class="session-expired-dialog">
-          <div class="dialog-icon" :class="iconClass">
+        <div
+          ref="dialogRef"
+          class="session-expired-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="session-expired-title"
+          aria-describedby="session-expired-message"
+          tabindex="-1"
+        >
+          <div class="dialog-icon" :class="iconClass" aria-hidden="true">
             <svg v-if="type === 'expired'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
@@ -22,14 +30,19 @@
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
-          <h2 class="dialog-title">{{ title }}</h2>
-          <p class="dialog-message">{{ displayMessage }}</p>
+          <h2 id="session-expired-title" class="dialog-title">{{ title }}</h2>
+          <p id="session-expired-message" class="dialog-message">{{ displayMessage }}</p>
           <p class="dialog-hint">{{ hint }}</p>
           <div class="dialog-actions">
-            <button class="dialog-button primary" @click="handleConfirm">
+            <button type="button" class="dialog-button primary" @click="handleConfirm">
               {{ confirmText }}
             </button>
-            <button v-if="showCancel" class="dialog-button secondary" @click="handleCancel">
+            <button
+              v-if="showCancel"
+              type="button"
+              class="dialog-button secondary"
+              @click="handleCancel"
+            >
               {{ cancelText }}
             </button>
           </div>
@@ -40,7 +53,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, toRef } from 'vue'
+import { useFocusTrap } from '../composables/useFocusTrap'
 
 const props = withDefaults(defineProps<{
   visible: boolean
@@ -66,6 +80,17 @@ const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'cancel'): void
 }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+const open = toRef(props, 'visible')
+
+useFocusTrap(open, dialogRef, {
+  onEscape: () => {
+    if (props.showCancel || props.closeOnOverlay) {
+      emit('cancel')
+    }
+  },
+})
 
 const displayMessage = computed(() => {
   if (props.message) return props.message
@@ -113,12 +138,16 @@ function handleOverlayClick() {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cyp-overlay-bg-strong);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   backdrop-filter: blur(4px);
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+  overflow: auto;
 }
 
 .session-expired-dialog {
@@ -126,10 +155,11 @@ function handleOverlayClick() {
   border: 1px solid var(--cyp-chrome-border);
   border-radius: 16px;
   padding: 32px 40px;
-  max-width: 420px;
+  max-width: min(420px, calc(100vw - 32px));
   width: 90%;
+  box-sizing: border-box;
   text-align: center;
-  box-shadow: var(--cyp-chrome-shadow), 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cyp-chrome-shadow), var(--cyp-shadow-md);
   backdrop-filter: blur(var(--cyp-chrome-blur));
   -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   animation: dialogEnter 0.3s ease-out;
@@ -217,7 +247,7 @@ function handleOverlayClick() {
 
 .dialog-button.primary {
   background: var(--cyp-brand);
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
 }
 
 .dialog-button.primary:hover {

@@ -359,13 +359,16 @@ onMounted(() => {
 /* 基础布局 */
 .welcome-view {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   background: transparent;
   padding: 1.5rem 1.5rem 0;
+  padding-top: max(1.5rem, env(safe-area-inset-top, 0px));
   position: relative;
   overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 /* 主布局 */
@@ -1044,7 +1047,8 @@ onMounted(() => {
   }
 
   .title-brand {
-    font-size: 2.25rem;
+    font-size: 1.75rem;
+    overflow-wrap: anywhere;
   }
 
   .hero-subtitle,

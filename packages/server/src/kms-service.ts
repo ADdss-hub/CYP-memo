@@ -8,7 +8,7 @@
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
-import { createKmsServer } from './runtime-base/l1/mgmt/kms/server.js'
+import { createKmsServer } from './_kms-internal/server.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

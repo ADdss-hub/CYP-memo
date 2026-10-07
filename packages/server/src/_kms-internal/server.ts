@@ -24,7 +24,7 @@ import {
   isWorkloadTrustAnchorReady,
   type KmsState,
   type CipherRef,
-} from './ready.js'
+} from '../runtime-base/l1/mgmt/kms/ready.js'
 
 /** East-West Token 认证结果 */
 interface AuthResult {

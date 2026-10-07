@@ -43,7 +43,7 @@
 | 级别 | 触发 | 动作 |
 |------|------|------|
 | L1 | `/api/health` 失败 | 查进程与 `{DATA_DIR}/logs` |
-| L2 | `/healthz/ready` 失败 | 停放量；查 bootstrap/配置中心 |
+| L2 | `/healthz/ready` 失败 | 停放量；查 bootstrap/配置管控 |
 | L3 | 持续失败 | diagnose + support-bundle |
 | L4 | 发版不达标 | 回滚安装包 / rollback-local |
 

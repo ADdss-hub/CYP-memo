@@ -116,6 +116,21 @@ function goBack() {
   max-width: 720px;
   margin: 0 auto;
   padding: 24px 20px 40px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .legal-main {
+    padding: 16px 12px 32px;
+  }
+
+  .legal-article {
+    padding: 16px;
+  }
+
+  .legal-title {
+    font-size: 20px;
+  }
 }
 
 .legal-article {

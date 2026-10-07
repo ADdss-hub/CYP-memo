@@ -18,6 +18,7 @@ import {
   listObservabilityLogsByAction,
 } from './runtime-base/l0/infra/log/obs-store.js'
 import { createFileViaBase, updateMemoViaBase } from './runtime-base/l1/host/biz/ready.js'
+import { getUserByMcpDownstreamToken } from './mcp-token.js'
 import { issueMcpDownstreamToken } from './mcp-token.js'
 import { gradeAndEmitAlertCandidate, listAlertTickets } from './runtime-base/l1/host/alert/ready.js'
 import { getConfig } from './runtime-base/l0/infra/cfg/ready.js'
@@ -43,6 +44,30 @@ const OAUTH_CODES = new Map<
   { clientId: string; userId: string; redirectUri: string; challenge: string; exp: number }
 >()
 const AUDIT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000
+
+/**
+ * 从请求中尝试解析 Bearer token 并获取租户 ID（MCP 公开查询租户隔离）
+ * 公开查询在鉴权白名单里，不走 authenticate 中间件；此处手动解析仅用于租户过滤
+ * 支持：会话 token / MCP 下游令牌 / MCP PAT
+ */
+function tryResolveTenantFromRequest(req: Request): string | null {
+  const header = req.headers.authorization
+  if (!header || !header.startsWith('Bearer ')) return null
+  const token = header.slice(7).trim()
+  if (!token) return null
+
+  // 会话 token
+  let user = database.getUserByToken(token)
+  // MCP 下游令牌
+  if (!user && token.startsWith('cypmcpds_')) {
+    user = getUserByMcpDownstreamToken(token)
+  }
+  // MCP PAT（仅用于换发入口，这里也允许提取租户）
+  if (!user && token.startsWith('cypmcp_')) {
+    user = database.getUserByMcpPat(token)
+  }
+  return user?.tenantRootId || null
+}
 
 function oauthIssuer(req: Request): string {
   const host = String(req.headers.host || '').trim()
@@ -437,7 +462,10 @@ export function registerMcpRoutes(app: Express): void {
     const pageSize = Number(req.query.pageSize || 20)
     const cfg = loadMcpPublicConfig()
     const sel = getMemoPublicSelector(cfg)
-    const pool = sel.requireFlag ? database.listMcpPublicMemos() : database.listActiveMemos()
+    const tenantRootId = tryResolveTenantFromRequest(req)
+    const pool = tenantRootId
+      ? (sel.requireFlag ? database.listMcpPublicMemosByTenant(tenantRootId) : database.listActiveMemosByTenant(tenantRootId))
+      : (sel.requireFlag ? database.listMcpPublicMemos() : database.listActiveMemos())
     const all = pool.filter((m) => matchMemoSelector(m, sel))
     const { items, total } = pageSlice(all, page, pageSize)
     res.json({
@@ -468,6 +496,15 @@ export function registerMcpRoutes(app: Express): void {
     if (!memo || memo.deletedAt || !matchMemoSelector(memo, sel)) {
       fail(res, 404, Err.NOT_FOUND, '资源不存在', req)
       return
+    }
+    // 租户隔离：带 token 时只允许访问同租户的公开备忘录
+    const tenantRootId = tryResolveTenantFromRequest(req)
+    if (tenantRootId) {
+      const owner = database.getUserById(memo.userId)
+      if (!owner || owner.tenantRootId !== tenantRootId) {
+        fail(res, 404, Err.NOT_FOUND, '资源不存在', req)
+        return
+      }
     }
     const layerRaw = String(req.query.layer || 'summary').toLowerCase()
     const layer: 'title' | 'summary' | 'full' =
@@ -513,7 +550,13 @@ export function registerMcpRoutes(app: Express): void {
     const pageSize = Number(req.query.pageSize || 20)
     const cfg = loadMcpPublicConfig()
     const sel = getFilePublicSelector(cfg)
-    const pool = sel.requireFlag ? database.listMcpPublicFiles() : database.listAllFiles()
+    const tenantRootId = tryResolveTenantFromRequest(req)
+    const pool = tenantRootId
+      ? (sel.requireFlag ? database.listMcpPublicFilesByTenant(tenantRootId) : database.listAllFiles().filter(f => {
+          const u = database.getUserById(f.userId)
+          return u?.tenantRootId === tenantRootId
+        }))
+      : (sel.requireFlag ? database.listMcpPublicFiles() : database.listAllFiles())
     const all = pool.filter((f) => matchFileSelector(f, sel))
     const { items, total } = pageSlice(all, page, pageSize)
     res.json({
@@ -544,6 +587,15 @@ export function registerMcpRoutes(app: Express): void {
     if (!file || !matchFileSelector(file, sel)) {
       fail(res, 404, Err.NOT_FOUND, '资源不存在', req)
       return
+    }
+    // 租户隔离：带 token 时只允许访问同租户的公开文件
+    const tenantRootId = tryResolveTenantFromRequest(req)
+    if (tenantRootId) {
+      const owner = database.getUserById(file.userId)
+      if (!owner || owner.tenantRootId !== tenantRootId) {
+        fail(res, 404, Err.NOT_FOUND, '资源不存在', req)
+        return
+      }
     }
     const layerRaw = String(req.query.layer || 'summary').toLowerCase()
     const layer: 'title' | 'summary' | 'full' =
@@ -588,6 +640,15 @@ export function registerMcpRoutes(app: Express): void {
     if (!file || !matchFileSelector(file, sel)) {
       fail(res, 404, Err.NOT_FOUND, '资源不存在', req)
       return
+    }
+    // 租户隔离：带 token 时只允许访问同租户的公开文件
+    const tenantRootId = tryResolveTenantFromRequest(req)
+    if (tenantRootId) {
+      const owner = database.getUserById(file.userId)
+      if (!owner || owner.tenantRootId !== tenantRootId) {
+        fail(res, 404, Err.NOT_FOUND, '资源不存在', req)
+        return
+      }
     }
     // O5：公开最高层默认 summary，blob=全文层；未开公开 full 则 404（防旁路分段）
     if (getPublicMaxLayer() !== 'full') {

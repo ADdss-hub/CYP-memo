@@ -3,13 +3,14 @@
   Copyright (c) 2026 CYP <nasDSSCYP@outlook.com>
 -->
 <template>
-  <nav class="mobile-bottom-nav">
+  <nav class="mobile-bottom-nav" aria-label="主要导航">
     <router-link
       v-for="item in navItems"
       :key="item.path"
       :to="item.path"
       class="nav-item"
       :class="{ active: isActive(item.path) }"
+      :aria-current="isActive(item.path) ? 'page' : undefined"
     >
       <el-icon class="nav-ep-icon" :size="20" aria-hidden="true">
         <component :is="item.icon" />
@@ -54,7 +55,11 @@ const isActive = (path: string) => {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  min-height: 60px;
+  height: calc(60px + env(safe-area-inset-bottom, 0px));
+  padding: 0 8px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
   background: var(--cyp-chrome-bg);
   border-top: 1px solid var(--cyp-chrome-border);
   box-shadow: var(--cyp-chrome-shadow);
@@ -64,7 +69,6 @@ const isActive = (path: string) => {
   align-items: center;
   justify-content: space-around;
   z-index: 100;
-  padding: 0 8px;
 }
 
 .nav-item {

@@ -11,6 +11,8 @@ import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 import https from 'node:https'
+import http from 'node:http'
+import os from 'node:os'
 import { fileURLToPath } from 'url'
 import { getDiskSpace, MIN_DISK_SPACE_BYTES, getConfig, getMachineCapacity, type ContainerConfig } from './runtime-base/l0/infra/cfg/ready.js'
 import { database, getFileStorageState, getUploadRoot } from './runtime-base/l0/infra/db/ready.js'
@@ -19,6 +21,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { applyHotConfig, getConfigRevisionView, isConfigRevisionReady, rollbackConfig } from './runtime-base/l1/mgmt/conf/ready.js'
 import { logger } from './runtime-base/l0/infra/log/ready.js'
 import { runBootstrap, buildReadyResponse, getBootstrapState } from './bootstrap.js'
+import { ensureApiTlsMaterial } from './tls/material.js'
 import {
   authenticate,
   sanitizeUser,
@@ -91,6 +94,7 @@ import {
   getScheduleState,
   listJobs,
   trigger,
+  listTicketAudit,
 } from './runtime-base/l1/host/sched/ready.js'
 import {
   gatewayIngressMiddleware,
@@ -124,7 +128,9 @@ import {
   setSettingViaBase,
   egressFetch,
 } from './runtime-base/l1/host/biz/ready.js'
-import { getRegistryState, listHealthyInstances } from './runtime-base/l1/col/svc/ready.js'
+import { getRegistryState, listHealthyInstances, discoverEmbeddedMesh } from './runtime-base/l1/col/svc/ready.js'
+import { mcpGatewayProxyMiddleware } from './runtime-base/l1/host/biz/mcp-proxy.js'
+import { registerMcpRoutes } from './mcp-routes.js'
 import { getMetadataState, listMetadata, renderErrorCode } from './runtime-base/l1/mgmt/code/ready.js'
 import { getAlertState, listAlertTickets } from './runtime-base/l1/host/alert/ready.js'
 import { gradeAndEmitAlertCandidate } from './runtime-base/l1/host/alert/ready.js'
@@ -140,7 +146,7 @@ import {
   resetCircuit,
   listCircuitSnapshotDetail,
 } from './runtime-base/l1/host/resil/ready.js'
-import { getKmsState } from './runtime-base/l1/mgmt/kms/client.js'
+import { getKmsState } from './_kms-internal/client.js'
 import { zeroTrustGuard, getZeroTrustStatus, runPublicAccessProbe, isPublicAccessSecurityReady } from './runtime-base/l1/pub/acc/ready.js'
 import { getAuditState, listRecentAudits, recordAuditSafe } from './runtime-base/l1/host/audit/ready.js'
 import { getTracingState, getTraceTree, recordSpan, clearLogsViaBase, deleteOldLogsViaBase, cleanupLogFilesViaBase } from './runtime-base/l1/host/tracean/ready.js'
@@ -224,17 +230,43 @@ const storage = multer.diskStorage({
 const upload = multer({ storage })
 
 // 中间件：CORS 收紧为本机产品壳（5173）+ 同源 API（5170）；可用 CYP_CORS_ORIGINS 追加
-const defaultCorsOrigins = [
-  'http://127.0.0.1:5173',
-  'http://localhost:5173',
-  'http://127.0.0.1:5170',
-  'http://localhost:5170',
-]
-const corsOrigins = (process.env.CYP_CORS_ORIGINS || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean)
-const allowedOrigins = new Set([...defaultCorsOrigins, ...corsOrigins])
+// R-TLS-001：HTTP 与 HTTPS 双协议均需登记；动态追加本机网卡 IP 对应 origin（局域网访问）
+function buildCorsOrigins(): string[] {
+  const port = Number(process.env.PORT || 5170)
+  const origins = [
+    // 开发热重载（Vite :5173）
+    `http://127.0.0.1:5173`,
+    `http://localhost:5173`,
+    // 产品入口 HTTP + HTTPS（环回）
+    `http://127.0.0.1:${port}`,
+    `http://localhost:${port}`,
+    `https://127.0.0.1:${port}`,
+    `https://localhost:${port}`,
+  ]
+  // 动态追加本机非环回 IPv4（局域网访问，HTTP + HTTPS）
+  try {
+    const ifaces = os.networkInterfaces()
+    for (const name of Object.keys(ifaces)) {
+      const addrs = ifaces[name] || []
+      for (const a of addrs) {
+        if (a.family !== 'IPv4' && String(a.family) !== '4') continue
+        if (a.internal) continue
+        origins.push(`http://${a.address}:${port}`)
+        origins.push(`https://${a.address}:${port}`)
+      }
+    }
+  } catch {
+    /* 获取失败则跳过，不阻断启动 */
+  }
+  // 环境变量追加
+  const extra = (process.env.CYP_CORS_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  origins.push(...extra)
+  return origins
+}
+const allowedOrigins = new Set(buildCorsOrigins())
 app.use(
   cors({
     origin(origin, callback) {
@@ -324,15 +356,13 @@ function proxyApiToBackend(req: Request, res: Response): void {
   headers.host = `${targetHost}:${targetPort}`
   delete headers.connection
 
-  const proxyReq = https.request(
+  const proxyReq = http.request(
     {
       hostname: targetHost,
       port: targetPort,
       path: originalUrl,
       method: req.method,
       headers,
-      rejectUnauthorized: false,
-      minVersion: 'TLSv1.2',
       timeout: 120000, // 2 分钟超时
     },
     (proxyRes) => {
@@ -479,7 +509,14 @@ gatewayApp.use(attachRequestIds)
   })
 
   if (appDistExists) {
-    gatewayApp.use(express.static(appDistPath))
+    gatewayApp.use((req, res, next) => {
+      const p = req.path === '/' || req.path === '/index.html'
+      if (p) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      }
+      next()
+    })
+    gatewayApp.use(express.static(appDistPath, { etag: true, lastModified: true }))
     logger.info('静态文件服务已启用（网关层 · 唯一壳 app）', {
       appPath: appDistPath,
       appExists: appDistExists,
@@ -603,6 +640,9 @@ app.get('/api/config/revisions', requirePermission('tenant_monitor'), (_req, res
   res.json({ success: true, data: getConfigRevisionView() })
 })
 
+// MCP REST 路由（PAT 管理、公开投影、审核回传、OAuth 等）
+registerMcpRoutes(app)
+
 function configActor(req: Request): string {
   const user = (req as { authUser?: { username?: string; id?: string } }).authUser
   return user?.username || user?.id || 'unknown'
@@ -701,6 +741,19 @@ app.post('/api/schedule/jobs/:id/trigger', requirePermission('tenant_database'),
   res.json({ success: true, data: { triggered: true, id: req.params.id } })
 })
 
+/** 工单审计查询（状态迁移可审计） */
+app.get('/api/schedule/tickets', requirePermission('tenant_monitor'), (req, res) => {
+  const jobId = req.query.jobId ? String(req.query.jobId) : undefined
+  const rows = listTicketAudit(jobId)
+  res.json({
+    success: true,
+    data: {
+      rows,
+      total: rows.length,
+    },
+  })
+})
+
 /** 注册服务 */
 app.get('/api/registry/status', requirePermission('tenant_monitor'), (_req, res) => {
   res.json({
@@ -723,6 +776,15 @@ app.get('/api/collab/status', requirePermission('tenant_monitor'), (_req, res) =
       gateway: getGatewayState(),
       registry: getRegistryState(),
     },
+  })
+})
+
+/** 嵌入式服务发现（进程内通讯录，非独立网格） */
+app.get('/api/collab/svc/discover', requirePermission('tenant_monitor'), (_req, res) => {
+  const mesh = discoverEmbeddedMesh()
+  res.json({
+    success: true,
+    data: mesh,
   })
 })
 
@@ -3643,14 +3705,8 @@ async function start() {
       proxyApiToBackend(req, res)
     })
 
-    // /mcp → MCP 旁路服务（127.0.0.1:13175）
-    gatewayApp.use((req, res, next) => {
-      if (isMcpProtocolIngress(req.method, req.path, req.headers)) {
-        proxyMcpToSidecar(req, res)
-        return
-      }
-      next()
-    })
+    // /mcp → MCP 旁路服务（127.0.0.1:13175）· 网关反代中间件
+    gatewayApp.use(mcpGatewayProxyMiddleware())
 
     // 网关层全局错误处理
     gatewayApp.use((err: Error, _req: Request, res: Response, _next: () => void) => {
@@ -3679,18 +3735,20 @@ async function start() {
       })
     })
 
-    // ========== 启动网关层（产品统一入口，对外暴露）==========
-    gatewayApp.listen(PORT, '0.0.0.0', () => {
-      logger.startup(`🚀 CYP-memo 产品网关运行在 http://0.0.0.0:${PORT}`, {
+    // ========== 启动网关层（产品统一入口，对外暴露 · HTTPS）==========
+    const tlsMaterial = await ensureApiTlsMaterial(config.dataDir)
+    const gatewayServer = https.createServer({ key: tlsMaterial.key, cert: tlsMaterial.cert, minVersion: 'TLSv1.2' }, gatewayApp)
+    gatewayServer.listen(PORT, '0.0.0.0', () => {
+      logger.startup(`🚀 CYP-memo 产品网关运行在 https://0.0.0.0:${PORT} (${tlsMaterial.source})`, {
         trace_id: boot.trace_id,
         totalDurationMs: boot.totalDurationMs
       })
-      logger.startup(`📊 健康检查: http://localhost:${PORT}/api/health`)
-      logger.startup(`✅ 就绪探针: http://localhost:${PORT}/healthz/ready`)
-      logger.startup(`💚 存活探针: http://localhost:${PORT}/health/live`)
-      logger.startup(`🌐 外部访问: http://<your-ip>:${PORT}`)
+      logger.startup(`📊 健康检查: https://localhost:${PORT}/api/health`)
+      logger.startup(`✅ 就绪探针: https://localhost:${PORT}/healthz/ready`)
+      logger.startup(`💚 存活探针: https://localhost:${PORT}/health/live`)
+      logger.startup(`🌐 外部访问: https://<your-ip>:${PORT}`)
       logger.startup(`🔌 API 后端: 127.0.0.1:${API_PORT}（仅环回）`)
-      logger.startup(`🔌 MCP 旁路: 127.0.0.1:${Number(process.env.CYP_MCP_HTTP_PORT || 13175)}（仅环回）`)
+      logger.startup(`🔌 MCP 旁路: 127.0.0.1:${Number(process.env.CYP_MCP_HTTP_PORT || 13175)}（仅环回 · HTTPS）`)
 
       logger.info('gateway.listen', {
         trace_id: boot.trace_id,

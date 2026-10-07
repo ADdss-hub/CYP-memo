@@ -5,8 +5,14 @@
 <template>
   <Teleport to="body">
     <Transition name="toast-fade">
-      <div v-if="visible" :class="['toast', `toast-${type}`]">
-        <div class="toast-icon">
+      <div
+        v-if="visible"
+        :class="['toast', `toast-${type}`]"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        <div class="toast-icon" aria-hidden="true">
           <component :is="iconComponent" />
         </div>
         <div class="toast-content">
@@ -17,8 +23,14 @@
             {{ message }}
           </div>
         </div>
-        <button v-if="closable" class="toast-close" @click="close">
-          <Close />
+        <button
+          v-if="closable"
+          type="button"
+          class="toast-close"
+          aria-label="关闭提示"
+          @click="close"
+        >
+          <Close aria-hidden="true" />
         </button>
       </div>
     </Transition>
@@ -89,13 +101,14 @@ onMounted(() => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  min-width: 300px;
-  max-width: 500px;
+  min-width: min(300px, calc(100vw - 32px));
+  max-width: min(500px, calc(100vw - 24px));
+  box-sizing: border-box;
   padding: 16px 20px;
   background: var(--cyp-chrome-bg-panel);
   border: 1px solid var(--cyp-chrome-border);
   border-radius: 8px;
-  box-shadow: var(--cyp-chrome-shadow), 0 8px 28px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--cyp-chrome-shadow), var(--cyp-shadow-toast);
   backdrop-filter: blur(var(--cyp-chrome-blur));
   -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   display: flex;
@@ -146,10 +159,16 @@ onMounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
   font-size: 16px;
   color: var(--cyp-text-muted);
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
 }
 
 .toast-close:hover {
@@ -165,5 +184,12 @@ onMounted(() => {
 .toast-fade-leave-to {
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-fade-enter-active,
+  .toast-fade-leave-active {
+    transition: none;
+  }
 }
 </style>

@@ -27,11 +27,14 @@
         <div v-else class="form-content">
           <!-- 标题 -->
           <div class="form-group title-group">
+            <label class="sr-only" for="memo-title-input">备忘录标题</label>
             <input
+              id="memo-title-input"
               v-model="title"
               type="text"
               class="title-input"
               placeholder="输入标题..."
+              aria-label="备忘录标题"
               @input="handleTitleChange"
             />
           </div>
@@ -223,6 +226,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading, MemoEditor, Modal } from '../../components'
 import { fileManager, generateUUID, resolveApiBaseUrl, storageManager } from '@cyp-memo/shared'
+import { ElMessageBox } from 'element-plus'
 import type { FileMetadata } from '@cyp-memo/shared'
 
 const router = useRouter()
@@ -657,9 +661,17 @@ const handleSave = async () => {
   }
 }
 
-const handleCancel = () => {
+const handleCancel = async () => {
   if (hasUnsavedChanges.value) {
-    if (!confirm('有未保存的更改，确定要离开吗？')) return
+    try {
+      await ElMessageBox.confirm('有未保存的更改，确定要离开吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+    } catch {
+      return
+    }
   }
   router.push('/memos')
 }

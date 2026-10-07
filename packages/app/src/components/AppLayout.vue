@@ -5,6 +5,8 @@
 -->
 <template>
   <div class="app-layout">
+    <a href="#main-content" class="skip-link">跳到主内容</a>
+
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
@@ -12,10 +14,12 @@
           type="button"
           class="menu-toggle"
           :aria-label="sidebarCollapsed ? '展开侧边栏' : '收纳侧边栏'"
+          :aria-expanded="!sidebarCollapsed"
+          :aria-controls="isMobile ? 'app-sidebar-nav' : undefined"
           :title="sidebarCollapsed ? '展开侧边栏' : '收纳侧边栏'"
           @click="toggleSidebar"
         >
-          <el-icon :size="20">
+          <el-icon :size="20" aria-hidden="true">
             <Expand v-if="sidebarCollapsed" />
             <Fold v-else />
           </el-icon>
@@ -31,15 +35,20 @@
           <NotifyBell />
           <div v-if="authStore.isAuthenticated" class="user-info">
             <el-dropdown trigger="click">
-              <div class="user-dropdown-trigger">
-                <el-icon class="user-icon">
+              <button
+                type="button"
+                class="user-dropdown-trigger"
+                aria-label="用户菜单"
+                aria-haspopup="menu"
+              >
+                <el-icon class="user-icon" aria-hidden="true">
                   <User />
                 </el-icon>
                 <span class="username">{{ authStore.username }}</span>
-                <el-icon class="dropdown-icon">
+                <el-icon class="dropdown-icon" aria-hidden="true">
                   <ArrowDown />
                 </el-icon>
-              </div>
+              </button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item @click="goToProfile">
@@ -61,6 +70,7 @@
     <!-- Main Content Area -->
     <div class="app-main">
       <aside
+        id="app-sidebar-nav"
         :class="[
           'app-sidebar',
           {
@@ -68,6 +78,7 @@
             rail: sidebarCollapsed && !isMobile,
           },
         ]"
+        :aria-hidden="isMobile && sidebarCollapsed ? true : undefined"
       >
         <div class="sidebar-scroll">
           <slot name="sidebar">
@@ -82,7 +93,7 @@
           :title="sidebarCollapsed ? '展开侧边栏' : '收纳侧边栏'"
           @click="toggleSidebar"
         >
-          <el-icon :size="16">
+          <el-icon :size="16" aria-hidden="true">
             <DArrowRight v-if="sidebarCollapsed" />
             <DArrowLeft v-else />
           </el-icon>
@@ -98,12 +109,13 @@
         @click="toggleSidebar"
       />
 
-      <main class="app-content">
+      <main id="main-content" class="app-content" tabindex="-1">
         <slot />
       </main>
     </div>
 
-    <AppFooter />
+    <!-- 移动端由底栏承担导航，隐藏页脚避免与底栏重叠 -->
+    <AppFooter v-if="!isMobile" />
 
     <MobileBottomNav v-if="isMobile" />
   </div>
@@ -184,12 +196,20 @@ const handleResize = () => {
   }
 }
 
+const onEscapeSidebar = (e: KeyboardEvent) => {
+  if (e.key !== 'Escape') return
+  if (isMobile.value && !sidebarCollapsed.value) {
+    uiStore.setSidebarCollapsed(true)
+  }
+}
+
 watch(isMobile, (mobile) => {
   uiStore.setMobile(mobile)
 })
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
+  document.addEventListener('keydown', onEscapeSidebar)
   if (isMobile.value) {
     desktopCollapsedPref.value = sidebarCollapsed.value
     uiStore.setSidebarCollapsed(true)
@@ -199,6 +219,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  document.removeEventListener('keydown', onEscapeSidebar)
 })
 </script>
 
@@ -216,6 +237,28 @@ onUnmounted(() => {
   z-index: 0;
 }
 
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  padding: 10px 16px;
+  background: var(--cyp-brand);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 6px 0;
+  transform: translateY(-120%);
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid #0099ff;
+  outline-offset: 2px;
+}
+
 .app-header {
   height: 60px;
   flex-shrink: 0;
@@ -227,10 +270,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 0 20px;
+  padding-top: env(safe-area-inset-top, 0px);
   gap: 20px;
   position: sticky;
   top: 0;
   z-index: 100;
+  box-sizing: content-box;
+  min-height: 60px;
 }
 
 .header-left {
@@ -244,6 +290,8 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
   padding: 8px;
   color: var(--cyp-text-secondary);
   display: flex;
@@ -287,10 +335,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
   padding: 8px 12px;
+  border: none;
   border-radius: 6px;
+  background: transparent;
   cursor: pointer;
   transition: all 0.2s;
+  color: inherit;
+  font: inherit;
 }
 
 .user-dropdown-trigger:hover {
@@ -415,6 +468,7 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .app-header {
     padding: 0 12px;
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
   .app-title {
@@ -428,8 +482,8 @@ onUnmounted(() => {
   .app-sidebar {
     position: fixed;
     left: 0;
-    top: 60px;
-    bottom: 60px;
+    top: calc(60px + env(safe-area-inset-top, 0px));
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     width: 240px;
     z-index: 99;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.12);
@@ -452,14 +506,14 @@ onUnmounted(() => {
 
   .app-content {
     padding: 12px;
-    padding-bottom: 72px;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
   .app-content:has(.memo-list-view),
   .app-content:has(.memo-edit-view),
   .app-content:has(.memo-detail-view) {
     padding: 0;
-    padding-bottom: 72px;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     overflow: hidden;
   }
 }

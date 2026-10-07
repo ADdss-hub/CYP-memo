@@ -34,7 +34,7 @@ import {
   forceReconnectEstablished as localForceReconnectEstablished,
   resetWorkloadCertRotation as localResetWorkloadCertRotation,
   WORKLOAD_CERT_TTL_MS,
-} from './ready.js'
+} from '../runtime-base/l1/mgmt/kms/ready.js'
 
 import type {
   CipherRef,
@@ -42,7 +42,7 @@ import type {
   KmsRotateAudit,
   WorkloadTrustAnchor,
   WorkloadCert,
-} from './ready.js'
+} from '../runtime-base/l1/mgmt/kms/ready.js'
 
 // 重新导出类型，保持接口一致性
 export type { CipherRef, KmsState, KmsRotateAudit, WorkloadTrustAnchor, WorkloadCert }

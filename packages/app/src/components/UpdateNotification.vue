@@ -153,10 +153,11 @@ onUnmounted(() => {
   right: 0;
   z-index: 9999;
   background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
   padding: 12px 20px;
-  box-shadow: var(--cyp-chrome-shadow), 0 2px 12px rgba(0, 0, 0, 0.25);
-  border-bottom: 1px solid color-mix(in srgb, #ffffff 22%, transparent);
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  box-shadow: var(--cyp-chrome-shadow), var(--cyp-shadow-sm);
+  border-bottom: 1px solid var(--cyp-brand-tint-contrast);
 }
 .update-content {
   display: flex;
@@ -168,7 +169,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 .update-icon { font-size: 20px; }
-.update-text { font-size: 14px; }
+.update-text { font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
 .update-text strong { font-weight: 600; }
 .current-version { opacity: 0.85; font-size: 13px; }
 .release-notes { padding: 0 10px; }
@@ -200,5 +201,6 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .update-content { flex-wrap: wrap; gap: 8px; }
   .update-text { width: 100%; text-align: center; }
+  .update-content :deep(.el-button) { min-height: 44px; }
 }
 </style>

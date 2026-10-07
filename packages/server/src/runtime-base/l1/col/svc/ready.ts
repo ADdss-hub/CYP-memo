@@ -11,21 +11,461 @@ import path from 'path'
 import { log as log } from '../../../l0/infra/log/ready.js'
 import { isValidSpiffeId, toSpiffeId } from '../../../l0/coord/plt/ready.js'
 import { isWorkloadTrustAnchorReady, getWorkloadTrustAnchor } from '../../mgmt/kms/ready.js'
+import type { Request, Response, NextFunction, RequestHandler } from 'express'
 import {
-  consulRegisterService,
-  consulDeregisterService,
-  consulDiscoverService,
-  consulDiscoverByTags,
-  consulPassCheck,
-  consulListServices,
-  initConsulAdapter,
-  resetConsulAdapter,
-  getConsulAdapterState,
-  isConsulAdapterReady,
-  probeConsulAgent,
-  type ConsulServiceMeta,
-  type ConsulDiscoveredInstance,
-} from './consul-adapter.js'
+  issueEastWestToken,
+  assertEastWestToken,
+  tryAcquire as rateLimitTryAcquire,
+  isRateLimiterEnabled,
+  registerPolicy,
+} from '../../host/biz/ready.js'
+import { isMtlsEnabledFlag, spiffeAuthMiddleware, verifySpiffeCert } from '../../../../_kms-internal/mtls.js'
+import { getCircuitState, egressFetch } from '../../host/resil/egress.js'
+import { getRequestTraceId } from '../../mgmt/trace/ready.js'
+import { fail, Err } from '../../mgmt/code/ready.js'
+import { publishDomainEvent } from '../evt/ready.js'
+
+// ============================================================
+// Consul 服务注册与发现适配器（原 consul-adapter.ts，合并入锚点文件）
+// ============================================================
+
+export interface ConsulServiceMeta {
+  /** 服务名称：cyp-memo-gateway / cyp-memo-api / cyp-memo-mcp / cyp-memo-kms */
+  serviceName: string
+  /** 实例唯一标识 */
+  instanceId: string
+  /** 服务监听地址 */
+  host: string
+  /** 服务监听端口 */
+  port: number
+  /** 服务标签（env=prod, role=api 等） */
+  tags: string[]
+  /** 版本号 */
+  version: string
+  /** 健康检查 HTTP 路径（相对路径，Consul 用 host:port + path 探活） */
+  healthCheckPath?: string
+  /** 健康检查 TTL 秒数（0 表示使用 HTTP 检查而非 TTL） */
+  healthCheckTtlSec?: number
+  /** 附加元数据 */
+  meta?: Record<string, string>
+}
+
+export interface ConsulDiscoveredInstance {
+  serviceName: string
+  instanceId: string
+  host: string
+  port: number
+  tags: string[]
+  meta: Record<string, string>
+  healthy: boolean
+}
+
+export interface ConsulAdapterState {
+  ready: boolean
+  mode: 'consul'
+  consulAddr: string
+  registeredServices: string[]
+}
+
+const consulAdapterState = {
+  ready: false,
+  consulAddr: 'http://127.0.0.1:8500',
+  registeredServices: new Set<string>(),
+  heartbeatTimers: new Map<string, ReturnType<typeof setInterval>>(),
+  deregisterOnExit: true,
+}
+
+let consulToken: string | null = null
+
+function consulApiUrl(p: string): string {
+  const base = consulAdapterState.consulAddr.replace(/\/$/, '')
+  return `${base}/v1${p}`
+}
+
+async function consulFetch(
+  p: string,
+  opts: {
+    method?: string
+    body?: unknown
+    expectStatus?: number
+  } = {}
+): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const url = consulApiUrl(p)
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (consulToken) {
+    headers['X-Consul-Token'] = consulToken
+  }
+  try {
+    const resp = await fetch(url, {
+      method: opts.method || 'GET',
+      headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    })
+    let data: unknown = null
+    const text = await resp.text()
+    if (text) {
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = text
+      }
+    }
+    const ok = opts.expectStatus
+      ? resp.status === opts.expectStatus
+      : resp.status >= 200 && resp.status < 300
+    return { ok, status: resp.status, data }
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      data: { error: err instanceof Error ? err.message : String(err) },
+    }
+  }
+}
+
+export async function consulRegisterService(
+  meta: ConsulServiceMeta
+): Promise<{ ok: boolean; error?: string }> {
+  if (!consulAdapterState.ready) {
+    return { ok: false, error: 'consul adapter not ready' }
+  }
+
+  const check: Record<string, unknown> = {}
+
+  if (meta.healthCheckTtlSec && meta.healthCheckTtlSec > 0) {
+    check['TTL'] = `${meta.healthCheckTtlSec}s`
+    check['DeregisterCriticalServiceAfter'] = `${Math.max(meta.healthCheckTtlSec * 3, 30)}s`
+  }
+  else if (meta.healthCheckPath) {
+    check['HTTP'] = `http://${meta.host}:${meta.port}${meta.healthCheckPath}`
+    check['Method'] = 'GET'
+    check['Interval'] = '10s'
+    check['Timeout'] = '5s'
+    check['DeregisterCriticalServiceAfter'] = '1m'
+  }
+  else {
+    check['TTL'] = '30s'
+    check['DeregisterCriticalServiceAfter'] = '1m'
+  }
+
+  const registration = {
+    ID: meta.instanceId,
+    Name: meta.serviceName,
+    Address: meta.host,
+    Port: meta.port,
+    Tags: meta.tags,
+    Meta: {
+      version: meta.version,
+      ...meta.meta,
+    },
+    Check: check,
+  }
+
+  const result = await consulFetch('/agent/service/register', {
+    method: 'PUT',
+    body: registration,
+    expectStatus: 200,
+  })
+
+  if (!result.ok) {
+    const errMsg = typeof result.data === 'object' && result.data && 'error' in result.data
+      ? String((result.data as Record<string, unknown>).error)
+      : `HTTP ${result.status}`
+    log({
+      level: 'warn',
+      message: `consul register failed: ${meta.serviceName}@${meta.instanceId}`,
+      type: 'runtime',
+      action: 'consul_register_fail',
+      context: { serviceName: meta.serviceName, error: errMsg },
+    })
+    return { ok: false, error: errMsg }
+  }
+
+  consulAdapterState.registeredServices.add(meta.instanceId)
+
+  if (meta.healthCheckTtlSec && meta.healthCheckTtlSec > 0) {
+    startConsulHeartbeat(meta.instanceId, meta.healthCheckTtlSec)
+  }
+
+  log({
+    level: 'info',
+    message: `consul registered ${meta.serviceName}@${meta.instanceId}`,
+    type: 'runtime',
+    action: 'consul_register',
+    context: {
+      serviceName: meta.serviceName,
+      instanceId: meta.instanceId,
+      port: meta.port,
+      tags: meta.tags,
+    },
+  })
+
+  return { ok: true }
+}
+
+export async function consulDeregisterService(instanceId: string): Promise<boolean> {
+  if (!consulAdapterState.ready) return false
+
+  stopConsulHeartbeat(instanceId)
+
+  const result = await consulFetch(`/agent/service/deregister/${encodeURIComponent(instanceId)}`, {
+    method: 'PUT',
+    expectStatus: 200,
+  })
+
+  if (result.ok) {
+    consulAdapterState.registeredServices.delete(instanceId)
+    log({
+      level: 'info',
+      message: `consul deregistered ${instanceId}`,
+      type: 'runtime',
+      action: 'consul_deregister',
+      context: { instanceId },
+    })
+    return true
+  }
+
+  log({
+    level: 'warn',
+    message: `consul deregister failed: ${instanceId}`,
+    type: 'runtime',
+    action: 'consul_deregister_fail',
+    context: { instanceId, status: result.status },
+  })
+  return false
+}
+
+export async function consulPassCheck(instanceId: string): Promise<boolean> {
+  if (!consulAdapterState.ready) return false
+
+  const checkId = `service:${instanceId}`
+  const result = await consulFetch(`/agent/check/pass/${encodeURIComponent(checkId)}`, {
+    method: 'PUT',
+    expectStatus: 200,
+  })
+
+  return result.ok
+}
+
+export async function consulWarnCheck(instanceId: string, note?: string): Promise<boolean> {
+  if (!consulAdapterState.ready) return false
+
+  const checkId = `service:${instanceId}`
+  const pathv = note
+    ? `/agent/check/warn/${encodeURIComponent(checkId)}?note=${encodeURIComponent(note)}`
+    : `/agent/check/warn/${encodeURIComponent(checkId)}`
+  const result = await consulFetch(pathv, {
+    method: 'PUT',
+    expectStatus: 200,
+  })
+
+  return result.ok
+}
+
+export async function consulFailCheck(instanceId: string, note?: string): Promise<boolean> {
+  if (!consulAdapterState.ready) return false
+
+  const checkId = `service:${instanceId}`
+  const pathv = note
+    ? `/agent/check/fail/${encodeURIComponent(checkId)}?note=${encodeURIComponent(note)}`
+    : `/agent/check/fail/${encodeURIComponent(checkId)}`
+  const result = await consulFetch(pathv, {
+    method: 'PUT',
+    expectStatus: 200,
+  })
+
+  return result.ok
+}
+
+function startConsulHeartbeat(instanceId: string, ttlSec: number): void {
+  stopConsulHeartbeat(instanceId)
+  const intervalMs = Math.floor((ttlSec * 1000) / 3)
+  const timer = setInterval(() => {
+    consulPassCheck(instanceId).catch(() => {})
+  }, intervalMs)
+  if (typeof timer === 'object' && timer && 'unref' in timer) {
+    ;(timer as NodeJS.Timeout).unref()
+  }
+  consulAdapterState.heartbeatTimers.set(instanceId, timer)
+}
+
+function stopConsulHeartbeat(instanceId: string): void {
+  const timer = consulAdapterState.heartbeatTimers.get(instanceId)
+  if (timer) {
+    clearInterval(timer)
+    consulAdapterState.heartbeatTimers.delete(instanceId)
+  }
+}
+
+export async function consulDiscoverService(
+  serviceName: string,
+  opts?: {
+    tags?: string[]
+    onlyHealthy?: boolean
+  }
+): Promise<ConsulDiscoveredInstance[]> {
+  if (!consulAdapterState.ready) return []
+
+  const onlyHealthy = opts?.onlyHealthy !== false
+  const tags = opts?.tags || []
+
+  const params = new URLSearchParams()
+  if (onlyHealthy) {
+    params.set('passing', '1')
+  }
+  for (const tag of tags) {
+    params.append('tag', tag)
+  }
+  const qs = params.toString()
+  const pathv = `/health/service/${encodeURIComponent(serviceName)}${qs ? `?${qs}` : ''}`
+
+  const result = await consulFetch(pathv, {
+    method: 'GET',
+  })
+
+  if (!result.ok || !Array.isArray(result.data)) {
+    return []
+  }
+
+  const entries = result.data as Array<{
+    Service: {
+      ID: string
+      Service: string
+      Address: string
+      Port: number
+      Tags: string[]
+      Meta?: Record<string, string>
+    }
+    Checks: Array<{
+      Status: string
+    }>
+  }>
+
+  return entries.map((entry) => ({
+    serviceName: entry.Service.Service,
+    instanceId: entry.Service.ID,
+    host: entry.Service.Address,
+    port: entry.Service.Port,
+    tags: entry.Service.Tags || [],
+    meta: entry.Service.Meta || {},
+    healthy: entry.Checks.every((c) => c.Status === 'passing'),
+  }))
+}
+
+export async function consulListServices(): Promise<string[]> {
+  if (!consulAdapterState.ready) return []
+
+  const result = await consulFetch('/catalog/services', {
+    method: 'GET',
+  })
+
+  if (!result.ok || typeof result.data !== 'object' || !result.data) {
+    return []
+  }
+
+  return Object.keys(result.data as Record<string, string[]>)
+}
+
+export async function consulDiscoverByTags(
+  tags: string[],
+  onlyHealthy = true
+): Promise<ConsulDiscoveredInstance[]> {
+  if (!consulAdapterState.ready || tags.length === 0) return []
+
+  const services = await consulListServices()
+  const allInstances: ConsulDiscoveredInstance[] = []
+
+  for (const svc of services) {
+    const instances = await consulDiscoverService(svc, { tags, onlyHealthy })
+    allInstances.push(...instances)
+  }
+
+  return allInstances
+}
+
+export interface ConsulAdapterOptions {
+  /** Consul Agent HTTP 地址 */
+  consulAddr?: string
+  /** Consul ACL Token（可选） */
+  consulToken?: string
+  /** 退出时是否自动注销（默认 true） */
+  deregisterOnExit?: boolean
+}
+
+export function initConsulAdapter(opts: ConsulAdapterOptions = {}): ConsulAdapterState {
+  consulAdapterState.consulAddr = opts.consulAddr || process.env.CONSUL_HTTP_ADDR || 'http://127.0.0.1:8500'
+  consulToken = opts.consulToken || process.env.CONSUL_HTTP_TOKEN || null
+  consulAdapterState.deregisterOnExit = opts.deregisterOnExit !== false
+  consulAdapterState.ready = true
+
+  log({
+    level: 'info',
+    message: 'consul adapter ready',
+    type: 'runtime',
+    action: 'consul_adapter_ready',
+    context: {
+      consulAddr: consulAdapterState.consulAddr,
+      hasToken: Boolean(consulToken),
+    },
+  })
+
+  if (consulAdapterState.deregisterOnExit) {
+    const gracefulShutdown = (): void => {
+      if (!consulAdapterState.ready) return
+      const ids = Array.from(consulAdapterState.registeredServices)
+      for (const id of ids) {
+        consulDeregisterService(id).catch(() => {})
+      }
+    }
+
+    process.on('SIGTERM', gracefulShutdown)
+    process.on('SIGINT', gracefulShutdown)
+    process.on('beforeExit', gracefulShutdown)
+  }
+
+  return getConsulAdapterState()
+}
+
+export function resetConsulAdapter(): void {
+  for (const id of Array.from(consulAdapterState.heartbeatTimers.keys())) {
+    stopConsulHeartbeat(id)
+  }
+  consulAdapterState.registeredServices.clear()
+  consulAdapterState.ready = false
+  consulToken = null
+}
+
+export function getConsulAdapterState(): ConsulAdapterState {
+  return {
+    ready: consulAdapterState.ready,
+    mode: 'consul',
+    consulAddr: consulAdapterState.consulAddr,
+    registeredServices: Array.from(consulAdapterState.registeredServices),
+  }
+}
+
+export function isConsulAdapterReady(): boolean {
+  return consulAdapterState.ready
+}
+
+export async function probeConsulAgent(): Promise<{
+  reachable: boolean
+  leader?: string
+  version?: string
+}> {
+  const result = await consulFetch('/status/leader', { method: 'GET' })
+  if (!result.ok) {
+    return { reachable: false }
+  }
+  const leader = typeof result.data === 'string' ? result.data : undefined
+  return { reachable: true, leader }
+}
+
+// ============================================================
+// 全局注册服务（嵌入式 · 进程内通讯录）
+// ============================================================
 
 export interface RegistryInstance {
   serviceName: string
@@ -714,6 +1154,449 @@ export function parseConsulServiceTags(envVal?: string): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+}
+
+// ============================================================
+// East-West 流量管控中间件（原 ew-traffic-middleware.ts，合并入锚点文件）
+// ============================================================
+
+export type EwAuthMode = 'mtls' | 'token' | 'both'
+
+export interface EwTrafficMiddlewareOptions {
+  /** 认证模式：mtls / token / both（任一通过即可） */
+  authMode?: EwAuthMode
+  /** 调用方服务名（稳定 ID） */
+  callerService?: string
+  /** 被调用方服务名（稳定 ID） */
+  calleeService?: string
+  /** 是否启用限流，默认跟随全局开关 */
+  enableRateLimit?: boolean
+  /** 限流策略 ID（使用 rate-limiter 中注册的策略） */
+  rateLimitPolicyId?: string
+  /** 是否启用熔断，默认跟随全局开关 */
+  enableCircuitBreaker?: boolean
+  /** 熔断依赖名（使用 egress 中的电路名） */
+  circuitBreakerName?: string
+  /** 是否启用追踪，默认 true */
+  enableTracing?: boolean
+  /** 允许的 SPIFFE ID 列表 */
+  allowedSpiffeIds?: string[]
+  /** East-West Token 白名单调用方 */
+  allowedTokenCallers?: string[]
+  /** 路径前缀（仅匹配此前缀的路径才启用管控） */
+  pathPrefix?: string
+}
+
+export interface EwTrafficState {
+  ready: boolean
+  enabled: boolean
+  authMode: EwAuthMode
+  requestsTotal: number
+  requestsAllowed: number
+  requestsDenied: number
+  rateLimitHits: number
+  circuitBreakerRejects: number
+  authFailures: number
+}
+
+const ewTrafficState: EwTrafficState = {
+  ready: false,
+  enabled: false,
+  authMode: 'token',
+  requestsTotal: 0,
+  requestsAllowed: 0,
+  requestsDenied: 0,
+  rateLimitHits: 0,
+  circuitBreakerRejects: 0,
+  authFailures: 0,
+}
+
+function isEwTrafficEnabled(): boolean {
+  const val = process.env.CYP_EW_TRAFFIC_ENABLED
+  if (val === '0' || val === 'false' || val === 'off') return false
+  return true
+}
+
+function getConfigAuthMode(): EwAuthMode {
+  const mode = process.env.CYP_EW_AUTH_MODE
+  if (mode === 'token') return 'token'
+  if (mode === 'mtls') return 'mtls'
+  return 'both'
+}
+
+export function initEwTraffic(): void {
+  ewTrafficState.enabled = isEwTrafficEnabled()
+
+  if (!ewTrafficState.enabled) {
+    log({
+      level: 'warn',
+      message: 'East-West traffic middleware explicitly disabled (CYP_EW_TRAFFIC_ENABLED=0)',
+      type: 'runtime',
+      action: 'ew_traffic_init_skip',
+    })
+    return
+  }
+
+  ewTrafficState.authMode = getConfigAuthMode()
+
+  registerPolicy({
+    id: 'ew-service-to-service',
+    dimensions: ['spiffe', 'service'],
+    ratePerSecond: 500,
+    burstCapacity: 1000,
+    description: 'East-West 服务间调用限流',
+    enabled: true,
+  })
+
+  ewTrafficState.ready = true
+  log({
+    level: 'info',
+    message: `East-West traffic middleware ready (auth: ${ewTrafficState.authMode})`,
+    type: 'runtime',
+    action: 'ew_traffic_ready',
+    context: { authMode: ewTrafficState.authMode },
+  })
+}
+
+export function shutdownEwTraffic(): void {
+  ewTrafficState.ready = false
+}
+
+export function ewTrafficMiddleware(opts: EwTrafficMiddlewareOptions = {}): RequestHandler {
+  const authMode = opts.authMode || getConfigAuthMode()
+  const enableRateLimit = opts.enableRateLimit ?? isRateLimiterEnabled()
+  const enableCircuitBreaker = opts.enableCircuitBreaker ?? true
+  const enableTracing = opts.enableTracing ?? true
+  const rateLimitPolicyId = opts.rateLimitPolicyId || 'ew-service-to-service'
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (opts.pathPrefix && !req.path.startsWith(opts.pathPrefix)) {
+      next()
+      return
+    }
+
+    ewTrafficState.requestsTotal++
+
+    if (enableTracing) {
+      handleTracing(req, res)
+    }
+
+    const authResult = handleAuth(req, res, authMode, opts)
+    if (!authResult.ok) {
+      ewTrafficState.requestsDenied++
+      ewTrafficState.authFailures++
+      return
+    }
+
+    if (enableRateLimit) {
+      const limitResult = handleRateLimit(req, rateLimitPolicyId, authResult)
+      if (!limitResult.allowed) {
+        ewTrafficState.requestsDenied++
+        ewTrafficState.rateLimitHits++
+        res.setHeader('X-RateLimit-Limit', String(limitResult.limit))
+        res.setHeader('X-RateLimit-Remaining', String(limitResult.remaining))
+        if (limitResult.retryAfterMs) {
+          res.setHeader('Retry-After', String(Math.ceil(limitResult.retryAfterMs / 1000)))
+        }
+        fail(res, 429, Err.RATE_LIMITED, '服务间调用限流', req)
+        return
+      }
+      res.setHeader('X-RateLimit-Limit', String(limitResult.limit))
+      res.setHeader('X-RateLimit-Remaining', String(limitResult.remaining))
+    }
+
+    if (enableCircuitBreaker) {
+      const circuitName = opts.circuitBreakerName || opts.calleeService || 'ew-default'
+      const circuitState = getCircuitState(circuitName)
+      if (circuitState === 'open') {
+        ewTrafficState.requestsDenied++
+        ewTrafficState.circuitBreakerRejects++
+        res.setHeader('X-Circuit-Breaker', 'open')
+        fail(res, 503, Err.SERVICE_UNAVAILABLE, '服务熔断中，请稍后重试', req)
+        return
+      }
+      res.setHeader('X-Circuit-Breaker', circuitState)
+    }
+
+    ewTrafficState.requestsAllowed++
+    next()
+  }
+}
+
+interface AuthResult {
+  ok: boolean
+  callerSpiffe?: string
+  callerService?: string
+  authMethod?: 'mtls' | 'token'
+}
+
+function handleAuth(
+  req: Request,
+  res: Response,
+  mode: EwAuthMode,
+  opts: EwTrafficMiddlewareOptions
+): AuthResult {
+  if (mode === 'mtls') {
+    return handleMtlsAuth(req, res, opts)
+  }
+
+  if (mode === 'token') {
+    return handleTokenAuth(req, res, opts)
+  }
+
+  const mtlsResult = handleMtlsAuth(req, res, { ...opts, silent: true })
+  if (mtlsResult.ok) return mtlsResult
+
+  const tokenResult = handleTokenAuth(req, res, opts)
+  if (tokenResult.ok) return tokenResult
+
+  fail(res, 401, Err.UNAUTHORIZED, 'East-West 认证失败（mTLS 和 Token 均未通过）', req)
+  return { ok: false }
+}
+
+function handleMtlsAuth(
+  req: Request,
+  res: Response,
+  opts: EwTrafficMiddlewareOptions & { silent?: boolean }
+): AuthResult {
+  if (!isMtlsEnabledFlag()) {
+    if (!opts.silent) {
+      fail(res, 401, Err.UNAUTHORIZED, 'mTLS 未启用', req)
+    }
+    return { ok: false }
+  }
+
+  const socket = (req as any).socket
+  if (!socket || !socket.getPeerCertificate) {
+    if (!opts.silent) {
+      fail(res, 401, Err.UNAUTHORIZED, '无客户端证书', req)
+    }
+    return { ok: false }
+  }
+
+  const peerCert = socket.getPeerCertificate()
+  if (!peerCert || !peerCert.raw) {
+    if (!opts.silent) {
+      fail(res, 401, Err.UNAUTHORIZED, '客户端证书为空', req)
+    }
+    return { ok: false }
+  }
+
+  let spiffeId = (req as any).spiffeId
+  if (!spiffeId) {
+    try {
+      if (peerCert.subjectaltname) {
+        const match = /URI:(spiffe:\/\/\S+)/.exec(peerCert.subjectaltname)
+        if (match) spiffeId = match[1]
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (!spiffeId || !isValidSpiffeId(spiffeId)) {
+    if (!opts.silent) {
+      fail(res, 401, Err.UNAUTHORIZED, '证书 SPIFFE ID 无效', req)
+    }
+    return { ok: false }
+  }
+
+  if (opts.allowedSpiffeIds && opts.allowedSpiffeIds.length > 0) {
+    if (!opts.allowedSpiffeIds.includes(spiffeId)) {
+      if (!opts.silent) {
+        fail(res, 403, Err.FORBIDDEN, 'SPIFFE ID 未授权', req)
+      }
+      return { ok: false }
+    }
+  }
+
+  if (opts.callerService && opts.calleeService) {
+    const spiffePath = spiffeId.replace(/^spiffe:\/\/[^/]+\//, '')
+    const callerFromSpiffe = spiffePath.split('/').pop() || ''
+    if (!isServiceCallGranted(callerFromSpiffe, opts.calleeService)) {
+      if (!opts.silent) {
+        fail(res, 403, Err.FORBIDDEN, '服务间调用未授权', req)
+      }
+      return { ok: false }
+    }
+  }
+
+  ;(req as any).ewAuthMethod = 'mtls'
+  ;(req as any).ewCallerSpiffe = spiffeId
+  return { ok: true, callerSpiffe: spiffeId, authMethod: 'mtls' }
+}
+
+function handleTokenAuth(
+  req: Request,
+  res: Response,
+  opts: EwTrafficMiddlewareOptions
+): AuthResult {
+  const authHeader = req.headers['authorization'] || ''
+  const tokenMatch = /^Bearer\s+(.+)$/i.exec(String(authHeader))
+  const token = tokenMatch ? tokenMatch[1] : ''
+
+  if (!token) {
+    fail(res, 401, Err.UNAUTHORIZED, '缺少 East-West Token', req)
+    return { ok: false }
+  }
+
+  const caller = String(req.headers['x-ew-caller'] || '').trim()
+  const callee = String(req.headers['x-ew-callee'] || '').trim()
+
+  if (!caller || !callee) {
+    fail(res, 400, Err.BAD_REQUEST, '缺少 X-EW-Caller 或 X-EW-Callee', req)
+    return { ok: false }
+  }
+
+  if (opts.allowedTokenCallers && opts.allowedTokenCallers.length > 0) {
+    if (!opts.allowedTokenCallers.includes(caller)) {
+      fail(res, 403, Err.FORBIDDEN, '调用方未在白名单中', req)
+      return { ok: false }
+    }
+  }
+
+  const result = assertEastWestToken({ caller, callee, token })
+  if (!result.ok) {
+    publishDomainEvent(
+      'EastWestAuthFailed',
+      2,
+      { caller, callee, reason: result.reason },
+      'warn'
+    )
+    fail(res, 401, Err.UNAUTHORIZED, `East-West Token 验证失败: ${result.reason}`, req)
+    return { ok: false }
+  }
+
+  if (!isServiceCallGranted(caller, callee)) {
+    fail(res, 403, Err.FORBIDDEN, '服务间调用未授权', req)
+    return { ok: false }
+  }
+
+  ;(req as any).ewAuthMethod = 'token'
+  ;(req as any).ewCaller = caller
+  ;(req as any).ewCallee = callee
+  return { ok: true, callerService: caller, authMethod: 'token' }
+}
+
+function handleRateLimit(
+  req: Request,
+  policyId: string,
+  authResult: AuthResult
+): { allowed: boolean; remaining: number; limit: number; retryAfterMs?: number } {
+  const dimensions: Record<string, string> = {
+    endpoint: req.path,
+    service: (req as any).ewCallee || 'unknown',
+  }
+
+  if (authResult.callerSpiffe) {
+    dimensions.spiffe = authResult.callerSpiffe
+  } else if (authResult.callerService) {
+    dimensions.spiffe = toSpiffeId(authResult.callerService)
+  }
+
+  const result = rateLimitTryAcquire(policyId, dimensions, 1)
+  return {
+    allowed: result.allowed,
+    remaining: result.remaining,
+    limit: result.limit,
+    retryAfterMs: result.retryAfterMs,
+  }
+}
+
+function handleTracing(req: Request, res: Response): void {
+  const traceId = (req as any).traceId || getRequestTraceId()
+  if (traceId) {
+    ;(req as any).traceId = traceId
+    res.setHeader('X-Trace-Id', traceId)
+  }
+  res.setHeader('X-EW-Handled', '1')
+}
+
+export interface EwCallOptions {
+  /** 调用方稳定 ID */
+  caller: string
+  /** 被调用方稳定 ID */
+  callee: string
+  /** 目标 URL */
+  url: string
+  /** HTTP 方法 */
+  method?: string
+  /** 请求头 */
+  headers?: Record<string, string>
+  /** 请求体 */
+  body?: unknown
+  /** 超时 ms */
+  timeoutMs?: number
+  /** 是否使用 mTLS（默认跟随配置） */
+  useMtls?: boolean
+  /** 最大重试次数 */
+  maxRetries?: number
+  /** 幂等键 */
+  idempotencyKey?: string
+}
+
+export async function ewCall(opts: EwCallOptions): Promise<{
+  ok: boolean
+  status?: number
+  body?: unknown
+  error?: string
+}> {
+  const authMode = getConfigAuthMode()
+  const useMtls = opts.useMtls ?? (authMode === 'mtls' || authMode === 'both')
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-EW-Caller': opts.caller,
+    'X-EW-Callee': opts.callee,
+    ...opts.headers,
+  }
+
+  if (!useMtls || authMode === 'both' || authMode === 'token') {
+    const { token } = issueEastWestToken({
+      caller: opts.caller,
+      callee: opts.callee,
+      ttlMs: 60_000,
+    })
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const traceId = getRequestTraceId()
+  if (traceId) {
+    headers['X-Trace-Id'] = traceId
+  }
+
+  if (opts.idempotencyKey) {
+    headers['Idempotency-Key'] = opts.idempotencyKey
+  }
+
+  const result = await egressFetch({
+    dependency: `ew:${opts.callee}`,
+    url: opts.url,
+    method: opts.method || 'POST',
+    headers,
+    body: opts.body,
+    timeoutMs: opts.timeoutMs || 5000,
+    retries: opts.maxRetries ?? 2,
+  })
+
+  return {
+    ok: result.ok,
+    status: result.status,
+    body: result.body,
+    error: result.ok ? undefined : `circuit_${result.circuit}`,
+  }
+}
+
+export function getEwTrafficState(): EwTrafficState {
+  return { ...ewTrafficState }
+}
+
+export function isEwTrafficReady(): boolean {
+  return ewTrafficState.ready
+}
+
+export function isEwTrafficEnabledFlag(): boolean {
+  return ewTrafficState.enabled
 }
 
 export function ready_rb_l1_col_svc_01(): boolean {

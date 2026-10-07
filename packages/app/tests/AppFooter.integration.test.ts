@@ -27,6 +27,12 @@ describe('AppFooter 集成测试', () => {
   beforeEach(() => {
     // 为每个测试创建新的 Pinia 实例
     setActivePinia(createPinia())
+    // 桌面宽度：AppLayout 在 <768px 隐藏页脚（改由底栏承担）
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 1024,
+    })
   })
 
   describe('Footer 组件内容验证', () => {
@@ -70,7 +76,7 @@ describe('AppFooter 集成测试', () => {
   })
 
   describe('Footer 在 AppLayout 中的集成', () => {
-    it('AppLayout 应该包含 AppFooter 组件', () => {
+    it('桌面宽度下 AppLayout 应该包含 AppFooter 组件', () => {
       const wrapper = mount(AppLayout, {
         global: {
           stubs: {
@@ -83,6 +89,24 @@ describe('AppFooter 集成测试', () => {
       // 验证 AppFooter 组件存在
       const footer = wrapper.findComponent(AppFooter)
       expect(footer.exists()).toBe(true)
+    })
+
+    it('移动端宽度下 AppLayout 应隐藏 AppFooter 并显示底栏', () => {
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        writable: true,
+        value: 375,
+      })
+      const wrapper = mount(AppLayout, {
+        global: {
+          stubs: {
+            MobileBottomNav: true,
+            ...footerStubs,
+          },
+        },
+      })
+      expect(wrapper.findComponent(AppFooter).exists()).toBe(false)
+      expect(wrapper.find('mobile-bottom-nav-stub').exists()).toBe(true)
     })
 
     it('AppLayout 中的 Footer 应该显示版本信息', () => {

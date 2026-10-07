@@ -8,22 +8,32 @@
       <!-- 顶部搜索栏 -->
       <div class="search-bar">
         <div class="search-input-wrapper">
+          <label class="sr-only" for="memo-search-input">搜索备忘录</label>
           <input
+            id="memo-search-input"
             v-model="searchQuery"
-            type="text"
+            type="search"
             class="search-input"
             placeholder="搜索备忘录..."
+            autocomplete="off"
             @input="handleSearch"
           />
-          <el-icon class="search-icon" :size="16"><Search /></el-icon>
+          <el-icon class="search-icon" :size="16" aria-hidden="true"><Search /></el-icon>
         </div>
         <div class="sort-wrapper">
-          <select v-model="sortBy" class="sort-select">
+          <label class="sr-only" for="memo-sort-select">排序方式</label>
+          <select id="memo-sort-select" v-model="sortBy" class="sort-select">
             <option value="updatedAt">按更新时间</option>
             <option value="createdAt">按创建时间</option>
             <option value="title">按标题</option>
           </select>
-          <button class="sort-order-btn" @click="toggleSortOrder" :title="sortOrder === 'desc' ? '降序' : '升序'">
+          <button
+            type="button"
+            class="sort-order-btn"
+            :aria-label="sortOrder === 'desc' ? '当前降序，点击切换为升序' : '当前升序，点击切换为降序'"
+            :title="sortOrder === 'desc' ? '降序' : '升序'"
+            @click="toggleSortOrder"
+          >
             {{ sortOrder === 'desc' ? '↓' : '↑' }}
           </button>
         </div>
@@ -62,17 +72,17 @@
           </div>
         </aside>
 
-        <!-- 备忘录列表 -->
-        <main class="main-content">
+        <!-- 备忘录列表（壳层已有唯一 main，此处用 section） -->
+        <section class="main-content" aria-label="备忘录列表">
           <Loading v-if="isLoading" />
 
-          <div v-else-if="error" class="error-message">
+          <div v-else-if="error" class="error-message" role="alert">
             <p>{{ error }}</p>
             <Button type="primary" @click="loadData"> 重试 </Button>
           </div>
 
           <div v-else-if="displayedMemos.length === 0" class="empty-state">
-            <div class="empty-icon"></div>
+            <div class="empty-icon" aria-hidden="true"></div>
             <p class="empty-text">
               {{
                 searchQuery || selectedTags.length > 0
@@ -87,7 +97,12 @@
               v-for="memo in displayedMemos"
               :key="memo.id"
               class="memo-card"
+              role="button"
+              tabindex="0"
+              :aria-label="`打开备忘录：${memo.title || '无标题'}`"
               @click="handleView(memo.id)"
+              @keydown.enter.prevent="handleView(memo.id)"
+              @keydown.space.prevent="handleView(memo.id)"
             >
               <header class="memo-header">
                 <h3 class="memo-title">{{ memo.title || '无标题' }}</h3>
@@ -95,19 +110,21 @@
                   <button
                     type="button"
                     class="action-btn"
+                    aria-label="编辑备忘录"
                     title="编辑备忘录"
                     @click="handleEdit(memo.id)"
                   >
-                    <el-icon :size="14"><EditPen /></el-icon>
+                    <el-icon :size="14" aria-hidden="true"><EditPen /></el-icon>
                     <span>编辑</span>
                   </button>
                   <button
                     type="button"
                     class="action-btn action-btn-danger"
+                    aria-label="删除备忘录"
                     title="删除备忘录"
                     @click="handleDelete(memo.id)"
                   >
-                    <el-icon :size="14"><Delete /></el-icon>
+                    <el-icon :size="14" aria-hidden="true"><Delete /></el-icon>
                     <span>删除</span>
                   </button>
                 </div>
@@ -148,7 +165,7 @@
               </Button>
             </div>
           </div>
-        </main>
+        </section>
       </div>
     </div>
   </AppLayout>
@@ -163,6 +180,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading } from '../../components'
 import { Plus, EditPen, Delete, Search } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
 import type { Memo } from '@cyp-memo/shared'
 
 const router = useRouter()
@@ -362,7 +380,13 @@ const handleEdit = (id: string) => {
 }
 
 const handleDelete = async (id: string) => {
-  if (!confirm('确定要删除这个备忘录吗？')) {
+  try {
+    await ElMessageBox.confirm('确定要删除这个备忘录吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
     return
   }
 
@@ -448,7 +472,8 @@ watch(
 }
 
 .sort-select {
-  height: 36px;
+  height: 44px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--cyp-border);
   border-radius: 4px;
@@ -464,8 +489,10 @@ watch(
 }
 
 .sort-order-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: 1px solid var(--cyp-border);
   border-radius: 4px;
   background: var(--cyp-bg-input);
@@ -481,7 +508,8 @@ watch(
 
 .search-input {
   width: 100%;
-  height: 40px;
+  height: 44px;
+  min-height: 44px;
   padding: 0 40px 0 16px;
   border: 1px solid var(--cyp-border);
   border-radius: 20px;
@@ -696,8 +724,9 @@ watch(
 }
 
 .action-btn {
-  height: 28px;
-  padding: 0 10px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 12px;
   background: var(--cyp-bg-muted);
   border: 1px solid transparent;
   border-radius: 6px;
@@ -796,6 +825,11 @@ watch(
   white-space: nowrap;
 }
 
+.memo-card:focus-visible {
+  outline: 2px solid #0099ff;
+  outline-offset: 2px;
+}
+
 /* 移动端适配 */
 @media (max-width: 768px) {
   .content-wrapper {
@@ -806,7 +840,7 @@ watch(
     width: 100%;
     border-right: none;
     border-bottom: 1px solid var(--cyp-border);
-    max-height: 200px;
+    max-height: min(160px, 28vh);
   }
 
   .search-bar {
@@ -815,6 +849,12 @@ watch(
 
   .search-input-wrapper {
     max-width: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .memo-actions {
+    gap: 8px;
   }
 }
 

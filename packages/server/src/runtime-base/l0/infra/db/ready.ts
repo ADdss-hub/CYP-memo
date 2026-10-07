@@ -1220,6 +1220,48 @@ export class SqliteDatabase {
     }))
   }
 
+  /** 按租户过滤的公开备忘录（MCP 公开查询租户隔离） */
+  listMcpPublicMemosByTenant(tenantRootId: string): Memo[] {
+    if (!this.db || !tenantRootId) return []
+    const result = this.db.exec(
+      `SELECT m.* FROM memos m
+       INNER JOIN users u ON m.userId = u.id
+       WHERE m.deletedAt IS NULL AND m.mcpPublic = 1 AND u.tenantRootId = ?
+       ORDER BY m.updatedAt DESC`,
+      [tenantRootId]
+    )
+    return (this.rowsToObjects(result) as Record<string, unknown>[]).map((r) => this.parseMemo(r))
+  }
+
+  /** 按租户过滤的全部有效备忘录（requireFlag=false 时的候选池） */
+  listActiveMemosByTenant(tenantRootId: string): Memo[] {
+    if (!this.db || !tenantRootId) return []
+    const result = this.db.exec(
+      `SELECT m.* FROM memos m
+       INNER JOIN users u ON m.userId = u.id
+       WHERE m.deletedAt IS NULL AND u.tenantRootId = ?
+       ORDER BY m.updatedAt DESC`,
+      [tenantRootId]
+    )
+    return (this.rowsToObjects(result) as Record<string, unknown>[]).map((r) => this.parseMemo(r))
+  }
+
+  /** 按租户过滤的公开文件（MCP 公开查询租户隔离） */
+  listMcpPublicFilesByTenant(tenantRootId: string): FileRecord[] {
+    if (!this.db || !tenantRootId) return []
+    const result = this.db.exec(
+      `SELECT f.* FROM files f
+       INNER JOIN users u ON f.userId = u.id
+       WHERE f.mcpPublic = 1 AND u.tenantRootId = ?
+       ORDER BY f.createdAt DESC`,
+      [tenantRootId]
+    )
+    return (this.rowsToObjects(result) as FileRecord[]).map((f) => ({
+      ...f,
+      mcpPublic: Boolean((f as FileRecord & { mcpPublic?: number | boolean }).mcpPublic),
+    }))
+  }
+
   listAllFiles(): FileRecord[] {
     if (!this.db) return []
     const result = this.db.exec(`SELECT * FROM files ORDER BY createdAt DESC`)

@@ -153,6 +153,7 @@ import { useMemoStore } from '../../stores/memo'
 import { useToast } from '../../composables/useToast'
 import { AppLayout, Button, Loading } from '../../components'
 import { shareManager } from '@cyp-memo/shared'
+import { ElMessageBox } from 'element-plus'
 import type { ShareCommentFeedback, ShareCommentItem, ShareLink } from '@cyp-memo/shared'
 
 const router = useRouter()
@@ -267,7 +268,13 @@ const handleViewShare = (shareId: string) => {
 }
 
 const handleRevoke = async (shareId: string) => {
-  if (!confirm('确定要撤销这个分享链接吗？撤销后链接将失效。')) {
+  try {
+    await ElMessageBox.confirm('确定要撤销这个分享链接吗？撤销后链接将失效。', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
     return
   }
 
@@ -308,7 +315,13 @@ const handleReply = async (shareId: string, commentId: string) => {
 }
 
 const handleCleanExpired = async () => {
-  if (!confirm('确定要清理所有过期的分享链接吗？')) {
+  try {
+    await ElMessageBox.confirm('确定要清理所有过期的分享链接吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
     return
   }
 

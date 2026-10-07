@@ -37,7 +37,7 @@ import { ready_rb_l1_mgmt_code_01 } from '../../../l1/mgmt/code/ready.js'
 import { ready_rb_l1_mgmt_fesec_01 } from '../../../l1/mgmt/fesec/ready.js'
 import { ready_rb_l1_mgmt_iam_01 } from '../../../l1/mgmt/iam/ready.js'
 import { ready_rb_l1_mgmt_rbac_01 } from '../../../l1/mgmt/rbac/ready.js'
-import { ready_rb_l1_mgmt_kms_01 } from '../../../l1/mgmt/kms/client.js'
+import { ready_rb_l1_mgmt_kms_01 } from '../../../l1/mgmt/kms/ready.js'
 import { ready_rb_l1_mgmt_perf_01 } from '../../../l1/mgmt/perf/ready.js'
 import { ready_rb_l1_host_telem_01 } from '../../../l1/host/telem/ready.js'
 import { ready_rb_l1_host_rule_01 } from '../../../l1/host/rule/ready.js'
@@ -191,7 +191,7 @@ export function buildRuntimeBaseProjection(opts: {
   }
 
   const allReady = RUNTIME_BASE_STABLE_IDS.every((id) => items[id] === true)
-  /** 形态旗：闭集就绪布尔 + 配置修订/风险/告警/性能/幂等/接线。不等于 NR-05（必建+完整+完善 / 5.7）。 */
+  /** 完整形态投影（completeForm，不等于完成标准）：闭集就绪布尔 + 配置修订/风险/告警/性能/幂等/接线。不等于 NR-05（必建+完整+完善 / 5.7）。 */
   const completeForm = Boolean(
     allReady &&
       opts.bootstrapReady &&

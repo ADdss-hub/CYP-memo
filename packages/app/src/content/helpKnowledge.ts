@@ -20,8 +20,8 @@ export interface HelpKnowledgeArticle {
   sections: HelpKnowledgeSection[]
 }
 
-/** Cursor / 通用 MCP 客户端 stdio 配置样例（cwd 请改成本机仓库根） */
-export const MCP_CLIENT_STDIO_SAMPLE = `{
+/** Cursor / 通用 MCP 客户端 stdio 配置模板（cwd 请改成本机仓库根；__API_BASE__ 由前端动态替换为当前对外服务地址） */
+export const MCP_CLIENT_STDIO_TEMPLATE = `{
   "mcpServers": {
     "cyp-memo": {
       "command": "pnpm",
@@ -33,9 +33,9 @@ export const MCP_CLIENT_STDIO_SAMPLE = `{
         "src/index.ts",
         "--stdio"
       ],
-      "cwd": "D:/kf/kf/CYP-memo",
+      "cwd": "<请改为 CYP-memo 仓库根目录绝对路径>",
       "env": {
-        "CYP_MCP_API_BASE": "https://127.0.0.1:5170/api",
+        "CYP_MCP_API_BASE": "__API_BASE__",
         "CYP_MCP_PAT": "<可选·帮助中心 MCP 页签发的个人令牌>"
       }
     }

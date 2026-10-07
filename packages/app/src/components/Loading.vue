@@ -5,25 +5,39 @@
 <template>
   <Teleport v-if="fullscreen" to="body">
     <Transition name="loading-fade">
-      <div v-if="visible" class="loading-overlay">
+      <div
+        v-if="visible"
+        class="loading-overlay"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
         <div class="loading-content">
-          <div class="loading-spinner">
+          <div class="loading-spinner" aria-hidden="true">
             <div class="spinner-circle" />
           </div>
           <div v-if="text" class="loading-text">
             {{ text }}
           </div>
+          <span v-else class="sr-only">加载中</span>
         </div>
       </div>
     </Transition>
   </Teleport>
-  <div v-else class="loading-inline">
-    <div class="loading-spinner" :style="{ fontSize: size }">
+  <div
+    v-else
+    class="loading-inline"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <div class="loading-spinner" :style="{ fontSize: size }" aria-hidden="true">
       <div class="spinner-circle" />
     </div>
     <div v-if="text" class="loading-text">
       {{ text }}
     </div>
+    <span v-else class="sr-only">加载中</span>
   </div>
 </template>
 
@@ -49,9 +63,9 @@ withDefaults(defineProps<LoadingProps>(), {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: var(--cyp-overlay-bg);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -92,6 +106,19 @@ withDefaults(defineProps<LoadingProps>(), {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-circle {
+    animation: none;
+    border-top-color: var(--cyp-brand);
+    opacity: 0.85;
+  }
+
+  .loading-fade-enter-active,
+  .loading-fade-leave-active {
+    transition: none;
   }
 }
 

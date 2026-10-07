@@ -4,14 +4,20 @@
   全面更新版本 - 现代化设计
 -->
 <template>
+  <!-- 同意后整段卸载，避免手机端 overlay 的 display:!important 残留挡住登录页 -->
   <el-dialog
-    v-model="visible"
+    v-if="mounted"
+    v-model="dialogVisible"
     title=""
     width="720px"
+    modal-class="terms-dialog-overlay"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
     :show-close="false"
+    :destroy-on-close="true"
+    append-to-body
     :class="['terms-dialog', { 'dark-mode': isDarkMode }]"
+    aria-labelledby="terms-dialog-title"
   >
     <div class="terms-wrapper">
       <!-- 头部区域 -->
@@ -21,7 +27,7 @@
             <span class="icon">📋</span>
           </div>
         </div>
-        <h2 class="header-title">使用协议</h2>
+        <h2 id="terms-dialog-title" class="header-title">使用协议</h2>
         <p class="header-subtitle">请仔细阅读以下条款后继续使用（生效 {{ legalEffective }}）</p>
       </div>
 
@@ -100,11 +106,17 @@
         </div>
         
         <div class="agreement-section">
-          <label class="custom-checkbox" :class="{ checked: agreed, disabled: !hasScrolledToBottom }">
-            <input 
-              type="checkbox" 
-              v-model="agreed" 
-              :disabled="!hasScrolledToBottom"
+          <label
+            class="custom-checkbox"
+            :class="{ checked: agreed, disabled: !hasScrolledToBottom }"
+            @click.prevent="toggleAgree"
+          >
+            <input
+              type="checkbox"
+              class="sr-only"
+              :checked="agreed"
+              :aria-disabled="!hasScrolledToBottom"
+              tabindex="-1"
             />
             <span class="checkbox-mark">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -116,10 +128,11 @@
         </div>
 
         <button 
+          type="button"
           class="accept-button" 
-          :class="{ enabled: agreed }"
-          :disabled="!agreed"
-          @click="handleAccept"
+          :class="{ enabled: agreed || hasScrolledToBottom }"
+          :disabled="(!agreed && !hasScrolledToBottom) || accepting"
+          @click.stop.prevent="handleAccept"
         >
           <span class="button-icon">🚀</span>
           <span class="button-text">同意并开始使用</span>
@@ -130,16 +143,131 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { VERSION } from '@cyp-memo/shared'
 import { TERMS_SECTIONS, LEGAL_EFFECTIVE_DATE } from '../content/legal'
 
+const router = useRouter()
+
+const mounted = ref(false)
 const visible = ref(false)
+const accepted = ref(false)
 const agreed = ref(false)
 const hasScrolledToBottom = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
+const accepting = ref(false)
 
 const TERMS_ACCEPTED_KEY = 'cyp-memo-terms-accepted'
+const TERMS_ACCEPTED_AT_KEY = 'cyp-memo-terms-accepted-date'
+
+/** 同页会话记忆：手机自签 HTTPS 下 localStorage 可能写失败或读不到 */
+let termsAcceptedMemory = false
+
+function readStorageFlag(store: Storage | undefined): boolean {
+  if (!store) return false
+  try {
+    const v = store.getItem(TERMS_ACCEPTED_KEY)
+    return v === 'true' || v === '1' || v === 'yes'
+  } catch {
+    return false
+  }
+}
+
+function readCookieFlag(): boolean {
+  try {
+    return typeof document !== 'undefined' && document.cookie.split(';').some((c) => {
+      const t = c.trim()
+      return t === `${TERMS_ACCEPTED_KEY}=1` || t.startsWith(`${TERMS_ACCEPTED_KEY}=1;`)
+    })
+  } catch {
+    return false
+  }
+}
+
+function hasAcceptedTerms(): boolean {
+  if (accepted.value || termsAcceptedMemory) return true
+  if (readStorageFlag(typeof localStorage !== 'undefined' ? localStorage : undefined)) {
+    termsAcceptedMemory = true
+    accepted.value = true
+    return true
+  }
+  if (readStorageFlag(typeof sessionStorage !== 'undefined' ? sessionStorage : undefined)) {
+    termsAcceptedMemory = true
+    accepted.value = true
+    return true
+  }
+  if (readCookieFlag()) {
+    termsAcceptedMemory = true
+    accepted.value = true
+    return true
+  }
+  return false
+}
+
+function persistAcceptedTerms(): void {
+  termsAcceptedMemory = true
+  accepted.value = true
+  const now = new Date().toISOString()
+  try {
+    localStorage.setItem(TERMS_ACCEPTED_KEY, 'true')
+    localStorage.setItem(TERMS_ACCEPTED_AT_KEY, now)
+  } catch {
+    /* 私密模式 / 策略拦截 */
+  }
+  try {
+    sessionStorage.setItem(TERMS_ACCEPTED_KEY, 'true')
+    sessionStorage.setItem(TERMS_ACCEPTED_AT_KEY, now)
+  } catch {
+    /* ignore */
+  }
+  try {
+    document.cookie = `${TERMS_ACCEPTED_KEY}=1; path=/; max-age=31536000; SameSite=Lax`
+  } catch {
+    /* ignore */
+  }
+}
+
+function unlockPageAfterTerms(): void {
+  try {
+    document.body.classList.remove('el-popup-parent--hidden')
+    document.body.style.removeProperty('overflow')
+    document.body.style.removeProperty('padding-right')
+    document.documentElement.style.removeProperty('overflow')
+  } catch {
+    /* ignore */
+  }
+  try {
+    document.querySelectorAll('.terms-dialog-overlay').forEach((el) => {
+      el.parentElement?.removeChild(el)
+    })
+  } catch {
+    /* ignore */
+  }
+}
+
+function closeTermsDialog(): void {
+  visible.value = false
+  agreed.value = false
+}
+
+function teardownTermsDialog(): void {
+  closeTermsDialog()
+  mounted.value = false
+  unlockPageAfterTerms()
+}
+
+/** 已同意后一律不展示；拦截 EP 内部把 model 写回 true */
+const dialogVisible = computed({
+  get: () => visible.value && !accepted.value && mounted.value,
+  set: (open: boolean) => {
+    if (!open || accepted.value || termsAcceptedMemory) {
+      visible.value = false
+      return
+    }
+    visible.value = open
+  },
+})
 
 // 从 VERSION 配置获取信息
 const version = computed(() => VERSION.full)
@@ -156,74 +284,100 @@ const isDarkMode = computed(() => {
 const sections = TERMS_SECTIONS
 const legalEffective = LEGAL_EFFECTIVE_DATE
 
-// 处理滚动事件
-function handleScroll() {
-  if (contentRef.value) {
-    const { scrollTop, scrollHeight, clientHeight } = contentRef.value
-    // 当滚动到底部附近时（允许10px的误差）
-    hasScrolledToBottom.value = scrollTop + clientHeight >= scrollHeight - 10
+function syncScrollGate() {
+  const el = contentRef.value
+  if (!el) return
+  const { scrollTop, scrollHeight, clientHeight } = el
+  // 中间区高度异常（flex 未撑开）时放开勾选，避免手机点不动
+  if (clientHeight < 48) {
+    hasScrolledToBottom.value = true
+    return
+  }
+  if (scrollHeight <= clientHeight + 16) {
+    hasScrolledToBottom.value = true
+    return
+  }
+  if (scrollTop + clientHeight >= scrollHeight - 24) {
+    hasScrolledToBottom.value = true
   }
 }
 
-onMounted(() => {
-  // 检查用户是否已经同意过使用协议
-  const termsAccepted = localStorage.getItem(TERMS_ACCEPTED_KEY)
-  if (!termsAccepted) {
-    visible.value = true
-    // 延迟检查内容是否需要滚动
-    setTimeout(() => {
-      if (contentRef.value) {
-        const { scrollHeight, clientHeight } = contentRef.value
-        // 如果内容不需要滚动，直接允许勾选
-        if (scrollHeight <= clientHeight + 10) {
-          hasScrolledToBottom.value = true
-        }
-      }
-    }, 100)
+function handleScroll() {
+  syncScrollGate()
+}
+
+function toggleAgree() {
+  if (!hasScrolledToBottom.value) return
+  agreed.value = !agreed.value
+}
+
+watch(visible, async (open) => {
+  // 已同意后禁止任何路径再次打开（含 EP 内部回写）
+  if (open && hasAcceptedTerms()) {
+    closeTermsDialog()
+    return
   }
+  if (!open) return
+  await nextTick()
+  syncScrollGate()
+  window.setTimeout(syncScrollGate, 80)
+  window.setTimeout(syncScrollGate, 400)
 })
 
-const handleAccept = () => {
-  if (!agreed.value) return
-  
-  // 记录用户已同意使用协议
-  localStorage.setItem(TERMS_ACCEPTED_KEY, 'true')
-  localStorage.setItem('cyp-memo-terms-accepted-date', new Date().toISOString())
-  visible.value = false
+onMounted(() => {
+  if (hasAcceptedTerms()) {
+    mounted.value = false
+    unlockPageAfterTerms()
+    return
+  }
+  mounted.value = true
+  visible.value = true
+})
+
+const handleAccept = async () => {
+  if (accepting.value) return
+  if (!agreed.value && !hasScrolledToBottom.value) return
+  // 手机上偶发勾选态不同步：已滚到底仍允许确认
+  if (!agreed.value) {
+    agreed.value = true
+  }
+  accepting.value = true
+  persistAcceptedTerms()
+  teardownTermsDialog()
+  await nextTick()
+  unlockPageAfterTerms()
+  const path = router.currentRoute.value.path
+  if (path === '/' || path === '') {
+    try {
+      await router.replace('/login')
+    } catch {
+      /* ignore */
+    }
+  }
+  window.setTimeout(() => {
+    unlockPageAfterTerms()
+    accepting.value = false
+  }, 50)
 }
 </script>
 
 <style scoped>
-.terms-dialog :deep(.el-dialog) {
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--cyp-chrome-bg-panel);
-  border: 1px solid var(--cyp-chrome-border);
-  box-shadow: var(--cyp-chrome-shadow), 0 25px 80px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(var(--cyp-chrome-blur));
-  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
-}
-
-.terms-dialog :deep(.el-dialog__header) {
-  display: none;
-}
-
-.terms-dialog :deep(.el-dialog__body) {
-  padding: 0;
-  background: transparent;
-}
-
 .terms-wrapper {
   display: flex;
   flex-direction: column;
-  max-height: 85vh;
+  min-height: 0;
+  height: 100%;
+  max-height: min(85vh, 100dvh);
+  pointer-events: auto;
+  touch-action: pan-y;
 }
 
 .terms-header {
+  flex-shrink: 0;
   background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
   padding: 2rem 2.5rem;
   text-align: center;
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
 }
 
 .header-icon {
@@ -236,7 +390,7 @@ const handleAccept = () => {
   justify-content: center;
   width: 64px;
   height: 64px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--cyp-brand-tint-contrast);
   border-radius: 16px;
   backdrop-filter: blur(10px);
 }
@@ -256,14 +410,20 @@ const handleAccept = () => {
   font-size: 0.95rem;
   opacity: 0.9;
   margin: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .terms-content {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   padding: 1.5rem 2rem;
-  max-height: 400px;
   background: var(--cyp-chrome-bg-soft);
+  pointer-events: auto;
 }
 
 .welcome-card {
@@ -323,7 +483,7 @@ const handleAccept = () => {
   width: 28px;
   height: 28px;
   background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
@@ -430,7 +590,7 @@ const handleAccept = () => {
   align-items: center;
   padding: 0.125rem 0.5rem;
   background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
   border-radius: 6px;
   font-size: 0.8rem;
   width: fit-content;
@@ -466,12 +626,15 @@ const handleAccept = () => {
 }
 
 .terms-footer {
+  flex-shrink: 0;
   padding: 1.5rem 2rem;
   background: var(--cyp-chrome-bg);
   border-top: 1px solid var(--cyp-chrome-border);
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .scroll-hint {
@@ -508,10 +671,12 @@ const handleAccept = () => {
 
 .custom-checkbox {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   cursor: pointer;
   user-select: none;
+  min-height: 44px;
+  width: 100%;
 }
 
 .custom-checkbox.disabled {
@@ -519,13 +684,18 @@ const handleAccept = () => {
   cursor: not-allowed;
 }
 
-.custom-checkbox input {
-  display: none;
+.custom-checkbox input.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 .checkbox-mark {
   width: 24px;
   height: 24px;
+  margin-top: 2px;
   border: 2px solid var(--cyp-border);
   border-radius: 6px;
   display: flex;
@@ -542,7 +712,7 @@ const handleAccept = () => {
   opacity: 0;
   transform: scale(0);
   transition: all 0.2s ease;
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
 }
 
 .custom-checkbox.checked .checkbox-mark {
@@ -559,6 +729,8 @@ const handleAccept = () => {
   font-size: 0.95rem;
   color: var(--cyp-text);
   font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .accept-button {
@@ -567,6 +739,7 @@ const handleAccept = () => {
   justify-content: center;
   gap: 0.5rem;
   width: 100%;
+  min-height: 44px;
   padding: 1rem;
   border: none;
   border-radius: 12px;
@@ -576,11 +749,12 @@ const handleAccept = () => {
   transition: all 0.3s ease;
   background: var(--cyp-bg-muted);
   color: var(--cyp-text-muted);
+  box-sizing: border-box;
 }
 
 .accept-button.enabled {
   background: linear-gradient(135deg, var(--cyp-brand) 0%, var(--cyp-brand-hover) 100%);
-  color: #ffffff;
+  color: var(--cyp-brand-contrast);
   box-shadow: 0 4px 15px var(--cyp-brand-tint-strong);
 }
 
@@ -597,28 +771,48 @@ const handleAccept = () => {
   font-size: 1.25rem;
 }
 
-@media (max-width: 640px) {
-  .terms-dialog :deep(.el-dialog) {
-    width: 95% !important;
-    margin: 0 auto;
+@media (max-width: 768px) {
+  .terms-wrapper {
+    max-height: none;
+    height: 100%;
   }
 
   .terms-header {
-    padding: 1.5rem;
+    padding: 12px 16px 14px;
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+  }
+
+  .header-icon {
+    margin-bottom: 0.35rem;
+  }
+
+  .icon-bg {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+
+  .icon {
+    font-size: 1.35rem;
   }
 
   .header-title {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .header-subtitle {
+    font-size: 0.8rem;
   }
 
   .terms-content {
-    padding: 1rem;
-    max-height: 350px;
+    padding: 12px 14px;
   }
 
   .welcome-card {
     flex-direction: column;
     text-align: center;
+    padding: 0.85rem;
   }
 
   .info-grid {
@@ -630,7 +824,81 @@ const handleAccept = () => {
   }
 
   .terms-footer {
-    padding: 1rem;
+    padding: 12px 14px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .accept-button {
+    padding: 0.75rem;
+  }
+}
+</style>
+
+<style>
+.el-dialog.terms-dialog {
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--cyp-chrome-shadow), var(--cyp-shadow-dialog);
+  backdrop-filter: blur(var(--cyp-chrome-blur));
+  -webkit-backdrop-filter: blur(var(--cyp-chrome-blur));
+  background: var(--cyp-chrome-bg-panel);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.el-dialog.terms-dialog .el-dialog__header {
+  display: none;
+}
+
+.el-dialog.terms-dialog .el-dialog__body {
+  padding: 0;
+  background: transparent;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.terms-dialog-overlay {
+  overflow: auto !important;
+  pointer-events: auto !important;
+}
+
+.terms-dialog-overlay .el-overlay-dialog {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  pointer-events: auto;
+}
+
+@media (max-width: 768px) {
+  /* 仅在 EP 打开态（未带 fade 关闭类）铺满；禁止 display:!important 盖死关闭后的遮罩 */
+  .terms-dialog-overlay.el-overlay:not(.el-overlay-fade-leave-active):not(.el-overlay-fade-leave-to) {
+    padding: 0;
+    overflow: hidden;
+    align-items: stretch;
+    justify-content: stretch;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terms-dialog-overlay .el-overlay-dialog {
+    padding: 0;
+    margin: 0;
+  }
+
+  .terms-dialog-overlay .el-dialog.terms-dialog,
+  .el-dialog.terms-dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    height: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+    pointer-events: auto;
   }
 }
 </style>

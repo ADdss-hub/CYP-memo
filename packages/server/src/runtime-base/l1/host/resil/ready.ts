@@ -710,6 +710,353 @@ export function wireElasticitySubscriptions(): void {
   })
 }
 
+// ============================================================
+// 重试与超时工具（原 retry.ts，合并入锚点文件）
+// ============================================================
+
+export interface RetryOptions {
+  /** 最大重试次数（不含首次请求），默认 3 */
+  maxRetries?: number
+  /** 初始延迟 ms，默认 100 */
+  initialDelayMs?: number
+  /** 最大延迟 ms，默认 10000 */
+  maxDelayMs?: number
+  /** 退避乘数，默认 2（指数底数） */
+  backoffMultiplier?: number
+  /** 是否添加抖动，默认 true */
+  jitter?: boolean
+  /** 单次请求超时 ms，默认 5000 */
+  timeoutMs?: number
+  /** 可重试的错误码/状态码列表 */
+  retryableStatusCodes?: number[]
+  /** 可重试的错误类型列表 */
+  retryableErrors?: string[]
+  /** 是否重试网络错误，默认 true */
+  retryNetworkErrors?: boolean
+  /** 幂等键（用于保证重试幂等性） */
+  idempotencyKey?: string
+  /** 操作名称（用于日志/监控） */
+  operationName?: string
+}
+
+export interface RetryResult<T> {
+  success: boolean
+  data?: T
+  error?: Error
+  attempt: number
+  totalDurationMs: number
+  retriesUsed: number
+}
+
+export interface RetryStats {
+  totalOperations: number
+  totalRetries: number
+  successOnFirstTry: number
+  successAfterRetry: number
+  failedAfterRetry: number
+}
+
+const DEFAULT_RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504]
+const DEFAULT_RETRYABLE_ERRORS = [
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'EPIPE',
+  'ERR_NETWORK',
+  'ABORT_ERR',
+]
+
+const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'idempotencyKey' | 'operationName'>> = {
+  maxRetries: 3,
+  initialDelayMs: 100,
+  maxDelayMs: 10_000,
+  backoffMultiplier: 2,
+  jitter: true,
+  timeoutMs: 5000,
+  retryableStatusCodes: DEFAULT_RETRYABLE_STATUS_CODES,
+  retryableErrors: DEFAULT_RETRYABLE_ERRORS,
+  retryNetworkErrors: true,
+}
+
+const retryStatsState: RetryStats = {
+  totalOperations: 0,
+  totalRetries: 0,
+  successOnFirstTry: 0,
+  successAfterRetry: 0,
+  failedAfterRetry: 0,
+}
+
+function retrySleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function calculateDelay(attempt: number, opts: RetryOptions): number {
+  const initial = opts.initialDelayMs ?? DEFAULT_OPTIONS.initialDelayMs
+  const multiplier = opts.backoffMultiplier ?? DEFAULT_OPTIONS.backoffMultiplier
+  const maxDelay = opts.maxDelayMs ?? DEFAULT_OPTIONS.maxDelayMs
+
+  let delay = initial * Math.pow(multiplier, Math.max(0, attempt - 1))
+  delay = Math.min(delay, maxDelay)
+
+  if (opts.jitter !== false) {
+    const jitterFactor = 0.75 + Math.random() * 0.5
+    delay = delay * jitterFactor
+  }
+
+  return Math.floor(delay)
+}
+
+function isRetryable(err: unknown, opts: RetryOptions): boolean {
+  if (opts.retryNetworkErrors !== false && err instanceof Error) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code && opts.retryableErrors?.includes(code)) return true
+    if (code && DEFAULT_RETRYABLE_ERRORS.includes(code)) return true
+    if (/network|fetch|timeout|abort/i.test(err.message)) return true
+  }
+
+  if (err && typeof err === 'object' && 'status' in err) {
+    const status = (err as { status: number }).status
+    const retryableCodes = opts.retryableStatusCodes ?? DEFAULT_RETRYABLE_STATUS_CODES
+    if (retryableCodes.includes(status)) return true
+  }
+
+  return false
+}
+
+export async function withRetry<T>(
+  fn: (attempt: number) => Promise<T>,
+  opts: RetryOptions = {}
+): Promise<RetryResult<T>> {
+  const maxRetries = opts.maxRetries ?? DEFAULT_OPTIONS.maxRetries
+  const operationName = opts.operationName || 'unknown'
+  const startTime = Date.now()
+
+  let lastError: unknown
+  let attempt = 0
+
+  retryStatsState.totalOperations++
+
+  while (attempt <= maxRetries) {
+    attempt++
+
+    try {
+      const timeoutMs = opts.timeoutMs ?? DEFAULT_OPTIONS.timeoutMs
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+      try {
+        const result = await fn(attempt)
+        clearTimeout(timeoutId)
+
+        const duration = Date.now() - startTime
+        if (attempt === 1) {
+          retryStatsState.successOnFirstTry++
+        } else {
+          retryStatsState.successAfterRetry++
+          retryStatsState.totalRetries += attempt - 1
+        }
+
+        log({
+          level: attempt === 1 ? 'debug' : 'info',
+          message: `Retry ${operationName} succeeded on attempt ${attempt}`,
+          type: 'runtime',
+          action: 'retry_success',
+          context: {
+            operation: operationName,
+            attempt,
+            durationMs: duration,
+            retriesUsed: attempt - 1,
+          },
+        })
+
+        return {
+          success: true,
+          data: result,
+          attempt,
+          totalDurationMs: duration,
+          retriesUsed: attempt - 1,
+        }
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    } catch (err) {
+      lastError = err
+
+      if (attempt > maxRetries || !isRetryable(err, opts)) {
+        break
+      }
+
+      const delay = calculateDelay(attempt, opts)
+
+      log({
+        level: 'warn',
+        message: `Retry ${operationName} attempt ${attempt} failed, retrying in ${delay}ms`,
+        type: 'runtime',
+        action: 'retry_attempt',
+        context: {
+          operation: operationName,
+          attempt,
+          delayMs: delay,
+          error: err instanceof Error ? err.message : String(err),
+        },
+      })
+
+      if (attempt === 1) {
+        publishDomainEvent(
+          'RetryStarted',
+          2,
+          {
+            operation: operationName,
+            maxRetries,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          'warn'
+        )
+      }
+
+      await retrySleep(delay)
+    }
+  }
+
+  const duration = Date.now() - startTime
+  retryStatsState.failedAfterRetry++
+  retryStatsState.totalRetries += attempt - 1
+
+  publishDomainEvent(
+    'RetryExhausted',
+    3,
+    {
+      operation: operationName,
+      attempts: attempt,
+      durationMs: duration,
+      error: lastError instanceof Error ? lastError.message : String(lastError),
+    },
+    'error'
+  )
+
+  log({
+    level: 'error',
+    message: `Retry ${operationName} exhausted after ${attempt} attempts`,
+    type: 'runtime',
+    action: 'retry_exhausted',
+    context: {
+      operation: operationName,
+      attempts: attempt,
+      durationMs: duration,
+    },
+  })
+
+  return {
+    success: false,
+    error: lastError instanceof Error ? lastError : new Error(String(lastError)),
+    attempt,
+    totalDurationMs: duration,
+    retriesUsed: attempt - 1,
+  }
+}
+
+export interface RetryFetchOptions extends RetryOptions {
+  method?: string
+  headers?: Record<string, string>
+  body?: unknown
+  /** 自动为写请求添加幂等键（使用 operationName + timestamp 生成） */
+  autoIdempotencyKey?: boolean
+}
+
+export async function retryFetch(
+  url: string,
+  options: RetryFetchOptions = {}
+): Promise<RetryResult<Response>> {
+  const { method, headers, body, autoIdempotencyKey, ...retryOpts } = options
+
+  let idempotencyKey = options.idempotencyKey
+  if (autoIdempotencyKey && method && method !== 'GET' && method !== 'HEAD') {
+    idempotencyKey = `retry-${options.operationName || 'fetch'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+
+  return withRetry<Response>(
+    async (attempt) => {
+      const reqHeaders: Record<string, string> = { ...headers }
+      if (idempotencyKey) {
+        reqHeaders['Idempotency-Key'] = idempotencyKey
+        reqHeaders['X-Retry-Attempt'] = String(attempt)
+      }
+
+      const res = await fetch(url, {
+        method: method || 'GET',
+        headers: reqHeaders,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      })
+
+      const retryableCodes = options.retryableStatusCodes ?? DEFAULT_RETRYABLE_STATUS_CODES
+      if (!res.ok && retryableCodes.includes(res.status)) {
+        const err = new Error(`HTTP ${res.status}: ${res.statusText}`) as Error & { status?: number }
+        err.status = res.status
+        throw err
+      }
+
+      return res
+    },
+    {
+      ...retryOpts,
+      operationName: options.operationName || url,
+    }
+  )
+}
+
+export function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message = 'Operation timed out'
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      const err = new Error(message) as Error & { code?: string }
+      err.code = 'ETIMEDOUT'
+      reject(err)
+    }, timeoutMs)
+
+    promise.then(
+      (result) => {
+        clearTimeout(timeoutId)
+        resolve(result)
+      },
+      (err) => {
+        clearTimeout(timeoutId)
+        reject(err)
+      }
+    )
+  })
+}
+
+export function generateIdempotencyKey(scope: string, identifier?: string): string {
+  const ts = Date.now().toString(36)
+  const rand = Math.random().toString(36).slice(2, 10)
+  const idPart = identifier ? `${identifier}-` : ''
+  return `${scope}-${idPart}${ts}-${rand}`
+}
+
+export function isValidIdempotencyKey(key: string): boolean {
+  if (!key || typeof key !== 'string') return false
+  const trimmed = key.trim()
+  if (trimmed.length < 8 || trimmed.length > 256) return false
+  return /^[a-zA-Z0-9_-]+$/.test(trimmed)
+}
+
+export function getRetryStats(): RetryStats {
+  return { ...retryStatsState }
+}
+
+export function resetRetryStats(): void {
+  retryStatsState.totalOperations = 0
+  retryStatsState.totalRetries = 0
+  retryStatsState.successOnFirstTry = 0
+  retryStatsState.successAfterRetry = 0
+  retryStatsState.failedAfterRetry = 0
+}
+
 /** 实现锚点 · RB-L1-HOST-RESIL-01 · 混沌演练与弹性限流同文件，不借用性能运行管控布尔 */
 export function ready_rb_l1_host_resil_01(): boolean {
   return Boolean(isChaosReady() && isElasticityReady())
